@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 const toNumber = (value: FormDataEntryValue | null) => Number(value || 0);
+const toInt = (value: FormDataEntryValue | null) => Math.round(toNumber(value));
 
 function getBaseUrl(request: Request) {
   const proto = request.headers.get('x-forwarded-proto') || 'https';
@@ -27,7 +28,22 @@ export async function POST(request: Request, { params }: { params: { id: string 
       undergroundArea: toNumber(form.get('undergroundArea')),
       saleableArea: toNumber(form.get('saleableArea')),
       nonSaleableArea: toNumber(form.get('nonSaleableArea')),
-      parkingCount: Math.round(toNumber(form.get('parkingCount'))),
+      parkingCount: toInt(form.get('parkingCount')),
+      buildingCount: toInt(form.get('buildingCount')),
+      unitCount: toInt(form.get('unitCount')),
+      basementFloors: toInt(form.get('basementFloors')),
+      aboveGroundFloors: toInt(form.get('aboveGroundFloors')),
+      sitePerimeter: toNumber(form.get('sitePerimeter')),
+      landscapeArea: toNumber(form.get('landscapeArea')),
+      hardscapeArea: toNumber(form.get('hardscapeArea')),
+      softscapeArea: toNumber(form.get('softscapeArea')),
+      greenArea: toNumber(form.get('greenArea')),
+      roadArea: toNumber(form.get('roadArea')),
+      standardFloorArea: toNumber(form.get('standardFloorArea')),
+      basementParkingArea: toNumber(form.get('basementParkingArea')),
+      mainBuildingUndergroundArea: toNumber(form.get('mainBuildingUndergroundArea')),
+      publicArea: toNumber(form.get('publicArea')),
+      lobbyArea: toNumber(form.get('lobbyArea')),
       remark: String(form.get('remark') || '')
     }
   });
