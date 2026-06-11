@@ -1,0 +1,46 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+
+const toNumber = (form: FormData, name: string) => Number(form.get(name) || 0);
+
+function getBaseUrl(request: Request) {
+  const proto = request.headers.get('x-forwarded-proto') || 'https';
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  if (host) return `${proto}://${host}`;
+  return new URL(request.url).origin;
+}
+
+async function getOrCreateVersion(projectId: string) {
+  const existing = await prisma.projectVersion.findFirst({
+    where: { projectId },
+    orderBy: { createdAt: 'asc' }
+  });
+  if (existing) return existing;
+  return prisma.projectVersion.create({
+    data: { projectId, name: '初始版本', status: 'draft' }
+  });
+}
+
+export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const form = await request.formData();
+  const version = await getOrCreateVersion(params.id);
+
+  await prisma.productType.create({
+    data: {
+      projectVersionId: version.id,
+      name: String(form.get('name') || '未命名业态'),
+      buildingArea: toNumber(form, 'buildingArea'),
+      saleableArea: toNumber(form, 'saleableArea'),
+      capacityArea: toNumber(form, 'capacityArea'),
+      nonSaleableArea: toNumber(form, 'nonSaleableArea'),
+      salePrice: toNumber(form, 'salePrice'),
+      isSaleable: form.get('isSaleable') === 'on',
+      participateAllocation: form.get('participateAllocation') === 'on',
+      allocationWeight: toNumber(form, 'allocationWeight') || 1,
+      remark: String(form.get('remark') || '')
+    }
+  });
+
+  const baseUrl = getBaseUrl(request);
+  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/products?saved=1`, 303);
+}
