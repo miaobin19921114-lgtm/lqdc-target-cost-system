@@ -6,10 +6,10 @@ export const dynamic = 'force-dynamic';
 const modules = [
   { name: '项目概况', href: 'overview' },
   { name: '业态面积 / 产品构成', href: 'products' },
+  { name: '收入明细表', href: 'revenue' },
   { name: '测算控制中心', href: null },
   { name: '目标成本汇总表', href: null },
   { name: '目标成本测算', href: null },
-  { name: '收入明细表', href: null },
   { name: '土地费用明细表', href: null },
   { name: '前期费用明细表', href: null },
   { name: '各专业明细表', href: null },
