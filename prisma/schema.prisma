@@ -30,23 +30,38 @@ model User {
 }
 
 model Project {
-  id                   String   @id @default(cuid())
-  name                 String
-  city                 String?
-  district             String?
-  landArea             Decimal  @default(0)
-  plotRatio            Decimal  @default(0)
-  totalBuildingArea    Decimal  @default(0)
-  capacityBuildingArea Decimal  @default(0)
-  aboveGroundArea      Decimal  @default(0)
-  undergroundArea      Decimal  @default(0)
-  saleableArea         Decimal  @default(0)
-  nonSaleableArea      Decimal  @default(0)
-  parkingCount         Int      @default(0)
-  remark               String?
-  versions             ProjectVersion[]
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                          String   @id @default(cuid())
+  name                        String
+  city                        String?
+  district                    String?
+  landArea                    Decimal  @default(0)
+  plotRatio                   Decimal  @default(0)
+  totalBuildingArea           Decimal  @default(0)
+  capacityBuildingArea        Decimal  @default(0)
+  aboveGroundArea             Decimal  @default(0)
+  undergroundArea             Decimal  @default(0)
+  saleableArea                Decimal  @default(0)
+  nonSaleableArea             Decimal  @default(0)
+  parkingCount                Int      @default(0)
+  buildingCount               Int      @default(0)
+  unitCount                   Int      @default(0)
+  basementFloors              Int      @default(0)
+  aboveGroundFloors           Int      @default(0)
+  sitePerimeter               Decimal  @default(0)
+  landscapeArea               Decimal  @default(0)
+  hardscapeArea               Decimal  @default(0)
+  softscapeArea               Decimal  @default(0)
+  greenArea                   Decimal  @default(0)
+  roadArea                    Decimal  @default(0)
+  standardFloorArea           Decimal  @default(0)
+  basementParkingArea         Decimal  @default(0)
+  mainBuildingUndergroundArea Decimal  @default(0)
+  publicArea                  Decimal  @default(0)
+  lobbyArea                   Decimal  @default(0)
+  remark                      String?
+  versions                    ProjectVersion[]
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 }
 
 model ProjectVersion {
