@@ -94,7 +94,7 @@ h1, h2, h3, p {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 40px;
+  min-height: 40px;
   padding: 0 16px;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -278,16 +278,156 @@ textarea {
   margin: 18px 0;
 }
 
+.mobile-card-list {
+  display: none;
+}
+
 @media (max-width: 860px) {
-  .page {
+  .hero {
+    align-items: flex-start;
     padding: 18px;
   }
-  .form-grid,
-  .workbench,
-  .summary-strip {
-    grid-template-columns: 1fr;
+
+  .hero-card {
+    padding: 24px;
+    border-radius: 16px;
   }
+
+  .page {
+    padding: 12px;
+  }
+
+  .title {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
   .page-header {
     flex-direction: column;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .form-grid,
+  .workbench,
+  .summary-strip,
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workbench {
+    gap: 12px;
+  }
+
+  .sidebar {
+    position: static;
+    top: auto;
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .sidebar h2 {
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+
+  .nav-list {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 8px;
+    margin-top: 12px;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-item {
+    white-space: nowrap;
+    flex: 0 0 auto;
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+
+  .card,
+  .form-card,
+  .module-card {
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 6px 18px rgba(15, 35, 55, 0.06);
+  }
+
+  .card-grid,
+  .module-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .actions {
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .btn {
+    width: 100%;
+    min-height: 44px;
+    font-size: 15px;
+  }
+
+  input, textarea, select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  label {
+    font-size: 13px;
+  }
+
+  .summary-strip {
+    gap: 8px;
+    margin: 12px 0;
+  }
+
+  .stat {
+    padding: 10px 12px;
+  }
+
+  table {
+    min-width: 720px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: 8px;
+  }
+
+  .container {
+    width: 100%;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+  }
+
+  .module-no {
+    width: 26px;
+    height: 26px;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+
+  .module-card h3,
+  .card h2,
+  .form-card h2 {
+    font-size: 17px;
+    margin-bottom: 8px;
+  }
+
+  .meta {
+    font-size: 13px;
   }
 }
