@@ -1,1 +1,52 @@
-import { PrismaClient } from '@prisma/client';\nimport { hashPassword } from '../lib/auth';\nimport { calculateRevenueLine, calculateCostLine } from '../lib/calculations';\n\nconst prisma = new PrismaClient();\n\nasync function main() {\n  const email = process.env.ADMIN_EMAIL || 'admin@lqdc.local';\n  const password = process.env.ADMIN_PASSWORD || 'admin123456';\n  const name = process.env.ADMIN_NAME || '系统管理员';\n\n  await prisma.user.upsert({\n    where: { email },\n    update: {},\n    create: { email, name, passwordHash: await hashPassword(password), role: 'admin' }\n  });\n\n  const subjects = [\n    ['01', '土地获取费'], ['02', '前期工程费'], ['03', '建安工程费'], ['04', '基础设施费'], ['05', '公共配套设施费'], ['06', '开发间接费'], ['07', '销售费用'], ['08', '管理费用'], ['09', '财务费用'], ['10', '增值税及附加'], ['11', '企业所得税'], ['12', '其他收入'], ['13', '其他支出']\n  ];\n  for (const [code, subjectName] of subjects) {\n    await prisma.costSubject.upsert({ where: { code }, update: {}, create: { code, name: subjectName, level: 1, sortOrder: Number(code) } });\n  }\n\n  const project = await prisma.project.upsert({\n    where: { id: 'seed-project-lq140' },\n    update: {},\n    create: { id: 'seed-project-lq140', name: '龙泉140亩示例项目', city: '成都', district: '龙泉驿', landArea: 93333.33, plotRatio: 2.5, totalBuildingArea: 320000, saleableArea: 230000, parkingCount: 2500, remark: 'seed 示例项目' }\n  });\n\n  const version = await prisma.projectVersion.upsert({\n    where: { id: 'seed-version-base' },\n    update: {},\n    create: { id: 'seed-version-base', projectId: project.id, name: '基础环境示例版本' }\n  });\n\n  const product = await prisma.productType.upsert({\n    where: { id: 'seed-product-highrise' },\n    update: {},\n    create: { id: 'seed-product-highrise', projectVersionId: version.id, name: '高层住宅', buildingArea: 200000, saleableArea: 180000, capacityArea: 180000, salePrice: 16000 }\n  });\n\n  const revenue = calculateRevenueLine(180000, 16000, 0.09);\n  await prisma.revenueLine.upsert({\n    where: { id: 'seed-revenue-highrise' },\n    update: {},\n    create: { id: 'seed-revenue-highrise', projectVersionId: version.id, productTypeId: product.id, saleableArea: 180000, salePrice: 16000, taxRate: 0.09, ...revenue }\n  });\n\n  const subject = await prisma.costSubject.findUniqueOrThrow({ where: { code: '03' } });\n  const cost = calculateCostLine({ quantity: 200000, taxInclusiveUnitPrice: 2800, taxRate: 0.09 });\n  await prisma.costLine.upsert({\n    where: { id: 'seed-cost-civil' },\n    update: {},\n    create: { id: 'seed-cost-civil', projectVersionId: version.id, costSubjectId: subject.id, productTypeId: product.id, detailName: '主体建安工程示例', regionOrProductType: '高层住宅', professionalGroup: '土建工程', measureBasis: '建筑面积', quantity: 200000, unit: '㎡', taxRate: 0.09, allocationMethod: '直接归集', isDirectAssigned: true, ...cost }\n  });\n\n  await prisma.taxParameter.upsert({ where: { projectVersionId: version.id }, update: {}, create: { projectVersionId: version.id } });\n}\n\nmain().finally(async () => prisma.$disconnect());\n
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  const email = process.env.ADMIN_EMAIL || 'admin@lqdc.local';
+  const password = process.env.ADMIN_PASSWORD || 'admin123456';
+  const name = process.env.ADMIN_NAME || '系统管理员';
+
+  await prisma.user.upsert({
+    where: { email },
+    update: {},
+    create: {
+      email,
+      name,
+      passwordHash: await bcrypt.hash(password, 10),
+      role: 'admin'
+    }
+  });
+
+  const subjects = [
+    ['01', '土地获取费'],
+    ['02', '前期工程费'],
+    ['03', '建安工程费'],
+    ['04', '基础设施费'],
+    ['05', '公共配套设施费'],
+    ['06', '开发间接费'],
+    ['07', '销售费用'],
+    ['08', '管理费用'],
+    ['09', '财务费用'],
+    ['10', '增值税及附加'],
+    ['11', '企业所得税']
+  ];
+
+  for (const [code, subjectName] of subjects) {
+    await prisma.costSubject.upsert({
+      where: { code },
+      update: {},
+      create: { code, name: subjectName, level: 1, sortOrder: Number(code) }
+    });
+  }
+}
+
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
