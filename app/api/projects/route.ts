@@ -1,1 +1,24 @@
-import { NextResponse } from 'next/server';\nimport { prisma } from '@/lib/prisma';\n\nconst toNumber = (value: FormDataEntryValue | null) => Number(value || 0);\n\nexport async function POST(request: Request) {\n  const form = await request.formData();\n  const project = await prisma.project.create({\n    data: {\n      name: String(form.get('name') || '未命名项目'),\n      city: String(form.get('city') || ''),\n      district: String(form.get('district') || ''),\n      landArea: toNumber(form.get('landArea')),\n      plotRatio: toNumber(form.get('plotRatio')),\n      totalBuildingArea: toNumber(form.get('totalBuildingArea')),\n      saleableArea: toNumber(form.get('saleableArea')),\n      parkingCount: Math.round(toNumber(form.get('parkingCount'))),\n      remark: String(form.get('remark') || ''),\n      versions: { create: { name: '初始版本', status: 'draft' } }\n    }\n  });\n  return NextResponse.redirect(new URL(`/projects/${project.id}`, request.url));\n}\n
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+
+const toNumber = (value: FormDataEntryValue | null) => Number(value || 0);
+
+export async function POST(request: Request) {
+  const form = await request.formData();
+  const project = await prisma.project.create({
+    data: {
+      name: String(form.get('name') || '未命名项目'),
+      city: String(form.get('city') || ''),
+      district: String(form.get('district') || ''),
+      landArea: toNumber(form.get('landArea')),
+      plotRatio: toNumber(form.get('plotRatio')),
+      totalBuildingArea: toNumber(form.get('totalBuildingArea')),
+      saleableArea: toNumber(form.get('saleableArea')),
+      parkingCount: Math.round(toNumber(form.get('parkingCount'))),
+      remark: String(form.get('remark') || ''),
+      versions: { create: { name: '初始版本', status: 'draft' } }
+    }
+  });
+
+  return NextResponse.redirect(new URL(`/projects/${project.id}`, request.url));
+}
