@@ -1,1 +1,16 @@
-#!/usr/bin/env bash\nset -euo pipefail\n\nif [ -z "${DATABASE_URL:-}" ]; then\n  echo "DATABASE_URL is required"\n  exit 1\nfi\n\necho "Running Prisma migrations..."\nnpx prisma migrate deploy\n\necho "Running seed..."\nnpx prisma db seed || true\n\necho "Starting Next.js on port ${PORT:-3000}..."\nnpx next start -p "${PORT:-3000}"\n
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo "DATABASE_URL is required"
+  exit 1
+fi
+
+echo "Running Prisma migrations..."
+npx prisma migrate deploy
+
+echo "Running seed..."
+npm run db:seed || true
+
+echo "Starting Next.js on port ${PORT:-3000}..."
+npx next start -p "${PORT:-3000}"
