@@ -1,1 +1,0 @@
-import { defineConfig } from 'vitest/config';\n\nexport default defineConfig({\n  test: {\n    environment: 'node',\n    include: ['tests/**/*.test.ts']\n  }\n});\n
