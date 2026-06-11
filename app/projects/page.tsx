@@ -1,1 +1,52 @@
-import Link from 'next/link';\nimport { prisma } from '@/lib/prisma';\n\nexport const dynamic = 'force-dynamic';\n\nexport default async function ProjectsPage() {\n  const projects = await prisma.project.findMany({ orderBy: { updatedAt: 'desc' }, include: { versions: true } });\n  return (\n    <main className=\"min-h-screen p-6\">\n      <div className=\"max-w-6xl mx-auto\">\n        <div className=\"flex items-center justify-between\">\n          <div>\n            <h1 className=\"text-2xl font-bold\">项目列表</h1>\n            <p className=\"text-gray-500 mt-1\">先搭建线上环境，后续接入完整测算模板。</p>\n          </div>\n          <Link href=\"/projects/new\" className=\"rounded-lg bg-brand text-white px-4 py-2\">新建项目</Link>\n        </div>\n        <div className=\"grid md:grid-cols-2 gap-4 mt-6\">\n          {projects.map((project) => (\n            <article key={project.id} className=\"bg-white border rounded-2xl p-5 shadow-sm\">\n              <h2 className=\"text-xl font-semibold\">{project.name}</h2>\n              <p className=\"text-sm text-gray-500 mt-1\">{project.city || '未填城市'} · {project.district || '未填区域'}</p>\n              <div className=\"grid grid-cols-3 gap-3 mt-4 text-sm\">\n                <div><p className=\"text-gray-500\">总建面</p><p className=\"font-semibold\">{Number(project.totalBuildingArea).toLocaleString()}㎡</p></div>\n                <div><p className=\"text-gray-500\">可售面积</p><p className=\"font-semibold\">{Number(project.saleableArea).toLocaleString()}㎡</p></div>\n                <div><p className=\"text-gray-500\">版本数</p><p className=\"font-semibold\">{project.versions.length}</p></div>\n              </div>\n              <div className=\"mt-5 flex gap-2\">\n                <Link href={`/projects/${project.id}`} className=\"px-3 py-2 border rounded-lg\">进入工作台</Link>\n                <Link href={`/projects/${project.id}/export`} className=\"px-3 py-2 border rounded-lg\">Excel 导出</Link>\n              </div>\n            </article>\n          ))}\n        </div>\n      </div>\n    </main>\n  );\n}\n
+import Link from 'next/link';
+import { prisma } from '@/lib/prisma';
+
+export const dynamic = 'force-dynamic';
+
+export default async function ProjectsPage() {
+  const projects = await prisma.project.findMany({ orderBy: { updatedAt: 'desc' }, include: { versions: true } });
+
+  return (
+    <main className="page">
+      <div className="container">
+        <div className="page-header">
+          <div>
+            <p className="eyebrow">项目管理</p>
+            <h1 className="title">项目列表</h1>
+            <p className="subtitle">所有目标成本测算项目统一在这里管理。当前已接入 Railway + PostgreSQL 线上环境。</p>
+          </div>
+          <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
+        </div>
+
+        {projects.length === 0 ? (
+          <section className="card">
+            <h2>还没有项目</h2>
+            <p className="meta">先新建一个项目，后续在项目工作台中录入概况、业态、收入、目标成本和税金。</p>
+            <div className="actions">
+              <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
+            </div>
+          </section>
+        ) : (
+          <div className="card-grid">
+            {projects.map((project) => (
+              <article key={project.id} className="card">
+                <span className="badge">目标成本测算</span>
+                <h2 style={{ marginTop: 12 }}>{project.name}</h2>
+                <p className="meta">{project.city || '未填城市'} · {project.district || '未填区域'}</p>
+                <div className="stat-grid">
+                  <div className="stat"><div className="stat-label">总建面</div><div className="stat-value">{Number(project.totalBuildingArea).toLocaleString()}㎡</div></div>
+                  <div className="stat"><div className="stat-label">可售面积</div><div className="stat-value">{Number(project.saleableArea).toLocaleString()}㎡</div></div>
+                  <div className="stat"><div className="stat-label">版本数</div><div className="stat-value">{project.versions.length}</div></div>
+                </div>
+                <div className="actions">
+                  <Link href={`/projects/${project.id}`} className="btn btn-primary">进入工作台</Link>
+                  <Link href={`/projects/${project.id}/export`} className="btn">Excel 导出</Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
