@@ -1,19 +1,21 @@
-FROM node:20-alpine AS deps
+FROM node:20-bookworm-slim AS deps
 WORKDIR /app
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json* ./
 RUN npm install
 
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 WORKDIR /app
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 ENV DATABASE_URL=postgresql://u:p@localhost:5432/db?schema=public
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN node -e "const fs=require('fs'),path=require('path');const ex=new Set(['.ts','.tsx','.js','.jsx','.mjs','.css','.sql','.prisma']);const b=String.fromCharCode(92),n=String.fromCharCode(10),q=String.fromCharCode(34);function walk(d){if(!fs.existsSync(d))return;for(const e of fs.readdirSync(d,{withFileTypes:true})){const f=path.join(d,e.name);if(e.isDirectory())walk(f);else if(ex.has(path.extname(f))){const s=fs.readFileSync(f,'utf8');const t=s.split(b+'n').join(n).split(b+q).join(q);if(t!==s){fs.writeFileSync(f,t);console.log('fixed '+f);}}}}['app','components','lib','prisma'].forEach(walk);"
 RUN npx prisma generate
 RUN npm run build
 
-FROM node:20-alpine AS runner
+FROM node:20-bookworm-slim AS runner
 WORKDIR /app
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
