@@ -1,0 +1,1 @@
+import './globals.css';\nimport type { Metadata } from 'next';\n\nexport const metadata: Metadata = {\n  title: '龙泉地产目标成本测算系统',\n  description: '地产开发项目目标成本测算、收入测算、税金测算和版本管理系统'\n};\n\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang=\"zh-CN\">\n      <body>{children}</body>\n    </html>\n  );\n}\n
