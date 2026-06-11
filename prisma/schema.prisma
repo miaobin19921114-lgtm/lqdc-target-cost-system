@@ -63,3 +63,94 @@ model ProjectVersion {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 }
+
+model ProductType {
+  id                    String         @id @default(cuid())
+  projectVersionId       String
+  projectVersion         ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  name                  String
+  buildingArea           Decimal @default(0)
+  saleableArea           Decimal @default(0)
+  capacityArea           Decimal @default(0)
+  nonSaleableArea        Decimal @default(0)
+  salePrice              Decimal @default(0)
+  isSaleable             Boolean @default(true)
+  participateAllocation  Boolean @default(true)
+  allocationWeight       Decimal @default(1)
+  remark                 String?
+  revenues               RevenueLine[]
+  costs                  CostLine[]
+}
+
+model CostSubject {
+  id                      String        @id @default(cuid())
+  code                    String        @unique
+  name                    String
+  level                   Int
+  parentId                String?
+  parent                  CostSubject?  @relation("CostSubjectTree", fields: [parentId], references: [id])
+  children                CostSubject[] @relation("CostSubjectTree")
+  fullPath                String?
+  defaultUnit             String?
+  defaultTaxRate          Decimal @default(0.09)
+  defaultMeasureBasis     String?
+  defaultAllocationMethod String?
+  sortOrder               Int @default(0)
+  enabled                 Boolean @default(true)
+  costs                   CostLine[]
+}
+
+model CostLine {
+  id                    String         @id @default(cuid())
+  projectVersionId       String
+  projectVersion         ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  costSubjectId          String
+  costSubject            CostSubject @relation(fields: [costSubjectId], references: [id])
+  productTypeId          String?
+  productType            ProductType? @relation(fields: [productTypeId], references: [id])
+  detailName             String
+  regionOrProductType    String?
+  professionalGroup      String?
+  measureBasis           String?
+  quantity               Decimal @default(0)
+  unit                   String?
+  taxExclusiveUnitPrice  Decimal @default(0)
+  taxInclusiveUnitPrice  Decimal @default(0)
+  taxRate                Decimal @default(0.09)
+  taxExclusiveAmount     Decimal @default(0)
+  taxAmount              Decimal @default(0)
+  taxInclusiveAmount     Decimal @default(0)
+  allocationMethod       String?
+  isDirectAssigned       Boolean @default(false)
+  description            String?
+  remark                 String?
+  sortOrder              Int @default(0)
+}
+
+model RevenueLine {
+  id                  String         @id @default(cuid())
+  projectVersionId    String
+  projectVersion      ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  productTypeId       String
+  productType         ProductType @relation(fields: [productTypeId], references: [id])
+  saleableArea        Decimal @default(0)
+  salePrice           Decimal @default(0)
+  taxRate             Decimal @default(0.09)
+  taxInclusiveRevenue Decimal @default(0)
+  taxExclusiveRevenue Decimal @default(0)
+  taxAmount           Decimal @default(0)
+  remark              String?
+}
+
+model TaxParameter {
+  id                          String         @id @default(cuid())
+  projectVersionId             String @unique
+  projectVersion               ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  vatRate                      Decimal @default(0.09)
+  urbanMaintenanceRate         Decimal @default(0.07)
+  educationSurchargeRate       Decimal @default(0.03)
+  localEducationSurchargeRate  Decimal @default(0.02)
+  corporateIncomeTaxRate       Decimal @default(0.25)
+  landValueAddedTaxRate        Decimal @default(0)
+  remark                       String?
+}
