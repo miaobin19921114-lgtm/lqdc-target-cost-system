@@ -43,8 +43,7 @@ const productPresets = [
   { category: '专项区域', name: '私家庭院', isSaleable: false, participateAllocation: false },
   { category: '专项区域', name: '下沉庭院', isSaleable: false, participateAllocation: false },
   { category: '专项区域', name: '水系', isSaleable: false, participateAllocation: false },
-  { category: '专项区域', name: '游泳池', isSaleable: false, participateAllocation: false },
-  { category: '专项区域', name: '充电桩', isSaleable: false, participateAllocation: false }
+  { category: '专项区域', name: '游泳池', isSaleable: false, participateAllocation: false }
 ];
 
 function getBaseUrl(request: Request) {
