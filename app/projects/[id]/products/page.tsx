@@ -9,7 +9,7 @@ const presetGroups = [
   { category: '车位储藏', names: ['地下产权车位', '地下使用权车位', '地上车位', '人防车位', '储藏室', '其他可售'] },
   { category: '配套用房', names: ['物业用房', '社区用房', '养老用房', '托育用房', '文化活动用房', '幼儿园', '公厕', '门卫', '设备用房'] },
   { category: '地下空间', names: ['高层主楼地下室', '洋房主楼地下室', '别墅地下室', '商业地下室', '非主楼纯地库', '人防地下室'] },
-  { category: '专项区域', names: ['示范区', '售楼部', '样板间', '私家庭院', '下沉庭院', '水系', '游泳池', '充电桩'] }
+  { category: '专项区域', names: ['示范区', '售楼部', '样板间', '私家庭院', '下沉庭院', '水系', '游泳池'] }
 ];
 
 const presetMeta = new Map<string, { category: string; rank: number }>();
@@ -59,7 +59,7 @@ export default async function ProductTypesPage({ params, searchParams }: { param
           <div>
             <p className="eyebrow">业态面积 / 产品构成</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">这是业态面积表，不是项目概况表。项目概况只放地块和总指标；这里专门维护产品业态、面积、售价和分摊口径。</p>
+            <p className="subtitle">这是业态面积表，不是项目概况表。充电桩不作为业态，在车位配置或机电专项中维护。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <form action={`/api/projects/${project.id}/products/presets`} method="post">
@@ -82,7 +82,8 @@ export default async function ProductTypesPage({ params, searchParams }: { param
 
         <section className="card" style={{ marginBottom: 18 }}>
           <h2>模板业态范围</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+          <p className="meta">充电桩属于车位配置 / 机电专项，不计入业态库。</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginTop: 10 }}>
             {presetGroups.map((group) => (
               <div key={group.category} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 12, background: '#f8fafc' }}>
                 <b>{group.category}</b>
