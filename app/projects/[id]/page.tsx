@@ -45,7 +45,7 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
         <section>
           <div className="page-header">
             <div>
-              <p className="eyebrow">龙泉地产</p>
+              <p className="eyebrow">九坤地产</p>
               <h1 className="title">{project.name}</h1>
               <p className="subtitle">按 V57 页面顺序搭建模块入口，后续接入最终 Excel 模板公式和明细底稿。</p>
             </div>
