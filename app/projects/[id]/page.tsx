@@ -7,6 +7,7 @@ const groups = [
   ['项目基础', [
     ['项目概况', 'overview'],
     ['业态面积 / 产品构成', 'products'],
+    ['车位配置表', 'parking'],
     ['测算控制中心', '']
   ]],
   ['收入与成本', [
@@ -87,7 +88,7 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
           <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>成本测算主流程</b><div className="sys-flow" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginTop: 12 }}>{quick.map(([name, href], index) => <Link key={name} href={`/projects/${project.id}/${href}`} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#f8fafc' }}><div style={{ width: 26, height: 26, borderRadius: 6, background: '#e9f7f8', color: '#0f4c5c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{index + 1}</div><b style={{ display: 'block', marginTop: 10 }}>{name}</b><div style={{ color: '#667085', fontSize: 12 }}>进入维护</div></Link>)}</div></div>
         </section>
 
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本控制</b><p className="meta">当前版本：{version?.name || '初始版本'}；状态：草稿。</p></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>测算口径</b><p className="meta">土地费用单独维护，并自动进入目标成本测算；收入和成本均按含税录入后自动拆税。</p></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>待接入模块</b><p className="meta">前期费、各专业明细、成本分摊、土增税、税金明细。</p></div></aside>
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本控制</b><p className="meta">当前版本：{version?.name || '初始版本'}；状态：草稿。</p></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>测算口径</b><p className="meta">土地费用单独维护，并自动进入目标成本测算；充电桩归入车位配置，不作为业态。</p></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>待接入模块</b><p className="meta">前期费、各专业明细、成本分摊、土增税、税金明细。</p></div></aside>
       </div>
       <style>{`@media (max-width: 980px){.sys-shell,.sys-kpis,.sys-flow{grid-template-columns:1fr!important;padding:8px!important}}`}</style>
     </main>
