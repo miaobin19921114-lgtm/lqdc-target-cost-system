@@ -3,51 +3,70 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-const dictionary = [
-  ['01', '土地获取费', '土地款、契税、交易登记费', '土地面积/合同金额', '可售面积分摊'],
-  ['02', '前期工程费', '勘察测绘、设计、报批报建、三通一平、围墙临设', '建筑面积/专项工程量', '建筑面积分摊'],
-  ['0204', '三通一平', '临水、临电、临时道路、场地平整', '现场工程量', '建筑面积分摊'],
-  ['0205', '临设围墙出入口', '临时围墙、临时出入口、临设工程', '周界长度/出入口数量', '建筑面积分摊'],
-  ['03', '建安工程费', '基础、主体、装饰、门窗、精装、安装、消防、电梯、设备', '建筑面积/专业工程量', '建筑面积或可售面积分摊'],
-  ['0301', '地基与基础', '桩基、基坑支护、降水、基础处理', '基底面积/桩长/基坑面积', '建筑面积分摊'],
-  ['0305', '公共区域精装修', '大堂、电梯厅、走道、公共部位精装', '大堂/公区精装面积', '建筑面积分摊'],
-  ['0306', '户内精装修', '户内硬装、精装交付配置', '精装面积', '可售面积分摊'],
-  ['0307', '安装工程', '给排水、强电、弱电、暖通、消防联动预留', '建筑面积/系统工程量', '建筑面积分摊'],
-  ['030705', '充电桩安装工程', '充电桩管线、桥架、安装调试', '充电桩数量/预留管线数量', '车位或地库分摊'],
-  ['0309', '电梯工程', '住宅电梯、商业电梯、扶梯', '电梯台数/单元数量', '建筑面积分摊'],
-  ['0310', '设备工程', '主要机电设备、充电桩设备、泵房设备等', '台/套/容量', '建筑面积或专项分摊'],
-  ['031001', '充电桩设备', '快充、慢充、控制箱及配套设备', '快充/慢充数量', '车位或地库分摊'],
-  ['04', '基础设施费', '道路、管网、供配电、给排水外线、燃气通信、景观', '室外工程量', '建筑面积分摊'],
-  ['0401', '红线内道路', '道路基层、面层、路缘石等', '道路面积', '建筑面积分摊'],
-  ['0402', '综合管网', '雨污水、强弱电管沟、综合管线', '景观面积/管线长度', '建筑面积分摊'],
-  ['0406', '园林景观工程', '硬景、软景、水系、景观构筑物', '景观面积/硬景面积/软景面积', '建筑面积分摊'],
-  ['05', '公共配套设施费', '物业、社区、养老托育、幼儿园、会所、公厕门卫', '配套建筑面积/专项工程量', '建筑面积分摊'],
-  ['06', '开发间接费', '项目管理、临时办公、工程管理相关间接支出', '项目周期/合同', '建筑面积分摊'],
-  ['07', '销售费用', '营销、渠道、广告、案场包装等', '销售收入/合同', '可售面积分摊'],
-  ['08', '管理费用', '公司管理分摊及项目管理费用', '收入或成本基数', '可售面积分摊'],
-  ['09', '财务费用', '融资利息、手续费等', '融资金额/周期', '可售面积分摊'],
-  ['10', '增值税及附加', '增值税、城建税、教育附加、地方教育附加', '销项税额-进项税额', '税金测算'],
-  ['11', '企业所得税', '所得税前利润计算所得税', '应纳税所得额', '税金测算']
-];
+const columns = [
+  ['costCode', '成本编码'],
+  ['parentCode', '父级编码'],
+  ['subjectLevel', '科目层级'],
+  ['firstSubject', '一级科目'],
+  ['secondSubject', '二级科目'],
+  ['thirdSubject', '三级科目'],
+  ['detailSubject', '四级/明细科目'],
+  ['subjectDefinition', '科目定义'],
+  ['sourceTable', '归属表'],
+  ['enabled', '是否启用'],
+  ['writeBackToTarget', '是否回写目标成本'],
+  ['targetMappingCode', '目标成本主表映射编码'],
+  ['measureBasis', '建议测算依据'],
+  ['unit', '单位'],
+  ['defaultTaxRate', '默认税率'],
+  ['applicableProductType', '适用业态'],
+  ['applicableStage', '适用阶段'],
+  ['investmentMethod', '投拓阶段测算方法'],
+  ['conceptMethod', '概念方案阶段测算方法'],
+  ['schemeMethod', '方案阶段测算方法'],
+  ['drawingMethod', '施工图阶段测算方法'],
+  ['tenderMethod', '招采合约阶段测算方法'],
+  ['dynamicMethod', '动态成本/结算阶段测算方法'],
+  ['specialAdjustment', '特殊调整说明'],
+  ['remark', '备注'],
+  ['costAttributionMethod', '成本归属方式'],
+  ['targetAllocationMethod', '目标成本/经营分摊口径'],
+  ['landVatAllocationMethod', '土增税清算分摊口径'],
+  ['incomeTaxDeductionCategory', '所得税扣除分类'],
+  ['preTaxDeduction', '是否计入税前扣除'],
+  ['taxRemark', '税务口径说明']
+] as const;
 
-function indent(code: string) {
-  if (code.length <= 2) return 0;
-  if (code.length <= 4) return 18;
-  return 36;
+function cell(row: any, key: string) {
+  const value = row[key];
+  if (value === null || value === undefined) return '';
+  return String(value);
 }
 
-export default async function CostDictionaryPage({ params }: { params: { id: string } }) {
+function indent(code: string) {
+  const parts = code.split('.').filter(Boolean).length;
+  if (parts <= 1) return 0;
+  if (parts === 2) return 16;
+  return 32;
+}
+
+export default async function CostDictionaryPage({ params, searchParams }: { params: { id: string }, searchParams?: { imported?: string; error?: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
 
+  const rows = await prisma.costDictionaryRow.findMany({
+    where: { projectId: params.id },
+    orderBy: { rowIndex: 'asc' }
+  });
+
   return (
     <main className="page">
-      <div className="container" style={{ maxWidth: 1380 }}>
+      <div className="container" style={{ maxWidth: 1480 }}>
         <div className="page-header">
           <div>
             <p className="eyebrow">系统资料 / 成本科目</p>
             <h1 className="title">成本科目及测算词典</h1>
-            <p className="subtitle">先按模板建立科目口径，后续目标成本、前期费、安装明细、设备明细都统一引用这里。</p>
+            <p className="subtitle">按你 Excel 模板的 31 列结构导入，完整承接“成本科目及测算词典”工作表。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/costs`} className="btn btn-primary">目标成本测算</Link>
@@ -55,35 +74,58 @@ export default async function CostDictionaryPage({ params }: { params: { id: str
           </div>
         </div>
 
+        {searchParams?.imported ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>已导入 {searchParams.imported} 行成本科目词典。</div> : null}
+        {searchParams?.error === 'missing-file' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffc9c9' }}>请先选择 Excel 模板文件。</div> : null}
+        {searchParams?.error === 'missing-sheet' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffc9c9' }}>未找到“成本科目及测算词典”工作表。</div> : null}
+
+        <section className="form-card" style={{ maxWidth: '100%', marginBottom: 18 }}>
+          <h2>导入模板词典</h2>
+          <p className="meta">上传你的 V57 模板，系统读取“成本科目及测算词典”页，从第 3 行开始导入 31 列。重复导入会先清空本项目旧词典，再写入新词典。</p>
+          <form action={`/api/projects/${project.id}/cost-dictionary/import`} method="post" encType="multipart/form-data">
+            <div className="form-grid">
+              <label>Excel 模板文件<input name="file" type="file" accept=".xlsx" required /></label>
+            </div>
+            <div className="actions"><button className="btn btn-primary">导入成本科目词典</button></div>
+          </form>
+        </section>
+
         <section className="card" style={{ marginBottom: 14 }}>
           <h2>口径说明</h2>
-          <p className="meta">充电桩不作为业态；成本进入安装工程和设备工程。围墙按周界长度测算，出入口按数量测算；硬景、软景、景观、水系分别按对应面积或专项工程量测算。</p>
+          <p className="meta">充电桩不作为业态；成本进入安装明细和设备明细。安装明细记录管线、桥架、安装调试；设备明细记录充电桩设备本体。</p>
         </section>
 
         <section className="card">
-          <h2>科目词典</h2>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr>
-                  {['编码', '成本科目', '定义/包含内容', '测算依据', '默认分摊方式'].map((head) => (
-                    <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {dictionary.map(([code, name, desc, basis, allocation]) => (
-                  <tr key={code}>
-                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{code}</td>
-                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800, paddingLeft: 10 + indent(code) }}>{name}</td>
-                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{desc}</td>
-                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{basis}</td>
-                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{allocation}</td>
+          <h2>词典明细</h2>
+          <p className="meta">当前已导入：{rows.length} 行；字段：{columns.length} 列。</p>
+          {rows.length === 0 ? (
+            <p className="meta">暂无导入数据。请先上传模板文件，导入“成本科目及测算词典”。</p>
+          ) : (
+            <div style={{ overflowX: 'auto', maxHeight: 680 }}>
+              <table style={{ width: '100%', minWidth: 3600, borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    {columns.map(([key, label]) => (
+                      <th key={key} style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: '#fff', color: 'var(--muted)', zIndex: 1 }}>{label}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const code = cell(row, 'costCode');
+                    return (
+                      <tr key={row.id}>
+                        {columns.map(([key]) => (
+                          <td key={key} style={{ padding: 8, borderBottom: '1px solid var(--border)', verticalAlign: 'top', paddingLeft: key === 'costCode' ? 8 + indent(code) : 8, fontWeight: key === 'costCode' || key === 'secondSubject' || key === 'detailSubject' ? 700 : 400 }}>
+                            {cell(row, key)}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       </div>
     </main>
