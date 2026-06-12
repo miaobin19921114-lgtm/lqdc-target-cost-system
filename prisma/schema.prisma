@@ -128,6 +128,48 @@ model CostSubject {
   costs                   CostLine[]
 }
 
+model CostDictionaryRow {
+  id                         String   @id @default(cuid())
+  projectId                  String
+  rowIndex                   Int
+  costCode                   String?
+  parentCode                 String?
+  subjectLevel               String?
+  firstSubject               String?
+  secondSubject              String?
+  thirdSubject               String?
+  detailSubject              String?
+  subjectDefinition          String?
+  sourceTable                String?
+  enabled                    String?
+  writeBackToTarget          String?
+  targetMappingCode          String?
+  measureBasis               String?
+  unit                       String?
+  defaultTaxRate             String?
+  applicableProductType      String?
+  applicableStage            String?
+  investmentMethod           String?
+  conceptMethod              String?
+  schemeMethod               String?
+  drawingMethod              String?
+  tenderMethod               String?
+  dynamicMethod              String?
+  specialAdjustment          String?
+  remark                     String?
+  costAttributionMethod      String?
+  targetAllocationMethod     String?
+  landVatAllocationMethod    String?
+  incomeTaxDeductionCategory String?
+  preTaxDeduction            String?
+  taxRemark                  String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@index([projectId])
+  @@unique([projectId, rowIndex])
+}
+
 model CostLine {
   id                    String         @id @default(cuid())
   projectVersionId       String
