@@ -7,15 +7,15 @@ function fmt(value: unknown) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-export default async function LandCostPage({ params, searchParams }: { params: { id: string }, searchParams?: { saved?: string } }) {
+export default async function LandCostPage({ params }: { params: { id: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   const version = await prisma.projectVersion.findFirst({
     where: { projectId: params.id },
     orderBy: { createdAt: 'asc' },
-    include: { costs: { include: { costSubject: true }, orderBy: { createdAt: 'asc' } } }
+    include: { costs: { include: { costSubject: true }, orderBy: { sortOrder: 'asc' } } }
   });
 
-  if (!project) return <main className="page">项目不存在</main>;
+  if (!project) return <main className="page">Project not found</main>;
 
   const rows = (version?.costs || []).filter((row) => row.costSubject.code === '01');
   const total = rows.reduce((sum, row) => sum + Number(row.taxInclusiveAmount || 0), 0);
@@ -29,15 +29,13 @@ export default async function LandCostPage({ params, searchParams }: { params: {
           <div>
             <p className="eyebrow">九坤地产成本管理平台</p>
             <h1 className="title">土地费用明细表</h1>
-            <p className="subtitle">按土地面积（亩）和土地单价（万元/亩）录入，保存后同步进入目标成本测算。</p>
+            <p className="subtitle">按亩数和万元/亩录入土地费用，保存后进入目标成本测算。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/costs`} className="btn btn-primary">目标成本测算</Link>
             <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
           </div>
         </div>
-
-        {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb' }}>土地费用已保存。</div> : null}
 
         <div className="summary-strip">
           <div className="stat"><div className="stat-label">土地费合计</div><div className="stat-value">{fmt(total)}元</div></div>
@@ -57,7 +55,6 @@ export default async function LandCostPage({ params, searchParams }: { params: {
               <label>税率<input name="taxRate" type="number" step="0.01" defaultValue="0" /></label>
               <label>分摊方式<input name="allocationMethod" defaultValue="可售面积分摊" /></label>
             </div>
-            <div style={{ marginTop: 12 }}><label>备注<input name="remark" placeholder="补充说明" /></label></div>
             <div className="actions"><button className="btn btn-primary">保存土地费用</button></div>
           </form>
         </section>
