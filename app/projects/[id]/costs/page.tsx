@@ -24,7 +24,7 @@ export default async function TargetCostPage({ params, searchParams }: { params:
     orderBy: { createdAt: 'asc' },
     include: {
       products: true,
-      costs: { include: { costSubject: true, productType: true }, orderBy: { createdAt: 'asc' } }
+      costs: { include: { costSubject: true, productType: true }, orderBy: { sortOrder: 'asc' } }
     }
   });
   const subjects = await prisma.costSubject.findMany({ where: { enabled: true }, orderBy: [{ code: 'asc' }] });
