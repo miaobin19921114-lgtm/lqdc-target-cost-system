@@ -28,7 +28,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
       undergroundArea: toNumber(form, 'undergroundArea'),
       saleableArea: toNumber(form, 'saleableArea'),
       nonSaleableArea: toNumber(form, 'nonSaleableArea'),
-      parkingCount: toInt(form, 'parkingCount'),
       buildingCount: toInt(form, 'buildingCount'),
       unitCount: toInt(form, 'unitCount'),
       basementFloors: toInt(form, 'basementFloors'),
