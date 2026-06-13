@@ -34,6 +34,7 @@ const groups = [
     ['税金明细表', 'tax-details']
   ]],
   ['系统资料', [
+    ['系统校验', 'check'],
     ['产品库 / 业态配置标准', 'product-library'],
     ['成本科目及测算词典', 'cost-dictionary'],
     ['下拉字典', ''],
@@ -66,6 +67,7 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
   const buildingArea = Number(project.totalBuildingArea || 0);
   const saleableArea = Number(project.saleableArea || 0);
   const quick = [
+    ['系统校验', 'check'],
     ['收入明细', 'revenue'],
     ['土地费用', 'land'],
     ['前期费用', 'pre-costs'],
@@ -103,7 +105,7 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
           <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>成本测算主流程</b><div className="sys-flow" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 12 }}>{quick.map(([name, href], index) => <Link key={name} href={`/projects/${project.id}/${href}`} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#f8fafc' }}><div style={{ width: 26, height: 26, borderRadius: 6, background: '#e9f7f8', color: '#0f4c5c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{index + 1}</div><b style={{ display: 'block', marginTop: 10 }}>{name}</b><div style={{ color: '#667085', fontSize: 12 }}>进入维护</div></Link>)}</div></div>
         </section>
 
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本控制</b><p className="meta">当前版本：{version?.name || '初始版本'}；状态：草稿。</p></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>测算口径</b><p className="meta">各明细表均从成本科目词典预设科目、业态、税率、测算依据、分摊口径、土增税和所得税口径。</p></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>税务测算</b><p className="meta">成本分摊、土增税、税金明细已接入自动汇总测算。</p></div></aside>
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本控制</b><p className="meta">当前版本：{version?.name || '初始版本'}；状态：草稿。</p></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>测算口径</b><p className="meta">各明细表均从成本科目词典预设科目、业态、税率、测算依据、分摊口径、土增税和所得税口径。</p></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>系统校验</b><p className="meta">打开系统校验页，可检查词典、业态、收入、成本、税额公式、分摊和税务取数是否完整。</p></div></aside>
       </div>
       <style>{`@media (max-width: 980px){.sys-shell,.sys-kpis,.sys-flow{grid-template-columns:1fr!important;padding:8px!important}}`}</style>
     </main>
