@@ -6,6 +6,13 @@ function fmt(value: unknown) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
+function uniqueValues(rows: any[], key: string, fallback: string) {
+  const values = rows
+    .map((row) => String(row[key] || '').trim())
+    .filter(Boolean);
+  return Array.from(new Set([fallback, ...values])).filter(Boolean);
+}
+
 async function ensurePresetRows(projectId: string) {
   const count = await prisma.costDictionaryRow.count({ where: { projectId } });
   const presetRows = getV57CostDictionaryRows().map((row) => ({ ...row, projectId }));
@@ -29,7 +36,21 @@ document.addEventListener('DOMContentLoaded', function () {
   const allocation = document.querySelector('[name="allocationMethod"]');
   const taxAllocation = document.querySelector('[data-tax-allocation]');
   const incomeTax = document.querySelector('[data-income-tax]');
-  function setValue(el, value) { if (el && value) el.value = value; }
+  function ensureOption(select, value) {
+    if (!select || !value) return;
+    var exists = Array.from(select.options || []).some(function (option) { return option.value === value; });
+    if (!exists) {
+      var option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      select.appendChild(option);
+    }
+  }
+  function setValue(el, value) {
+    if (!el || !value) return;
+    if (el.tagName === 'SELECT') ensureOption(el, value);
+    el.value = value;
+  }
   function fill() {
     const option = subject.options[subject.selectedIndex];
     if (!option) return;
@@ -82,6 +103,12 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
     where: { projectId: props.projectId, OR: ors },
     orderBy: { rowIndex: 'asc' }
   });
+
+  const regionOptions = uniqueValues(dictionaryRows, 'applicableProductType', '项目整体共用');
+  const measureOptions = uniqueValues(dictionaryRows, 'measureBasis', '固定金额');
+  const unitOptions = uniqueValues(dictionaryRows, 'unit', '项');
+  const taxOptions = uniqueValues(dictionaryRows, 'defaultTaxRate', '9%');
+  const allocationOptions = uniqueValues(dictionaryRows, 'targetAllocationMethod', '按可售面积占比');
 
   const costs = version ? await prisma.costLine.findMany({
     where: { projectVersionId: version.id, professionalGroup: props.professionalGroup },
@@ -148,13 +175,38 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
                 </select>
               </label>
               <label>末级/明细科目<input name="detailName" placeholder={props.detailPlaceholder} /></label>
-              <label>区域/业态归属<input name="regionOrProductType" placeholder="自动带出适用业态/归属" /></label>
-              <label>测算依据<input name="measureBasis" placeholder={props.measurePlaceholder} /></label>
+              <label>
+                区域/业态归属
+                <select name="regionOrProductType">
+                  {regionOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>
+                测算依据
+                <select name="measureBasis">
+                  {measureOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
               <label>工程量<input name="quantity" type="number" step="0.01" defaultValue="1" /></label>
-              <label>单位<input name="unit" placeholder="自动带出单位" /></label>
+              <label>
+                单位
+                <select name="unit">
+                  {unitOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
               <label>含税单价<input name="taxInclusiveUnitPrice" type="number" step="0.01" defaultValue="0" /></label>
-              <label>税率<input name="taxRate" placeholder="自动带出默认税率" /></label>
-              <label>分摊方式<input name="allocationMethod" placeholder="自动带出目标成本/经营分摊口径" /></label>
+              <label>
+                税率
+                <select name="taxRate">
+                  {taxOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>
+                分摊方式
+                <select name="allocationMethod">
+                  {allocationOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
               <label>备注<input name="remark" /></label>
             </div>
             <div className="card" style={{ marginTop: 12 }}>
