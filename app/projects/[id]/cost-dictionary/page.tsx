@@ -53,11 +53,14 @@ function indent(code: string) {
 
 async function ensurePresetRows(projectId: string) {
   const count = await prisma.costDictionaryRow.count({ where: { projectId } });
-  if (count > 0) return false;
-
   const presetRows = getV57CostDictionaryRows().map((row) => ({ ...row, projectId }));
   if (presetRows.length === 0) return false;
-  await prisma.costDictionaryRow.createMany({ data: presetRows });
+  if (count >= 100) return false;
+
+  await prisma.$transaction([
+    prisma.costDictionaryRow.deleteMany({ where: { projectId } }),
+    prisma.costDictionaryRow.createMany({ data: presetRows })
+  ]);
   return true;
 }
 
@@ -78,7 +81,7 @@ export default async function CostDictionaryPage({ params, searchParams }: { par
           <div>
             <p className="eyebrow">系统资料 / 成本科目</p>
             <h1 className="title">成本科目及测算词典</h1>
-            <p className="subtitle">按你 V57 模板的 31 列结构预设，完整承接“成本科目及测算词典”工作表。</p>
+            <p className="subtitle">按 V57 模板完整预设 31 列、352 行成本科目，供各明细表引用。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/costs`} className="btn btn-primary">目标成本测算</Link>
@@ -86,25 +89,22 @@ export default async function CostDictionaryPage({ params, searchParams }: { par
           </div>
         </div>
 
-        {autoSeeded ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>已按 V57 模板自动初始化成本科目词典。</div> : null}
-        {searchParams?.imported ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>已导入 {searchParams.imported} 行成本科目词典。</div> : null}
+        {autoSeeded ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>已将当前项目词典刷新为 V57 完整预设。</div> : null}
+        {searchParams?.imported ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>已重置 {searchParams.imported} 行成本科目词典。</div> : null}
         {searchParams?.error === 'missing-file' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffc9c9' }}>请先选择 Excel 模板文件。</div> : null}
         {searchParams?.error === 'missing-sheet' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffc9c9' }}>未找到“成本科目及测算词典”工作表。</div> : null}
 
         <section className="card" style={{ marginBottom: 14 }}>
           <h2>预设规则</h2>
-          <p className="meta">成本科目词典作为系统默认预设，新项目打开本页会自动初始化。后续土地费、前期费、安装明细、设备明细、目标成本测算均引用这套词典。</p>
+          <p className="meta">成本科目词典作为系统默认预设，新项目打开本页会自动初始化。若旧版本只生成了少量兜底科目，打开本页会自动替换为完整 352 行。</p>
           <p className="meta">充电桩不作为业态；成本进入安装明细和设备明细。安装明细记录管线、桥架、安装调试；设备明细记录充电桩设备本体。</p>
         </section>
 
         <section className="form-card" style={{ maxWidth: '100%', marginBottom: 18 }}>
-          <h2>覆盖导入</h2>
-          <p className="meta">默认情况下不用上传。仅当你要用新的模板覆盖当前词典时，再上传 Excel 模板。</p>
+          <h2>重置为系统预设</h2>
+          <p className="meta">默认不需要上传模板。点击下方按钮会用系统内置 V57 完整词典覆盖当前项目词典。</p>
           <form action={`/api/projects/${project.id}/cost-dictionary/import`} method="post" encType="multipart/form-data">
-            <div className="form-grid">
-              <label>Excel 模板文件<input name="file" type="file" accept=".xlsx" /></label>
-            </div>
-            <div className="actions"><button className="btn btn-primary">覆盖导入成本科目词典</button></div>
+            <div className="actions"><button className="btn btn-primary">重置为 V57 成本科目词典</button></div>
           </form>
         </section>
 
@@ -112,7 +112,7 @@ export default async function CostDictionaryPage({ params, searchParams }: { par
           <h2>词典明细</h2>
           <p className="meta">当前已预设：{rows.length} 行；字段：{columns.length} 列。</p>
           {rows.length === 0 ? (
-            <p className="meta">暂无预设数据。请检查部署日志或使用覆盖导入。</p>
+            <p className="meta">暂无预设数据。请检查部署日志或使用重置按钮。</p>
           ) : (
             <div style={{ overflowX: 'auto', maxHeight: 680 }}>
               <table style={{ width: '100%', minWidth: 3600, borderCollapse: 'collapse', fontSize: 12 }}>
