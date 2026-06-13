@@ -21,7 +21,8 @@ function parseTaxRate(value?: string | null, fallback = 0) {
 
 function presetValue(input: FormDataEntryValue | null, preset?: string | null, fallback = '') {
   const value = clean(input);
-  return value || preset || fallback;
+  if (!value || value === '项目整体共用' || value === '建筑面积分摊') return preset || fallback;
+  return value;
 }
 
 function taxCalc(quantity: number, taxInclusiveUnitPrice: number, taxRate: number) {
@@ -74,7 +75,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const quantity = toNumber(form, 'quantity');
   const taxInclusiveUnitPrice = toNumber(form, 'taxInclusiveUnitPrice');
-  const taxRate = clean(form.get('taxRate')) ? parseTaxRate(clean(form.get('taxRate'))) : parseTaxRate(dict?.defaultTaxRate, 0.09);
+  const taxRate = dict?.defaultTaxRate ? parseTaxRate(dict.defaultTaxRate, 0.09) : parseTaxRate(clean(form.get('taxRate')), 0.09);
   const amounts = taxCalc(quantity, taxInclusiveUnitPrice, taxRate);
 
   await prisma.costLine.create({
