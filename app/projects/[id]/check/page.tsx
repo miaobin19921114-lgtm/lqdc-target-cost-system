@@ -14,7 +14,7 @@ function statusColor(status: CheckItem['status']) {
   return '#e03131';
 }
 
-export default async function ProjectCheckPage({ params }: { params: { id: string } }) {
+export default async function ProjectCheckPage({ params, searchParams }: { params: { id: string }, searchParams?: { repaired?: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
 
@@ -82,7 +82,7 @@ export default async function ProjectCheckPage({ params }: { params: { id: strin
       module: '成本明细',
       item: '预设字段带出',
       status: missingPreset.length === 0 ? '通过' : '提醒',
-      detail: missingPreset.length ? `有 ${missingPreset.length} 行缺少业态/测算依据/单位/分摊方式` : '业态、测算依据、单位、分摊方式均已带出',
+      detail: missingPreset.length ? `有 ${missingPreset.length} 行缺少业态/测算依据/单位/分摊方式，可点击上方自动修复` : '业态、测算依据、单位、分摊方式均已带出',
       href: 'costs'
     },
     {
@@ -118,9 +118,11 @@ export default async function ProjectCheckPage({ params }: { params: { id: strin
   const passed = checks.filter((item) => item.status === '通过').length;
   const reminders = checks.filter((item) => item.status === '提醒').length;
   const blockers = checks.filter((item) => item.status === '需处理').length;
+  const repaired = searchParams?.repaired;
 
   return <main className="page"><div className="container" style={{ maxWidth: 1280 }}>
-    <div className="page-header"><div><p className="eyebrow">系统校验</p><h1 className="title">{project.name}</h1><p className="subtitle">自动检查项目概况、业态面积、收入、成本词典、成本明细、税额公式、分摊和税务取数是否完整。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">系统校验</p><h1 className="title">{project.name}</h1><p className="subtitle">自动检查项目概况、业态面积、收入、成本词典、成本明细、税额公式、分摊和税务取数是否完整。</p></div><div className="actions" style={{ marginTop: 0 }}><form action={`/api/projects/${project.id}/repair-cost-presets`} method="post"><button className="btn btn-primary">自动修复成本预设字段</button></form><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+    {repaired ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>已自动修复 {repaired} 行成本明细的业态、测算依据、单位、税率、分摊方式或科目路径。</div> : null}
     <div className="summary-strip"><div className="stat"><div className="stat-label">通过</div><div className="stat-value">{passed}</div></div><div className="stat"><div className="stat-label">提醒</div><div className="stat-value">{reminders}</div></div><div className="stat"><div className="stat-label">需处理</div><div className="stat-value">{blockers}</div></div><div className="stat"><div className="stat-label">完成度</div><div className="stat-value">{fmt((passed / checks.length) * 100)}%</div></div></div>
     <section className="card"><h2>校验清单</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: 13 }}><thead><tr>{['模块', '检查项', '状态', '说明', '操作'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{checks.map((row) => <tr key={`${row.module}-${row.item}`}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 700 }}>{row.module}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row.item}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: statusColor(row.status), fontWeight: 900 }}>{row.status}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row.detail}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row.href ? <Link href={`/projects/${project.id}/${row.href}`} className="btn" style={{ minHeight: 30 }}>进入</Link> : '-'}</td></tr>)}</tbody></table></div></section>
   </div></main>;
