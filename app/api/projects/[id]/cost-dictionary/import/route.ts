@@ -64,7 +64,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(await file.arrayBuffer()));
+  const arrayBuffer = await file.arrayBuffer();
+  await workbook.xlsx.load(arrayBuffer as unknown as Buffer);
   const sheet = workbook.getWorksheet('成本科目及测算词典');
 
   if (!sheet) {
