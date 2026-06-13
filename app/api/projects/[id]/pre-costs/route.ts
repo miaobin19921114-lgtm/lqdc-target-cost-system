@@ -2,11 +2,26 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 const toNumber = (form: FormData, name: string) => Number(form.get(name) || 0);
+const clean = (value: FormDataEntryValue | null) => String(value || '').trim();
 
 function getBaseUrl(request: Request) {
   const proto = request.headers.get('x-forwarded-proto') || 'https';
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
   return host ? `${proto}://${host}` : new URL(request.url).origin;
+}
+
+function parseTaxRate(value?: string | null, fallback = 0) {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  if (raw.includes('%')) return Number(raw.replace('%', '')) / 100 || fallback;
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return fallback;
+  return num > 1 ? num / 100 : num;
+}
+
+function presetValue(input: FormDataEntryValue | null, preset?: string | null, fallback = '') {
+  const value = clean(input);
+  return value || preset || fallback;
 }
 
 function taxCalc(quantity: number, taxInclusiveUnitPrice: number, taxRate: number) {
@@ -57,28 +72,28 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const quantity = toNumber(form, 'quantity');
   const taxInclusiveUnitPrice = toNumber(form, 'taxInclusiveUnitPrice');
-  const taxRate = toNumber(form, 'taxRate');
+  const taxRate = clean(form.get('taxRate')) ? parseTaxRate(clean(form.get('taxRate'))) : parseTaxRate(dict?.defaultTaxRate, 0.06);
   const amounts = taxCalc(quantity, taxInclusiveUnitPrice, taxRate);
 
   await prisma.costLine.create({
     data: {
       projectVersionId: version.id,
       costSubjectId: costSubject.id,
-      detailName: String(form.get('detailName') || subjectName),
-      regionOrProductType: String(form.get('regionOrProductType') || '项目整体共用'),
+      detailName: presetValue(form.get('detailName'), subjectName, '前期工程费'),
+      regionOrProductType: presetValue(form.get('regionOrProductType'), dict?.applicableProductType, '项目整体共用'),
       professionalGroup: '前期费用',
-      measureBasis: String(form.get('measureBasis') || dict?.measureBasis || ''),
+      measureBasis: presetValue(form.get('measureBasis'), dict?.measureBasis),
       quantity,
-      unit: String(form.get('unit') || dict?.unit || '项'),
+      unit: presetValue(form.get('unit'), dict?.unit, '项'),
       taxInclusiveUnitPrice,
       taxExclusiveUnitPrice: amounts.taxExclusiveUnitPrice,
       taxRate,
       taxInclusiveAmount: amounts.taxInclusiveAmount,
       taxExclusiveAmount: amounts.taxExclusiveAmount,
       taxAmount: amounts.taxAmount,
-      allocationMethod: String(form.get('allocationMethod') || dict?.targetAllocationMethod || '建筑面积分摊'),
+      allocationMethod: presetValue(form.get('allocationMethod'), dict?.targetAllocationMethod, '建筑面积分摊'),
       description: dict ? [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join(' / ') : '前期工程费',
-      remark: String(form.get('remark') || ''),
+      remark: clean(form.get('remark')),
       sortOrder: Date.now() % 1000000000
     }
   });
