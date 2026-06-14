@@ -1,6 +1,12 @@
 #!/usr/bin/env sh
 set -eu
 
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo "ERROR: DATABASE_URL is not set."
+  echo "Please add DATABASE_URL in Railway service Variables and redeploy."
+  exit 1
+fi
+
 echo "Running Prisma migrations..."
 npx prisma migrate deploy
 
