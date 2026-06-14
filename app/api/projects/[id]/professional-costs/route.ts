@@ -43,6 +43,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const professionalGroup = String(form.get('professionalGroup') || '专业明细');
   const returnPath = String(form.get('returnPath') || 'costs');
   const dictionaryRowId = String(form.get('dictionaryRowId') || '');
+  const costLineId = clean(form.get('costLineId'));
   const dict = dictionaryRowId ? await prisma.costDictionaryRow.findUnique({ where: { id: dictionaryRowId } }) : null;
 
   const version = await prisma.projectVersion.findFirst({ where: { projectId: params.id }, orderBy: { createdAt: 'asc' } }) || await prisma.projectVersion.create({ data: { projectId: params.id, name: '初始版本' } });
@@ -77,29 +78,32 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const taxInclusiveUnitPrice = toNumber(form, 'taxInclusiveUnitPrice');
   const taxRate = dict?.defaultTaxRate ? parseTaxRate(dict.defaultTaxRate, 0.09) : parseTaxRate(clean(form.get('taxRate')), 0.09);
   const amounts = taxCalc(quantity, taxInclusiveUnitPrice, taxRate);
+  const data = {
+    projectVersionId: version.id,
+    costSubjectId: costSubject.id,
+    detailName: presetValue(form.get('detailName'), subjectName, professionalGroup),
+    regionOrProductType: presetValue(form.get('regionOrProductType'), dict?.applicableProductType, '项目整体共用'),
+    professionalGroup,
+    measureBasis: presetValue(form.get('measureBasis'), dict?.measureBasis),
+    quantity,
+    unit: presetValue(form.get('unit'), dict?.unit, '项'),
+    taxInclusiveUnitPrice,
+    taxExclusiveUnitPrice: amounts.taxExclusiveUnitPrice,
+    taxRate,
+    taxInclusiveAmount: amounts.taxInclusiveAmount,
+    taxExclusiveAmount: amounts.taxExclusiveAmount,
+    taxAmount: amounts.taxAmount,
+    allocationMethod: presetValue(form.get('allocationMethod'), dict?.targetAllocationMethod, '建筑面积分摊'),
+    description: dict ? [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join(' / ') : professionalGroup,
+    remark: clean(form.get('remark')),
+    sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || Date.now() % 1000000000
+  };
 
-  await prisma.costLine.create({
-    data: {
-      projectVersionId: version.id,
-      costSubjectId: costSubject.id,
-      detailName: presetValue(form.get('detailName'), subjectName, professionalGroup),
-      regionOrProductType: presetValue(form.get('regionOrProductType'), dict?.applicableProductType, '项目整体共用'),
-      professionalGroup,
-      measureBasis: presetValue(form.get('measureBasis'), dict?.measureBasis),
-      quantity,
-      unit: presetValue(form.get('unit'), dict?.unit, '项'),
-      taxInclusiveUnitPrice,
-      taxExclusiveUnitPrice: amounts.taxExclusiveUnitPrice,
-      taxRate,
-      taxInclusiveAmount: amounts.taxInclusiveAmount,
-      taxExclusiveAmount: amounts.taxExclusiveAmount,
-      taxAmount: amounts.taxAmount,
-      allocationMethod: presetValue(form.get('allocationMethod'), dict?.targetAllocationMethod, '建筑面积分摊'),
-      description: dict ? [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join(' / ') : professionalGroup,
-      remark: clean(form.get('remark')),
-      sortOrder: Date.now() % 1000000000
-    }
-  });
+  if (costLineId) {
+    await prisma.costLine.update({ where: { id: costLineId }, data });
+  } else {
+    await prisma.costLine.create({ data });
+  }
 
   return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?saved=1`, 303);
 }
