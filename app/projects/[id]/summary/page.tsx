@@ -107,6 +107,17 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
     costGroups.set(key, current);
   }
   const groupedCosts = Array.from(costGroups.values()).sort((a, b) => a.level1.localeCompare(b.level1) || a.level2.localeCompare(b.level2));
+  const levelOneGroups = new Map<string, { level1: string; inclusive: number; exclusive: number; tax: number; count: number; children: typeof groupedCosts }>();
+  for (const row of groupedCosts) {
+    const current = levelOneGroups.get(row.level1) || { level1: row.level1, inclusive: 0, exclusive: 0, tax: 0, count: 0, children: [] };
+    current.inclusive += row.inclusive;
+    current.exclusive += row.exclusive;
+    current.tax += row.tax;
+    current.count += row.count;
+    current.children.push(row);
+    levelOneGroups.set(row.level1, current);
+  }
+  const levelOneRows = Array.from(levelOneGroups.values()).sort((a, b) => a.level1.localeCompare(b.level1));
 
   return (
     <main className="page">
@@ -115,10 +126,11 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
           <div>
             <p className="eyebrow">目标成本汇总表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">汇总收入、目标成本、增值税及附加、所得税前后利润指标，并展示二级科目成本结构；点击“穿透”可回到对应明细页。</p>
+            <p className="subtitle">汇总收入、目标成本、增值税及附加、所得税前后利润指标；一级科目可折叠展开，二级科目可穿透到明细页。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/revenue`} className="btn">收入明细</Link>
+            <Link href={`/projects/${project.id}/summary-check`} className="btn">汇总联动校验</Link>
             <Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">目标成本编制</Link>
             <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
           </div>
@@ -165,36 +177,48 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
 
         <section className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <h2 style={{ margin: 0 }}>成本汇总（二级科目）</h2>
+            <h2 style={{ margin: 0 }}>成本汇总（一级折叠 / 二级穿透）</h2>
             <Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">进入目标成本编制</Link>
           </div>
-          {groupedCosts.length === 0 ? (
+          {levelOneRows.length === 0 ? (
             <p className="meta">暂无成本明细。请先到“目标成本编制”录入土地费、前期费、建安费等成本。</p>
           ) : (
-            <div style={{ overflowX: 'auto', marginTop: 12 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980 }}>
-                <thead>
-                  <tr>
-                    {['一级科目', '二级科目', '明细行数', '含税成本', '不含税成本', '税额', '占含税成本比例', '穿透'].map((head) => (
-                      <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupedCosts.map((row) => (
-                    <tr key={`${row.level1}-${row.level2}`}>
-                      <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 700 }}>{row.level1}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row.level2}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{row.count}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 800 }}>{fmt(row.inclusive)}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(row.exclusive)}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(row.tax)}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{pct(costInclusive ? row.inclusive / costInclusive : 0)}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><Link className="btn" href={detailHref(project.id, row)}>查看明细</Link></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+              {levelOneRows.map((group) => (
+                <details key={group.level1} open style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+                  <summary style={{ cursor: 'pointer', listStyle: 'none', padding: 12, background: '#f8fafc', display: 'grid', gridTemplateColumns: '1fr 120px 160px 160px 120px', gap: 10, alignItems: 'center' }}>
+                    <b>{group.level1}</b>
+                    <span className="meta">{group.count} 行</span>
+                    <span style={{ textAlign: 'right', fontWeight: 900 }}>{fmt(group.inclusive)}</span>
+                    <span style={{ textAlign: 'right' }}>{pct(costInclusive ? group.inclusive / costInclusive : 0)}</span>
+                    <span style={{ color: '#0b7285', textAlign: 'right' }}>展开/收起</span>
+                  </summary>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980 }}>
+                      <thead>
+                        <tr>
+                          {['二级科目', '明细行数', '含税成本', '不含税成本', '税额', '占含税成本比例', '穿透'].map((head) => (
+                            <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.children.map((row) => (
+                          <tr key={`${row.level1}-${row.level2}`}>
+                            <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row.level2}</td>
+                            <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{row.count}</td>
+                            <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 800 }}>{fmt(row.inclusive)}</td>
+                            <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(row.exclusive)}</td>
+                            <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(row.tax)}</td>
+                            <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{pct(costInclusive ? row.inclusive / costInclusive : 0)}</td>
+                            <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><Link className="btn" href={detailHref(project.id, row)}>查看明细</Link></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              ))}
             </div>
           )}
         </section>
