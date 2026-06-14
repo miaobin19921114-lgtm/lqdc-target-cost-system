@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-const clean = (value: FormDataEntryValue | null) => String(value || '').trim();
+const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
 function getBaseUrl(request: Request) {
   const proto = request.headers.get('x-forwarded-proto') || 'https';
@@ -12,21 +12,21 @@ function getBaseUrl(request: Request) {
 function numberFrom(form: FormData, name: string) {
   const raw = clean(form.get(name));
   if (!raw) return 0;
-  const value = Number(raw.replace('%', ''));
-  return Number.isFinite(value) ? value : 0;
+  const num = Number(raw.replace('%', ''));
+  return Number.isFinite(num) ? num : 0;
 }
 
-function taxRateFrom(value: FormDataEntryValue | null, fallback = 0.09) {
-  const raw = clean(value);
+function taxRateFrom(inputValue: FormDataEntryValue | null, fallback = 0.09) {
+  const raw = clean(inputValue);
   if (!raw) return fallback;
-  const value = Number(raw.replace('%', ''));
-  if (!Number.isFinite(value)) return fallback;
-  if (raw.includes('%')) return value / 100;
-  return value > 1 ? value / 100 : value;
+  const num = Number(raw.replace('%', ''));
+  if (!Number.isFinite(num)) return fallback;
+  if (raw.includes('%')) return num / 100;
+  return num > 1 ? num / 100 : num;
 }
 
-function round2(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+function round2(amount: number) {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
 }
 
 function calc(quantity: number, taxInclusiveUnitPrice: number, taxRate: number) {
@@ -114,14 +114,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
       remark
     };
 
-    if (costLineId) {
-      await prisma.costLine.update({ where: { id: costLineId }, data });
-    } else {
-      await prisma.costLine.create({ data: { ...data, sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || Date.now() % 1000000000 } });
-    }
+    if (costLineId) await prisma.costLine.update({ where: { id: costLineId }, data });
+    else await prisma.costLine.create({ data: { ...data, sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || Date.now() % 1000000000 } });
     savedCount += 1;
   }
 
   const baseUrl = getBaseUrl(request);
-  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/costs?saved=1&batch=${savedCount}`, 303);
+  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/costs-batch?saved=1&batch=${savedCount}`, 303);
 }
