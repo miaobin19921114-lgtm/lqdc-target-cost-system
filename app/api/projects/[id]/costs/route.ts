@@ -6,18 +6,18 @@ const clean = (value: FormDataEntryValue | null) => String(value || '').trim();
 function toNumber(form: FormData, name: string) {
   const raw = clean(form.get(name));
   if (!raw) return 0;
-  const value = Number(raw.replace('%', ''));
-  if (!Number.isFinite(value)) return 0;
-  return raw.includes('%') ? value / 100 : value;
+  const numericValue = Number(raw.replace('%', ''));
+  if (!Number.isFinite(numericValue)) return 0;
+  return raw.includes('%') ? numericValue / 100 : numericValue;
 }
 
-function parseTaxRate(value: FormDataEntryValue | null, fallback = 0.09) {
-  const raw = clean(value);
+function parseTaxRate(inputValue: FormDataEntryValue | null, fallback = 0.09) {
+  const raw = clean(inputValue);
   if (!raw) return fallback;
-  const value = Number(raw.replace('%', ''));
-  if (!Number.isFinite(value)) return fallback;
-  if (raw.includes('%')) return value / 100;
-  return value > 1 ? value / 100 : value;
+  const numericValue = Number(raw.replace('%', ''));
+  if (!Number.isFinite(numericValue)) return fallback;
+  if (raw.includes('%')) return numericValue / 100;
+  return numericValue > 1 ? numericValue / 100 : numericValue;
 }
 
 function round2(value: number) {
