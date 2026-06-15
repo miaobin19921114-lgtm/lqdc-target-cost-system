@@ -4,16 +4,16 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
   return (
     <main style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1.05fr .95fr', background: 'linear-gradient(135deg,#0f3a4a 0%,#1f6f78 48%,#eef3f8 48%,#eef3f8 100%)' }}>
       <section style={{ color: '#fff', padding: '72px 60px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <div style={{ width: 46, height: 46, borderRadius: 12, background: '#12b5cb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 22 }}>九</div>
-        <h1 style={{ fontSize: 42, lineHeight: 1.12, margin: '24px 0 12px' }}>地产目标成本<br />AI 测算工作台</h1>
-        <p style={{ maxWidth: 520, color: 'rgba(255,255,255,.78)', fontSize: 16 }}>适合个人和小团队使用：项目概况、业态模板、收入明细、目标成本、税金分摊一套流程打通。</p>
+        <div style={{ width: 46, height: 46, borderRadius: 12, background: '#12b5cb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 22 }}>源</div>
+        <h1 style={{ fontSize: 42, lineHeight: 1.12, margin: '24px 0 12px' }}>源信达<br />地产目标成本测算系统</h1>
+        <p style={{ maxWidth: 520, color: 'rgba(255,255,255,.78)', fontSize: 16 }}>让地产成本测算更简单。适合个人和小团队使用：项目概况、业态模板、收入明细、目标成本、税金分摊一套流程打通。</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 12, maxWidth: 560, marginTop: 34 }}>
-          {['模板驱动', '项目快照', '多人协作'].map((item) => <div key={item} style={{ border: '1px solid rgba(255,255,255,.22)', borderRadius: 14, padding: 14, background: 'rgba(255,255,255,.08)' }}>{item}</div>)}
+          {['模板驱动', '快速测算', '数据沉淀'].map((item) => <div key={item} style={{ border: '1px solid rgba(255,255,255,.22)', borderRadius: 14, padding: 14, background: 'rgba(255,255,255,.08)' }}>{item}</div>)}
         </div>
       </section>
       <section style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
         <div style={{ width: '100%', maxWidth: 430, background: '#fff', border: '1px solid #d9e2ec', borderRadius: 22, boxShadow: '0 24px 70px rgba(15,58,74,.18)', padding: 30 }}>
-          <p style={{ margin: 0, color: '#0f4c5c', fontWeight: 900, fontSize: 13 }}>LOGIN</p>
+          <p style={{ margin: 0, color: '#0f4c5c', fontWeight: 900, fontSize: 13 }}>源信达</p>
           <h2 style={{ margin: '8px 0 6px', fontSize: 28 }}>欢迎回来</h2>
           <p className="meta" style={{ marginBottom: 18 }}>支持邮箱 / 手机号 + 密码登录。微信登录入口已预留，配置微信开放平台后启用。</p>
           {searchParams?.error ? <div style={{ background: '#fff5f5', border: '1px solid #ffc9c9', color: '#c92a2a', borderRadius: 10, padding: 10, marginBottom: 12 }}>账号或密码不正确。</div> : null}
