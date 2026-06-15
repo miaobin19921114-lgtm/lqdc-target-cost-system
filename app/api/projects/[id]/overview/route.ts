@@ -1,14 +1,27 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-const toNumber = (form: FormData, name: string) => Number(form.get(name) || 0);
-const toInt = (form: FormData, name: string) => Math.round(toNumber(form, name));
+function clean(form: FormData, name: string) {
+  return String(form.get(name) || '').trim();
+}
+
+function toNumber(form: FormData, name: string) {
+  const value = Number(clean(form, name));
+  return Number.isFinite(value) ? value : 0;
+}
+
+function toInt(form: FormData, name: string) {
+  return Math.round(toNumber(form, name));
+}
+
+function toBool(form: FormData, name: string) {
+  return form.get(name) === 'on' || form.get(name) === 'true';
+}
 
 function getBaseUrl(request: Request) {
   const proto = request.headers.get('x-forwarded-proto') || 'https';
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-  if (host) return `${proto}://${host}`;
-  return new URL(request.url).origin;
+  return host ? `${proto}://${host}` : new URL(request.url).origin;
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -17,9 +30,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   await prisma.project.update({
     where: { id: params.id },
     data: {
-      name: String(form.get('name') || '未命名项目'),
-      city: String(form.get('city') || ''),
-      district: String(form.get('district') || ''),
+      name: clean(form, 'name') || '未命名项目',
+      city: clean(form, 'city') || null,
+      district: clean(form, 'district') || null,
+
       landArea: toNumber(form, 'landArea'),
       plotRatio: toNumber(form, 'plotRatio'),
       totalBuildingArea: toNumber(form, 'totalBuildingArea'),
@@ -28,6 +42,22 @@ export async function POST(request: Request, { params }: { params: { id: string 
       undergroundArea: toNumber(form, 'undergroundArea'),
       saleableArea: toNumber(form, 'saleableArea'),
       nonSaleableArea: toNumber(form, 'nonSaleableArea'),
+
+      parkingCount: toInt(form, 'parkingCount'),
+      undergroundPropertyParkingCount: toInt(form, 'undergroundPropertyParkingCount'),
+      undergroundUseRightParkingCount: toInt(form, 'undergroundUseRightParkingCount'),
+      civilDefenseParkingCount: toInt(form, 'civilDefenseParkingCount'),
+      aboveGroundParkingCount: toInt(form, 'aboveGroundParkingCount'),
+      chargingPileCount: toInt(form, 'chargingPileCount'),
+      fastChargingPileCount: toInt(form, 'fastChargingPileCount'),
+      slowChargingPileCount: toInt(form, 'slowChargingPileCount'),
+      reservedChargingPileCount: toInt(form, 'reservedChargingPileCount'),
+      chargingPileRatio: toNumber(form, 'chargingPileRatio'),
+      parkingPowerCapacity: toNumber(form, 'parkingPowerCapacity'),
+      chargingIncludedInParkingPrice: toBool(form, 'chargingIncludedInParkingPrice'),
+      chargingSeparateCostMeasure: toBool(form, 'chargingSeparateCostMeasure'),
+      parkingRemark: clean(form, 'parkingRemark') || null,
+
       buildingCount: toInt(form, 'buildingCount'),
       unitCount: toInt(form, 'unitCount'),
       basementFloors: toInt(form, 'basementFloors'),
@@ -43,10 +73,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       mainBuildingUndergroundArea: toNumber(form, 'mainBuildingUndergroundArea'),
       publicArea: toNumber(form, 'publicArea'),
       lobbyArea: toNumber(form, 'lobbyArea'),
-      remark: String(form.get('remark') || '')
+      remark: clean(form, 'remark') || null
     }
   });
 
-  const baseUrl = getBaseUrl(request);
-  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/overview?saved=1`, 303);
+  return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/overview?saved=1`, 303);
 }
