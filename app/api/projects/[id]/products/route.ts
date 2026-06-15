@@ -24,9 +24,13 @@ async function getOrCreateVersion(projectId: string) {
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
   const version = await getOrCreateVersion(params.id);
-  const name = String(form.get('name') || '未命名业态').trim();
+  const customName = String(form.get('customName') || '').trim();
+  const name = customName || String(form.get('name') || '未命名业态').trim();
+  const category = String(form.get('category') || form.get('customCategory') || '').trim();
   const returnPath = String(form.get('returnPath') || 'products');
   const existing = await prisma.productType.findFirst({ where: { projectVersionId: version.id, name } });
+  const rawRemark = String(form.get('remark') || '');
+  const remark = category && !rawRemark.includes('模板业态｜') ? `${rawRemark ? `${rawRemark}；` : ''}模板业态｜${category}` : rawRemark;
 
   const data: any = {
     buildingArea: toNumber(form, 'buildingArea'),
@@ -36,7 +40,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     isSaleable: form.get('isSaleable') === 'on',
     participateAllocation: form.get('participateAllocation') === 'on',
     allocationWeight: toNumber(form, 'allocationWeight') || 1,
-    remark: String(form.get('remark') || '')
+    remark
   };
 
   if (form.has('salePrice')) data.salePrice = toNumber(form, 'salePrice');
