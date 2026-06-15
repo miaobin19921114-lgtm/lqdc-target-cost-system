@@ -18,7 +18,7 @@ const workflow = [
 
 export default function WorkspacePage() {
   return <main className="page" style={{ background: '#eef3f8', minHeight: '100vh' }}><div className="container" style={{ maxWidth: 1180 }}>
-    <div className="page-header"><div><p className="eyebrow">独立产品</p><h1 className="title">地产目标成本测算系统</h1><p className="subtitle">产品定位先收窄：面向个人和小团队，专注地产项目目标成本测算，不做大型 ERP，不做上下游全链路集成。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href="/projects" className="btn btn-primary">进入项目列表</Link><Link href="/projects/new" className="btn">新建项目</Link><Link href="/templates" className="btn">模板中心</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">源信达</p><h1 className="title">地产目标成本测算系统</h1><p className="subtitle">让地产成本测算更简单。产品定位：面向个人和小团队，专注地产项目目标成本测算，不做大型 ERP，不做上下游全链路集成。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href="/projects" className="btn btn-primary">进入项目列表</Link><Link href="/projects/new" className="btn">新建项目</Link><Link href="/templates" className="btn">模板中心</Link></div></div>
 
     <section className="card" style={{ marginBottom: 14 }}><h2>产品边界</h2><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>{productScope.map(([name, desc]) => <div key={name} style={{ border: '1px solid #d9e2ec', borderRadius: 14, padding: 16, background: '#fff' }}><b>{name}</b><p className="meta" style={{ marginTop: 8 }}>{desc}</p></div>)}</div></section>
 
