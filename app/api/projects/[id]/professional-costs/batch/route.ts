@@ -58,15 +58,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     if (!quantity && !taxInclusiveUnitPrice && !remark && !costLineId) continue;
     const dict = await prisma.costDictionaryRow.findUnique({ where: { id: rowId } });
-    if (!dict) continue;
+    if (!dict || !dict.detailSubject) continue;
 
     const code = dict.costCode || '03';
-    const subjectName = dict.detailSubject || dict.thirdSubject || dict.secondSubject || dict.firstSubject || professionalGroup;
+    const subjectName = dict.detailSubject;
     const costSubject = await prisma.costSubject.upsert({
       where: { code },
       update: {
         name: subjectName,
-        level: Number(dict.subjectLevel || 3) || 3,
+        level: Number(dict.subjectLevel || 4) || 4,
         fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'),
         defaultUnit: dict.unit || undefined,
         defaultMeasureBasis: dict.measureBasis || undefined,
@@ -76,7 +76,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       create: {
         code,
         name: subjectName,
-        level: Number(dict.subjectLevel || 3) || 3,
+        level: Number(dict.subjectLevel || 4) || 4,
         fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'),
         defaultUnit: dict.unit || undefined,
         defaultMeasureBasis: dict.measureBasis || undefined,
@@ -91,7 +91,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const data = {
       projectVersionId: version.id,
       costSubjectId: costSubject.id,
-      detailName: dict.detailSubject || dict.thirdSubject || dict.secondSubject || professionalGroup,
+      detailName: dict.detailSubject,
       regionOrProductType: dict.applicableProductType || '项目整体共用',
       professionalGroup,
       measureBasis: dict.measureBasis || '',
