@@ -202,6 +202,8 @@ model ProductType {
   isSaleable             Boolean @default(true)
   participateAllocation  Boolean @default(true)
   allocationWeight       Decimal @default(1)
+  isActive               Boolean @default(true)
+  disabledAt             DateTime?
   remark                 String?
   revenues               RevenueLine[]
   costs                  CostLine[]
