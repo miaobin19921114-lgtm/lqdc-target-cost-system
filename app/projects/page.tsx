@@ -13,16 +13,20 @@ export default async function ProjectsPage() {
           <div>
             <p className="eyebrow">项目管理</p>
             <h1 className="title">项目列表</h1>
-            <p className="subtitle">所有目标成本测算项目统一在这里管理。当前已接入 Railway + PostgreSQL 线上环境。</p>
+            <p className="subtitle">个人/小团队目标成本测算项目统一管理；新建项目先选默认模板，再生成项目测算框架。</p>
           </div>
-          <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
+          <div className="actions" style={{ marginTop: 0 }}>
+            <Link href="/templates" className="btn">后台模板中心</Link>
+            <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
+          </div>
         </div>
 
         {projects.length === 0 ? (
           <section className="card">
             <h2>还没有项目</h2>
-            <p className="meta">先新建一个项目，后续在项目工作台中录入概况、业态、收入、目标成本和税金。</p>
+            <p className="meta">先到模板中心确认默认模板，再新建项目并选择本项目需要的业态、科目和规则。</p>
             <div className="actions">
+              <Link href="/templates" className="btn">后台模板中心</Link>
               <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
             </div>
           </section>
