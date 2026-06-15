@@ -19,12 +19,30 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const templateId = String(form.get('templateId') || '');
   const selectedIds = form.getAll('templateProductIds').map((item) => String(item));
+  const customProductName = String(form.get('customProductName') || '').trim();
+  const customCategory = String(form.get('customCategory') || '').trim();
   const template = templateId ? await prisma.template.findUnique({
     where: { id: templateId },
     include: { products: true, taxRules: true }
   }) : null;
   const selectedProducts = template?.products.filter((item) => selectedIds.includes(item.id)) || [];
   const taxRules = template?.taxRules || [];
+  const productCreates = selectedProducts.map((item) => ({
+    name: item.name,
+    isSaleable: item.isSaleable,
+    participateAllocation: item.participateAllocation,
+    allocationWeight: Number(item.allocationWeight || 1),
+    remark: item.remark || ''
+  }));
+  if (customProductName) {
+    productCreates.push({
+      name: customProductName,
+      isSaleable: form.get('customIsSaleable') === 'on',
+      participateAllocation: form.get('customParticipateAllocation') === 'on',
+      allocationWeight: 1,
+      remark: customCategory ? `模板业态｜${customCategory}` : '自定义业态'
+    });
+  }
 
   const project = await prisma.project.create({
     data: {
@@ -41,15 +59,7 @@ export async function POST(request: Request) {
         create: {
           name: '初始版本',
           status: 'draft',
-          products: {
-            create: selectedProducts.map((item) => ({
-              name: item.name,
-              isSaleable: item.isSaleable,
-              participateAllocation: item.participateAllocation,
-              allocationWeight: Number(item.allocationWeight || 1),
-              remark: item.remark || ''
-            }))
-          },
+          products: { create: productCreates },
           taxes: {
             create: {
               vatRate: rateByName(taxRules, '增值税', 0.09),
