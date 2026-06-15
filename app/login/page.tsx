@@ -19,7 +19,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
           {searchParams?.error ? <div style={{ background: '#fff5f5', border: '1px solid #ffc9c9', color: '#c92a2a', borderRadius: 10, padding: 10, marginBottom: 12 }}>账号或密码不正确。</div> : null}
           {searchParams?.wechat === 'unconfigured' ? <div style={{ background: '#fff7e6', border: '1px solid #ffd8a8', color: '#9a5b00', borderRadius: 10, padding: 10, marginBottom: 12 }}>微信登录尚未配置 AppID / 回调地址，暂时不可用。</div> : null}
           <form action="/api/auth/login" method="post" style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-            <input type="hidden" name="next" value={searchParams?.next || '/projects'} />
+            <input type="hidden" name="next" value={searchParams?.next || '/workspace'} />
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: '#475467' }}>邮箱 / 手机号<input name="identifier" placeholder="admin@lqdc.local 或手机号" defaultValue="admin@lqdc.local" required style={{ height: 42, border: '1px solid #d9e2ec', borderRadius: 10, padding: '0 12px', fontSize: 15 }} /></label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: '#475467' }}>密码<input name="password" type="password" placeholder="请输入密码" defaultValue="admin123456" required style={{ height: 42, border: '1px solid #d9e2ec', borderRadius: 10, padding: '0 12px', fontSize: 15 }} /></label>
             <button style={{ height: 44, border: 0, borderRadius: 12, background: '#0f4c5c', color: '#fff', fontWeight: 900, fontSize: 15 }}>登录工作台</button>
