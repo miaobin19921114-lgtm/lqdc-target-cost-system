@@ -24,28 +24,34 @@ async function getOrCreateVersion(projectId: string) {
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
   const version = await getOrCreateVersion(params.id);
-  const name = String(form.get('name') || '未命名业态');
-  const data = {
+  const name = String(form.get('name') || '未命名业态').trim();
+  const returnPath = String(form.get('returnPath') || 'products');
+  const existing = await prisma.productType.findFirst({ where: { projectVersionId: version.id, name } });
+
+  const data: any = {
     buildingArea: toNumber(form, 'buildingArea'),
     saleableArea: toNumber(form, 'saleableArea'),
     capacityArea: toNumber(form, 'capacityArea'),
     nonSaleableArea: toNumber(form, 'nonSaleableArea'),
-    salePrice: toNumber(form, 'salePrice'),
     isSaleable: form.get('isSaleable') === 'on',
     participateAllocation: form.get('participateAllocation') === 'on',
     allocationWeight: toNumber(form, 'allocationWeight') || 1,
     remark: String(form.get('remark') || '')
   };
 
-  const existing = await prisma.productType.findFirst({ where: { projectVersionId: version.id, name } });
+  if (form.has('salePrice')) data.salePrice = toNumber(form, 'salePrice');
+
   if (existing) {
+    if (returnPath === 'overview' && form.get('mode') === 'create') {
+      const baseUrl = getBaseUrl(request);
+      return NextResponse.redirect(`${baseUrl}/projects/${params.id}/overview?productSaved=duplicate`, 303);
+    }
     await prisma.productType.update({ where: { id: existing.id }, data });
   } else {
     await prisma.productType.create({ data: { projectVersionId: version.id, name, ...data } });
   }
 
   const baseUrl = getBaseUrl(request);
-  const returnPath = String(form.get('returnPath') || 'products');
   const target = returnPath === 'overview' ? 'overview?productSaved=1' : 'products?saved=1';
   return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${target}`, 303);
 }
