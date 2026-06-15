@@ -10,8 +10,22 @@ function getBaseUrl(request: Request) {
   return new URL(request.url).origin;
 }
 
+function rateByName(taxRules: { name: string; rate: any }[], keyword: string, fallback: number) {
+  const row = taxRules.find((item) => item.name.includes(keyword));
+  return row ? Number(row.rate) : fallback;
+}
+
 export async function POST(request: Request) {
   const form = await request.formData();
+  const templateId = String(form.get('templateId') || '');
+  const selectedIds = form.getAll('templateProductIds').map((item) => String(item));
+  const template = templateId ? await prisma.template.findUnique({
+    where: { id: templateId },
+    include: { products: true, taxRules: true }
+  }) : null;
+  const selectedProducts = template?.products.filter((item) => selectedIds.includes(item.id)) || [];
+  const taxRules = template?.taxRules || [];
+
   const project = await prisma.project.create({
     data: {
       name: String(form.get('name') || '未命名项目'),
@@ -23,10 +37,35 @@ export async function POST(request: Request) {
       saleableArea: toNumber(form.get('saleableArea')),
       parkingCount: Math.round(toNumber(form.get('parkingCount'))),
       remark: String(form.get('remark') || ''),
-      versions: { create: { name: '初始版本', status: 'draft' } }
+      versions: {
+        create: {
+          name: '初始版本',
+          status: 'draft',
+          products: {
+            create: selectedProducts.map((item) => ({
+              name: item.name,
+              isSaleable: item.isSaleable,
+              participateAllocation: item.participateAllocation,
+              allocationWeight: Number(item.allocationWeight || 1),
+              remark: item.remark || ''
+            }))
+          },
+          taxes: {
+            create: {
+              vatRate: rateByName(taxRules, '增值税', 0.09),
+              urbanMaintenanceRate: rateByName(taxRules, '城建税', 0.07),
+              educationSurchargeRate: rateByName(taxRules, '教育费附加', 0.03),
+              localEducationSurchargeRate: rateByName(taxRules, '地方教育附加', 0.02),
+              corporateIncomeTaxRate: rateByName(taxRules, '企业所得税', 0.25),
+              landValueAddedTaxRate: rateByName(taxRules, '土地增值税', 0),
+              remark: template ? `来自模板：${template.name}` : ''
+            }
+          }
+        }
+      }
     }
   });
 
   const baseUrl = getBaseUrl(request);
-  return NextResponse.redirect(`${baseUrl}/projects/${project.id}`, 303);
+  return NextResponse.redirect(`${baseUrl}/projects/${project.id}/overview`, 303);
 }
