@@ -45,5 +45,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   const baseUrl = getBaseUrl(request);
-  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/products?saved=1`, 303);
+  const returnPath = String(form.get('returnPath') || 'products');
+  const target = returnPath === 'overview' ? 'overview?productSaved=1' : 'products?saved=1';
+  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${target}`, 303);
 }
