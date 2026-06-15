@@ -11,9 +11,12 @@ function getBaseUrl(request: Request) {
 
 export async function POST(request: Request) {
   const form = await request.formData();
-  const email = String(form.get('email') || '');
+  const identifier = String(form.get('identifier') || form.get('email') || '').trim();
   const password = String(form.get('password') || '');
-  const user = await prisma.user.findUnique({ where: { email } });
+  const adminPhone = process.env.ADMIN_PHONE || '';
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@lqdc.local';
+  const loginKey = identifier === adminPhone && adminPhone ? adminEmail : identifier;
+  const user = await prisma.user.findFirst({ where: { OR: [{ email: loginKey }, { phone: loginKey }] } });
 
   const baseUrl = getBaseUrl(request);
 
