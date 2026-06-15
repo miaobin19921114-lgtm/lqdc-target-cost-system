@@ -7,7 +7,7 @@ const groups = [
   ['项目基础', [
     ['项目概况（含业态/产品构成）', 'overview'],
     ['车位配置表', 'parking'],
-    ['测算控制中心', '']
+    ['测算控制中心', 'dashboard-lite']
   ]],
   ['收入与成本', [
     ['收入明细表', 'revenue'],
@@ -68,6 +68,7 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
   const saleableArea = Number(project.saleableArea || 0);
   const quick = [
     ['项目概况', 'overview'],
+    ['测算控制中心', 'dashboard-lite'],
     ['系统校验', 'check'],
     ['目标成本编制', 'costs-batch'],
     ['汇总联动校验', 'summary-check'],
