@@ -25,7 +25,6 @@ const groups = [
     ['管理费用明细表', 'admin-expense-details'],
     ['财务费用明细表', 'finance-expense-details'],
     ['目标成本编制', 'costs-batch'],
-    ['目标成本测算旧版', 'costs'],
     ['目标成本汇总表', 'summary']
   ]],
   ['税务与分摊', [
