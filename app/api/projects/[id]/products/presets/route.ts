@@ -59,6 +59,7 @@ async function getOrCreateVersion(projectId: string) {
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const form = await request.formData();
   const version = await getOrCreateVersion(params.id);
   const existing = await prisma.productType.findMany({ where: { projectVersionId: version.id }, select: { name: true } });
   const existingNames = new Set(existing.map((item) => item.name));
@@ -78,5 +79,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   const baseUrl = getBaseUrl(request);
-  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/products?preset=1`, 303);
+  const returnPath = String(form.get('returnPath') || 'products');
+  const target = returnPath === 'overview' ? 'overview?preset=1' : 'products?preset=1';
+  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${target}`, 303);
 }
