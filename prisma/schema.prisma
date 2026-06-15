@@ -29,6 +29,68 @@ model User {
   updatedAt    DateTime @updatedAt
 }
 
+model Template {
+  id              String             @id @default(cuid())
+  name            String
+  type            String             @default("住宅开发")
+  description     String?
+  isDefault       Boolean            @default(false)
+  isActive        Boolean            @default(true)
+  sortOrder       Int                @default(0)
+  products        TemplateProduct[]
+  costRules       TemplateCostRule[]
+  taxRules        TemplateTaxRule[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model TemplateProduct {
+  id                    String   @id @default(cuid())
+  templateId             String
+  template               Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  category               String
+  name                   String
+  isSaleable             Boolean  @default(true)
+  participateAllocation  Boolean  @default(true)
+  allocationWeight       Decimal  @default(1)
+  sortOrder              Int      @default(0)
+  remark                 String?
+
+  @@unique([templateId, name])
+  @@index([templateId])
+}
+
+model TemplateCostRule {
+  id                String   @id @default(cuid())
+  templateId         String
+  template           Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  costCode           String?
+  category           String?
+  subjectName        String
+  sourceTable        String?
+  measureBasis       String?
+  unit               String?
+  defaultTaxRate     Decimal  @default(0.09)
+  allocationMethod   String?
+  sortOrder          Int      @default(0)
+  remark             String?
+
+  @@index([templateId])
+}
+
+model TemplateTaxRule {
+  id          String   @id @default(cuid())
+  templateId   String
+  template     Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name        String
+  rate        Decimal  @default(0)
+  scope       String?
+  remark      String?
+  sortOrder   Int      @default(0)
+
+  @@index([templateId])
+}
+
 model Project {
   id                              String   @id @default(cuid())
   name                            String
