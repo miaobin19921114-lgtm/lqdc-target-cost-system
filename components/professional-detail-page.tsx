@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { getV57CostDictionaryRows } from '@/data/cost-dictionary-v57';
+import { suggestQuantityFromOverview } from '@/lib/overview-quantity';
 
 function fmt(value: unknown) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -109,6 +110,7 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/cost-dictionary`} className="btn btn-primary">成本科目词典</Link>
+            <Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link>
             <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
           </div>
         </div>
@@ -124,7 +126,7 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
 
         <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <div><b>{props.title}｜科目树填报</b><div className="meta">按“归属表”精确筛选；一级/二级/三级只汇总，末级才录入工程量、单价、备注。</div></div>
+            <div><b>{props.title}｜科目树填报</b><div className="meta">工程量优先从项目概况表自动带入；已保存行继续用保存值。上级科目只汇总，末级才录入单价和备注。</div></div>
             <button form={`${props.returnPath}-batch`} className="btn btn-primary" style={{ minHeight: 34 }}>整表批量保存</button>
           </div>
           <form id={`${props.returnPath}-batch`} action={`/api/projects/${project.id}/professional-costs/batch`} method="post" />
@@ -148,21 +150,23 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
                             <summary style={{ cursor: 'pointer', padding: 10, background: '#fcfdff', display: 'grid', gridTemplateColumns: '1fr 120px 140px', gap: 10, alignItems: 'center' }}>
                               <b>三级｜{level3.name}</b><span>已填 {level3.filled}/{level3.rows}</span><span style={{ textAlign: 'right', fontWeight: 800 }}>{fmt(level3.amount)}</span>
                             </summary>
-                            <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1450, borderCollapse: 'collapse', fontSize: 12 }}>
+                            <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1500, borderCollapse: 'collapse', fontSize: 12 }}>
                               <thead><tr style={{ background: '#fff' }}>{['编码', '末级科目', '区域/业态', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额', '不含税金额', '税额', '分摊方式', '备注', '状态'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#475467' }}>{head}</th>)}</tr></thead>
                               <tbody>{level3.leaves.map((dict, index) => {
                                 const saved = dict.costCode ? costByCode.get(dict.costCode) : null;
                                 const amount = Number(saved?.taxInclusiveAmount || 0);
-                                const quantity = Number(saved?.quantity || 0);
+                                const suggestion = suggestQuantityFromOverview(project, dict);
+                                const quantity = saved ? Number(saved.quantity || 0) : suggestion.quantity;
+                                const unit = saved?.unit || suggestion.unit || dict.unit || '';
                                 const unitPrice = Number(saved?.taxInclusiveUnitPrice || 0);
                                 const isFilled = amount > 0;
                                 return <tr key={dict.id} style={{ background: isFilled ? '#f8fff9' : index % 2 ? '#fff' : '#fcfdff' }}>
                                   <td style={{ ...cell, fontWeight: 900, color: '#0f4c5c' }}>{dict.costCode || '-'}</td>
                                   <td style={{ ...cell, fontWeight: 800 }}>{dict.detailSubject || '-'}</td>
                                   <td style={cell}>{saved?.regionOrProductType || dict.applicableProductType || '项目整体共用'}</td>
-                                  <td style={cell}>{saved?.measureBasis || dict.measureBasis || '-'}</td>
+                                  <td style={cell}>{saved?.measureBasis || dict.measureBasis || '-'}{!saved && suggestion.source ? <div className="meta">默认取数：{suggestion.source}</div> : null}</td>
                                   <td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} type="hidden" name="dictionaryRowId" value={dict.id} />{saved ? <input form={`${props.returnPath}-batch`} type="hidden" name={`costLineId-${dict.id}`} value={saved.id} /> : null}<input form={`${props.returnPath}-batch`} name={`quantity-${dict.id}`} type="number" step="0.01" defaultValue={quantity || ''} placeholder="工程量" style={inputStyle} /></td>
-                                  <td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={`unit-${dict.id}`} defaultValue={saved?.unit || dict.unit || ''} style={{ ...inputStyle, minWidth: 70 }} /></td>
+                                  <td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={`unit-${dict.id}`} defaultValue={unit} style={{ ...inputStyle, minWidth: 70 }} /></td>
                                   <td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={`taxInclusiveUnitPrice-${dict.id}`} type="number" step="0.01" defaultValue={unitPrice || ''} placeholder="单价" style={inputStyle} /></td>
                                   <td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={`taxRate-${dict.id}`} defaultValue={dict.defaultTaxRate || (saved ? `${Number(saved.taxRate || 0) * 100}%` : '9%')} style={{ ...inputStyle, minWidth: 68 }} /></td>
                                   <td style={{ ...cell, textAlign: 'right', fontWeight: 900 }}>{fmt(amount)}</td>
@@ -170,7 +174,7 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
                                   <td style={{ ...cell, textAlign: 'right' }}>{fmt(saved?.taxAmount || 0)}</td>
                                   <td style={cell}>{saved?.allocationMethod || dict.targetAllocationMethod || '建筑面积分摊'}</td>
                                   <td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={`remark-${dict.id}`} defaultValue={saved?.remark || ''} placeholder="备注" style={{ ...inputStyle, minWidth: 130 }} /></td>
-                                  <td style={{ ...cell, color: isFilled ? '#2f9e44' : '#98a2b3', fontWeight: 800 }}>{isFilled ? '已填' : '未填'}</td>
+                                  <td style={{ ...cell, color: isFilled ? '#2f9e44' : '#98a2b3', fontWeight: 800 }}>{isFilled ? '已填' : (suggestion.quantity ? '已带入' : '未填')}</td>
                                 </tr>;
                               })}</tbody>
                             </table></div>
