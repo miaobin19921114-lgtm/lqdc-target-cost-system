@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const protectedPrefixes = ['/projects', '/templates', '/api/projects', '/api/export'];
+const protectedPrefixes = ['/workspace', '/projects', '/templates', '/api/projects', '/api/export'];
 
 function isProtected(pathname: string) {
   return protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get('lqdc_session')?.value;
 
   if (pathname === '/login' && session) {
-    return NextResponse.redirect(new URL('/projects', request.url));
+    return NextResponse.redirect(new URL('/workspace', request.url));
   }
 
   if (isProtected(pathname) && !session) {
@@ -24,5 +24,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/projects/:path*', '/templates/:path*', '/api/projects/:path*', '/api/export/:path*', '/login']
+  matcher: ['/workspace/:path*', '/projects/:path*', '/templates/:path*', '/api/projects/:path*', '/api/export/:path*', '/login']
 };
