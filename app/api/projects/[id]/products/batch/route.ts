@@ -38,14 +38,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
       capacityArea: toNumber(form, `capacityArea-${index}`),
       saleableArea: toNumber(form, `saleableArea-${index}`),
       nonSaleableArea: toNumber(form, `nonSaleableArea-${index}`),
-      salePrice: toNumber(form, `salePrice-${index}`),
       allocationWeight: toNumber(form, `allocationWeight-${index}`) || 1,
       isSaleable: form.get(`isSaleable-${index}`) === 'on',
       participateAllocation: form.get(`participateAllocation-${index}`) === 'on',
       remark: clean(form, `remark-${index}`)
     };
 
-    const hasData = id || data.buildingArea || data.capacityArea || data.saleableArea || data.nonSaleableArea || data.salePrice || data.remark;
+    const hasData = id || data.buildingArea || data.capacityArea || data.saleableArea || data.nonSaleableArea || data.remark;
     if (!hasData) continue;
 
     if (id) {
