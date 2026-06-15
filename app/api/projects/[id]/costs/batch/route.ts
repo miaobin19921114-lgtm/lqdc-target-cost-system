@@ -60,10 +60,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!quantity && !taxInclusiveUnitPrice && !remark && !costLineId) continue;
 
     const dict = await prisma.costDictionaryRow.findUnique({ where: { id: dictionaryRowId } });
-    if (!dict) continue;
+    if (!dict || !dict.detailSubject) continue;
 
     const code = dict.costCode || '03';
-    const subjectName = dict.detailSubject || dict.thirdSubject || dict.secondSubject || dict.firstSubject || '目标成本';
+    const subjectName = dict.detailSubject;
     const costSubject = await prisma.costSubject.upsert({
       where: { code },
       update: {
@@ -96,7 +96,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       projectVersionId: version.id,
       costSubjectId: costSubject.id,
       productTypeId: null,
-      detailName: dict.detailSubject || dict.thirdSubject || dict.secondSubject || '未命名成本明细',
+      detailName: dict.detailSubject,
       regionOrProductType: dict.applicableProductType || '项目整体共用',
       professionalGroup: dict.sourceTable?.replace('表', '') || dict.secondSubject || '目标成本',
       measureBasis: dict.measureBasis || '',
