@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 const groups = [
   ['项目基础', [
     ['项目概况（含业态/产品构成）', 'overview'],
+    ['业态增减维护', 'product-maintenance'],
     ['车位配置表', 'parking'],
     ['测算控制中心', 'dashboard-lite']
   ]],
@@ -68,6 +69,7 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
   const saleableArea = Number(project.saleableArea || 0);
   const quick = [
     ['项目概况', 'overview'],
+    ['业态维护', 'product-maintenance'],
     ['测算控制中心', 'dashboard-lite'],
     ['系统校验', 'check'],
     ['目标成本编制', 'costs-batch'],
