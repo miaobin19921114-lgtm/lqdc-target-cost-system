@@ -46,9 +46,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (form.has('salePrice')) data.salePrice = toNumber(form, 'salePrice');
 
   if (existing) {
-    if (returnPath === 'overview' && form.get('mode') === 'create') {
+    if (form.get('mode') === 'create') {
       const baseUrl = getBaseUrl(request);
-      return NextResponse.redirect(`${baseUrl}/projects/${params.id}/overview?productSaved=duplicate`, 303);
+      const duplicateTarget = returnPath === 'product-maintenance' ? 'product-maintenance?duplicate=1' : returnPath === 'overview' ? 'overview?productSaved=duplicate' : 'products?duplicate=1';
+      return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${duplicateTarget}`, 303);
     }
     await prisma.productType.update({ where: { id: existing.id }, data });
   } else {
@@ -56,6 +57,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   const baseUrl = getBaseUrl(request);
-  const target = returnPath === 'overview' ? 'overview?productSaved=1' : 'products?saved=1';
+  const target = returnPath === 'product-maintenance' ? 'product-maintenance?saved=1' : returnPath === 'overview' ? 'overview?productSaved=1' : 'products?saved=1';
   return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${target}`, 303);
 }
