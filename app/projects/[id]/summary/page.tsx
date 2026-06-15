@@ -81,7 +81,14 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
   if (!project) return <main className="page">项目不存在</main>;
 
   const products = version?.products || [];
-  const costs = version?.costs || [];
+  const allCosts = version?.costs || [];
+  const leafDictionaryRows = await prisma.costDictionaryRow.findMany({
+    where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null }, detailSubject: { not: null } },
+    select: { costCode: true }
+  });
+  const leafCodes = new Set(leafDictionaryRows.map((row) => row.costCode).filter(Boolean));
+  const costs = allCosts.filter((row) => leafCodes.has(row.costSubject.code));
+  const ignoredNonLeafCostRows = allCosts.length - costs.length;
 
   const revenueRows = products
     .filter((item) => item.isSaleable)
@@ -141,7 +148,7 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
           <div>
             <p className="eyebrow">目标成本汇总表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">汇总收入、目标成本、增值税及附加、所得税前后利润指标；一级科目可折叠展开，二级科目含建面单方、可售单方和预警。</p>
+            <p className="subtitle">只汇总末级科目成本；历史误保存的上级科目成本行已自动排除，避免重复计入。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/revenue`} className="btn">收入明细</Link>
@@ -151,9 +158,15 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
           </div>
         </div>
 
+        {ignoredNonLeafCostRows > 0 ? (
+          <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>
+            已发现并排除 {ignoredNonLeafCostRows} 条非末级历史成本行，当前汇总只统计末级科目，避免重复计算。
+          </div>
+        ) : null}
+
         <div className="summary-strip">
           <div className="stat"><div className="stat-label">含税销售收入</div><div className="stat-value">{fmt(revenueInclusive)}元</div></div>
-          <div className="stat"><div className="stat-label">含税目标成本</div><div className="stat-value">{fmt(costInclusive)}元</div></div>
+          <div className="stat"><div className="stat-label">末级含税目标成本</div><div className="stat-value">{fmt(costInclusive)}元</div></div>
           <div className="stat"><div className="stat-label">建面单方 / 可售单方</div><div className="stat-value">{fmt(buildingUnitCost)} / {fmt(saleableUnitCost)}</div></div>
           <div className="stat"><div className="stat-label">税后净利率</div><div className="stat-value">{pct(netMargin)}</div></div>
         </div>
@@ -166,10 +179,10 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
                 {[
                   ['销售收入（含税）', revenueInclusive, '元'],
                   ['销售收入（不含税）', revenueExclusive, '元'],
-                  ['开发成本及费用合计（含税）', costInclusive, '元'],
-                  ['开发成本及费用合计（不含税）', costExclusive, '元'],
+                  ['开发成本及费用合计（含税，末级）', costInclusive, '元'],
+                  ['开发成本及费用合计（不含税，末级）', costExclusive, '元'],
                   ['销项税额', outputTax, '元'],
-                  ['进项税额', inputTax, '元'],
+                  ['进项税额（末级）', inputTax, '元'],
                   ['应缴增值税', vatPayable, '元'],
                   ['附加税费（暂按12%）', surcharge, '元'],
                   ['土地增值税（待专项表接入）', landValueAddedTax, '元'],
@@ -196,7 +209,7 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
             <Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">进入目标成本编制</Link>
           </div>
           {levelOneRows.length === 0 ? (
-            <p className="meta">暂无成本明细。请先到“目标成本编制”录入土地费、前期费、建安费等成本。</p>
+            <p className="meta">暂无末级成本明细。请先到“目标成本编制”录入末级科目。</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
               {levelOneRows.map((group) => {
@@ -216,7 +229,7 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
                       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1240 }}>
                         <thead>
                           <tr>
-                            {['二级科目', '明细行数', '含税成本', '建面单方', '可售单方', '不含税成本', '税额', '占比', '预警', '穿透'].map((head) => (
+                            {['二级科目', '末级行数', '含税成本', '建面单方', '可售单方', '不含税成本', '税额', '占比', '预警', '穿透'].map((head) => (
                               <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>
                             ))}
                           </tr>
