@@ -34,7 +34,20 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   if (action === 'restore') {
-    await prisma.productType.update({ where: { id: productId }, data: { isActive: true, disabledAt: null } });
+    const [revenueCount, costCount] = await Promise.all([
+      prisma.revenueLine.count({ where: { productTypeId: productId } }),
+      prisma.costLine.count({ where: { productTypeId: productId } })
+    ]);
+    await prisma.productType.update({
+      where: { id: productId },
+      data: {
+        isActive: true,
+        disabledAt: null,
+        participateAllocation: true,
+        isSaleable: revenueCount > 0 || Number(product.saleableArea || 0) > 0
+      }
+    });
+    if (revenueCount > 0 || costCount > 0) return redirectTo(request, params.id, 'restoredWithHistory');
     return redirectTo(request, params.id, 'restored');
   }
 
