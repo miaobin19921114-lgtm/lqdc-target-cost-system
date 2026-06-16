@@ -1,20 +1,10 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import type { CSSProperties } from 'react';
-import { prisma } from '@/lib/prisma';
 
-export async function AccountBar() {
+export function AccountBar() {
   const userId = cookies().get('lqdc_session')?.value;
   if (!userId) return null;
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { name: true, email: true, phone: true, role: true }
-  }).catch(() => null);
-
-  if (!user) return null;
-
-  const displayName = user.name || user.phone || user.email || '个人账户';
 
   return (
     <div style={{ position: 'sticky', top: 0, zIndex: 50, background: '#102a43', color: '#fff', borderBottom: '1px solid rgba(255,255,255,.12)' }}>
@@ -22,7 +12,7 @@ export async function AccountBar() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <Link href="/workspace" style={{ color: '#fff', fontWeight: 900, whiteSpace: 'nowrap' }}>源信达目标成本</Link>
           <span style={{ opacity: .55 }}>｜</span>
-          <span style={{ opacity: .82, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>当前账户：{displayName}</span>
+          <span style={{ opacity: .82, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>已登录</span>
         </div>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <Link href="/workspace" style={navLink}>工作台</Link>
