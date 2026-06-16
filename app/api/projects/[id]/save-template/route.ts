@@ -65,6 +65,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
     data: {
       ownerId: userId,
       baseTemplateId: null,
+      sourceProjectId: project.id,
+      sourceProjectName: project.name,
       name,
       type,
       description: clean(form, 'description') || `由项目「${project.name}」当前版本「${version.name}」于 ${now} 反向沉淀生成`,
