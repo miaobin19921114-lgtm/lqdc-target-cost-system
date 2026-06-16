@@ -26,12 +26,16 @@ model User {
   phone        String?  @unique
   passwordHash String
   role         UserRole @default(admin)
+  templates    Template[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
 
 model Template {
   id              String             @id @default(cuid())
+  ownerId         String?
+  owner           User?              @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  baseTemplateId  String?
   name            String
   type            String             @default("住宅开发")
   description     String?
@@ -43,6 +47,9 @@ model Template {
   taxRules        TemplateTaxRule[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
+
+  @@index([ownerId])
+  @@index([baseTemplateId])
 }
 
 model TemplateProduct {
