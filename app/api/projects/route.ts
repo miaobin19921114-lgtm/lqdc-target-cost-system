@@ -19,6 +19,37 @@ function clean(form: FormData, name: string) {
   return String(form.get(name) || '').trim();
 }
 
+async function saveCustomProductToTemplate(input: { templateId: string; name: string; category: string; isSaleable: boolean; participateAllocation: boolean }) {
+  if (!input.templateId || !input.name) return;
+  const last = await prisma.templateProduct.findFirst({
+    where: { templateId: input.templateId, category: input.category || '其他' },
+    orderBy: { sortOrder: 'desc' },
+    select: { sortOrder: true }
+  });
+  await prisma.templateProduct.upsert({
+    where: { templateId_name: { templateId: input.templateId, name: input.name } },
+    update: {
+      category: input.category || '其他',
+      isSaleable: input.isSaleable,
+      participateAllocation: input.participateAllocation,
+      allocationWeight: 1,
+      remark: '项目初始化自定义业态沉淀',
+      isActive: true,
+      disabledAt: null
+    },
+    create: {
+      templateId: input.templateId,
+      category: input.category || '其他',
+      name: input.name,
+      isSaleable: input.isSaleable,
+      participateAllocation: input.participateAllocation,
+      allocationWeight: 1,
+      sortOrder: (last?.sortOrder || 0) + 1,
+      remark: '项目初始化自定义业态沉淀'
+    }
+  });
+}
+
 export async function POST(request: Request) {
   const form = await request.formData();
   const templateId = String(form.get('templateId') || '');
@@ -31,7 +62,7 @@ export async function POST(request: Request) {
     where: { id: templateId },
     include: { products: true, costRules: true, taxRules: true }
   }) : null;
-  const selectedProducts = template?.products.filter((item) => selectedIds.includes(item.id)) || [];
+  const selectedProducts = template?.products.filter((item) => item.isActive && selectedIds.includes(item.id)) || [];
   const selectedCostRules = template?.costRules.filter((item) => selectedCostRuleIds.includes(item.id)) || [];
   const taxRules = template?.taxRules || [];
   const productCreates = selectedProducts.map((item) => ({
@@ -54,13 +85,18 @@ export async function POST(request: Request) {
     remark: rule.remark
   }));
   if (customProductName) {
+    const customIsSaleable = form.get('customIsSaleable') === 'on';
+    const customParticipateAllocation = form.get('customParticipateAllocation') === 'on';
     productCreates.push({
       name: customProductName,
-      isSaleable: form.get('customIsSaleable') === 'on',
-      participateAllocation: form.get('customParticipateAllocation') === 'on',
+      isSaleable: customIsSaleable,
+      participateAllocation: customParticipateAllocation,
       allocationWeight: 1,
       remark: customCategory ? `模板业态｜${customCategory}` : '自定义业态'
     });
+    if (form.get('saveToTemplate') === 'on') {
+      await saveCustomProductToTemplate({ templateId, name: customProductName, category: customCategory || '其他', isSaleable: customIsSaleable, participateAllocation: customParticipateAllocation });
+    }
   }
 
   const project = await prisma.project.create({
