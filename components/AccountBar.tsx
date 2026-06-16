@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
+import type { CSSProperties } from 'react';
 import { prisma } from '@/lib/prisma';
 
 export async function AccountBar() {
@@ -37,7 +38,7 @@ export async function AccountBar() {
   );
 }
 
-const navLink: React.CSSProperties = {
+const navLink: CSSProperties = {
   color: '#fff',
   textDecoration: 'none',
   fontSize: 13,
