@@ -56,25 +56,36 @@ function addStat(target: TreeNode, amount: number, filled: boolean) {
   target.filled += filled ? 1 : 0;
 }
 
+function matchesInactiveProductName(text: string | null | undefined, inactiveNames: Set<string>) {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  return Array.from(inactiveNames).some((name) => value === name || value === `业态-${name}` || value === `区域-${name}`);
+}
+
 export async function ProfessionalDetailPage(props: DetailPageProps) {
   const project = await prisma.project.findUnique({ where: { id: props.projectId } });
   if (!project) return <main className="page">项目不存在</main>;
 
   await ensurePresetRows(project.id);
-  const version = await prisma.projectVersion.findFirst({ where: { projectId: props.projectId }, orderBy: { createdAt: 'asc' } });
+  const version = await prisma.projectVersion.findFirst({ where: { projectId: props.projectId }, orderBy: { createdAt: 'asc' }, include: { products: true } });
+  const inactiveProductNames = new Set((version?.products || []).filter((item) => !item.isActive).map((item) => item.name));
 
   const dictionaryRows = await prisma.costDictionaryRow.findMany({
     where: { projectId: props.projectId, enabled: { not: '否' }, sourceTable: props.eyebrow },
     orderBy: { rowIndex: 'asc' }
   });
 
-  const leafRows = dictionaryRows.filter((row) => row.detailSubject);
+  const rawLeafRows = dictionaryRows.filter((row) => row.detailSubject);
+  const leafRows = rawLeafRows.filter((row) => !matchesInactiveProductName(row.applicableProductType, inactiveProductNames));
+  const hiddenDictionaryRows = rawLeafRows.length - leafRows.length;
   const leafCodes = new Set(leafRows.map((row) => row.costCode).filter(Boolean));
-  const costs = version ? await prisma.costLine.findMany({
+  const rawCosts = version ? await prisma.costLine.findMany({
     where: { projectVersionId: version.id, professionalGroup: props.professionalGroup },
-    include: { costSubject: true },
+    include: { costSubject: true, productType: true },
     orderBy: { sortOrder: 'asc' }
   }) : [];
+  const costs = rawCosts.filter((row) => (!row.productTypeId || row.productType?.isActive) && !matchesInactiveProductName(row.regionOrProductType, inactiveProductNames));
+  const hiddenCostRows = rawCosts.length - costs.length;
   const activeCosts = costs.filter((row) => leafCodes.has(row.costSubject.code));
 
   const costByCode = new Map<string, any>();
@@ -106,16 +117,18 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
           <div>
             <p className="eyebrow">{props.eyebrow}</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">{props.subtitle}</p>
+            <p className="subtitle">{props.subtitle} 停用业态相关科目和成本行自动隐藏，不参与本页合计。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/cost-dictionary`} className="btn btn-primary">成本科目词典</Link>
+            <Link href={`/projects/${project.id}/product-maintenance`} className="btn">业态维护</Link>
             <Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link>
             <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
           </div>
         </div>
 
         {props.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>{props.title}已批量保存。</div> : null}
+        {hiddenDictionaryRows || hiddenCostRows ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8', background: '#fff9db' }}>已隐藏停用业态相关科目 {hiddenDictionaryRows} 行、成本行 {hiddenCostRows} 行。</div> : null}
 
         <div className="summary-strip">
           <div className="stat"><div className="stat-label">含税合计</div><div className="stat-value">{fmt(totalInclusive)}</div></div>
