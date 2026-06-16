@@ -11,7 +11,7 @@ export default async function NewProjectPage() {
   const templates = await prisma.template.findMany({
     where: { isActive: true },
     orderBy: [{ isDefault: 'desc' }, { sortOrder: 'asc' }],
-    include: { products: { orderBy: { sortOrder: 'asc' } }, costRules: { orderBy: { sortOrder: 'asc' } }, taxRules: true }
+    include: { products: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } }, costRules: { orderBy: { sortOrder: 'asc' } }, taxRules: true }
   });
   const selectorTemplates = templates.map((item) => ({
     id: item.id,
@@ -44,7 +44,7 @@ export default async function NewProjectPage() {
   }));
 
   return <main className="page"><form action="/api/projects" method="post" className="container" style={{ maxWidth: 1180 }}>
-    <div className="page-header"><div><p className="eyebrow">项目初始化向导</p><h1 className="title">新建项目</h1><p className="subtitle">先选择测算阶段、模板、业态和科目规则，再生成项目测算框架。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href="/templates" className="btn">模板中心</Link><Link href="/projects" className="btn">返回</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">项目初始化向导</p><h1 className="title">新建项目</h1><p className="subtitle">先选择测算阶段、模板、启用业态和科目规则，再生成项目测算框架。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href="/templates" className="btn">模板中心</Link><Link href="/projects" className="btn">返回</Link></div></div>
     <section className="card"><span className="badge">第1步</span><h2>测算阶段</h2><p className="meta">每个项目可按投拓、定位、方案、施工图、招采、动态成本、结算等阶段沉淀不同版本。</p><label style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 360 }}>当前阶段<select name="stage" defaultValue="投拓阶段" style={{ height: 38, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 10px' }}>{stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></label></section>
     <section className="card"><span className="badge">第2步</span><h2>选择模板与业态</h2>{templates.length ? <ProductCascadeSelector templates={selectorTemplates} /> : <p className="meta">暂无模板，请先到模板中心检查。</p>}</section>
     <section className="card"><span className="badge">第3步</span><h2>科目规则、税率与分摊方式</h2>{templates.length ? <CostRuleSelector templates={costRuleTemplates} /> : <p className="meta">暂无科目规则，请先到模板中心检查。</p>}</section>
