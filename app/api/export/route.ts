@@ -1,1 +1,28 @@
-import { NextResponse } from 'next/server';\nimport ExcelJS from 'exceljs';\n\nexport async function GET() {\n  const wb = new ExcelJS.Workbook();\n  const ws = wb.addWorksheet('目标成本汇总表');\n  ws.columns = [\n    { header: '一级科目', key: 'level1', width: 24 },\n    { header: '二级科目', key: 'level2', width: 24 },\n    { header: '不含税金额', key: 'ex', width: 16 },\n    { header: '税额', key: 'tax', width: 16 },\n    { header: '含税金额', key: 'inc', width: 16 }\n  ];\n  ws.addRow({ level1: '建安工程费', level2: '土建工程', ex: 0, tax: 0, inc: 0 });\n  ws.getRow(1).font = { bold: true };\n  ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 1 }];\n  const buffer = await wb.xlsx.writeBuffer();\n  return new NextResponse(buffer, {\n    headers: {\n      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',\n      'Content-Disposition': 'attachment; filename="lqdc-target-cost-demo.xlsx"'\n    }\n  });\n}\n
+import { NextResponse } from 'next/server';
+import ExcelJS from 'exceljs';
+
+export async function GET() {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('目标成本汇总表');
+
+  ws.columns = [
+    { header: '一级科目', key: 'level1', width: 24 },
+    { header: '二级科目', key: 'level2', width: 24 },
+    { header: '不含税金额', key: 'ex', width: 16 },
+    { header: '税额', key: 'tax', width: 16 },
+    { header: '含税金额', key: 'inc', width: 16 }
+  ];
+
+  ws.addRow({ level1: '建安工程费', level2: '土建工程', ex: 0, tax: 0, inc: 0 });
+  ws.getRow(1).font = { bold: true };
+  ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 1 }];
+
+  const buffer = await wb.xlsx.writeBuffer();
+
+  return new NextResponse(buffer, {
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="lqdc-target-cost-demo.xlsx"'
+    }
+  });
+}
