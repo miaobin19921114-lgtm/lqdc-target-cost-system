@@ -48,9 +48,11 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
   const version = await prisma.projectVersion.findFirst({
     where: { projectId: params.id },
     orderBy: { createdAt: 'asc' },
-    include: { costs: { include: { costSubject: true }, orderBy: { sortOrder: 'asc' } } }
+    include: { costs: { include: { costSubject: true, productType: true }, orderBy: { sortOrder: 'asc' } } }
   });
-  const costs = version?.costs || [];
+  const rawCosts = version?.costs || [];
+  const costs = rawCosts.filter((item) => !item.productTypeId || item.productType?.isActive);
+  const ignoredDisabledCostRows = rawCosts.length - costs.length;
   const byCode = new Map<string, any>();
   costs.forEach((item) => byCode.set(item.costSubject.code, item));
 
@@ -82,8 +84,9 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
   const saleableArea = Number(project.saleableArea || 0);
 
   return <main className="page"><div className="container" style={{ maxWidth: 1700 }}>
-    <div className="page-header"><div><p className="eyebrow">目标成本编制</p><h1 className="title">{project.name}</h1><p className="subtitle">树状科目：工程量优先从项目概况表自动带入；一级 / 二级 / 三级为汇总节点，四级末级科目才允许录入单价、税率、备注。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/summary`} className="btn btn-primary">汇总表</Link><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">目标成本编制</p><h1 className="title">{project.name}</h1><p className="subtitle">树状科目：工程量优先从项目概况表自动带入；一级 / 二级 / 三级为汇总节点，四级末级科目才允许录入单价、税率、备注。停用业态关联成本不再参与汇总。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/summary`} className="btn btn-primary">汇总表</Link><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
     {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb' }}>整表已保存。{searchParams?.batch ? `本次处理 ${searchParams.batch} 行。` : ''}</div> : null}
+    {ignoredDisabledCostRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已排除 {ignoredDisabledCostRows} 条停用业态关联成本行，不参与目标成本汇总。</div> : null}
     <div className="summary-strip"><div className="stat"><div className="stat-label">含税目标成本</div><div className="stat-value">{fmt(total)}</div></div><div className="stat"><div className="stat-label">建面单方</div><div className="stat-value">{fmt(single(total, buildingArea))}</div></div><div className="stat"><div className="stat-label">可售单方</div><div className="stat-value">{fmt(single(total, saleableArea))}</div></div><div className="stat"><div className="stat-label">末级预设行</div><div className="stat-value">{leafRows.length}</div></div></div>
     <section className="card" style={{ padding: 0, overflow: 'hidden' }}><div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><b>目标成本测算表｜科目树填报</b><div className="meta">上级科目自动汇总，不保存为成本行；未保存的末级科目会按概况表默认带出工程量。</div></div><button form="target-cost-batch" className="btn btn-primary">整表批量保存</button></div><form id="target-cost-batch" action={`/api/projects/${project.id}/costs/batch`} method="post" />
       <div style={{ maxHeight: '72vh', overflow: 'auto', padding: 12 }}>
