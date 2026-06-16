@@ -29,6 +29,12 @@ function addStat(target: TreeNode, amount: number, filled: boolean) {
   target.filled += filled ? 1 : 0;
 }
 
+function matchesInactiveProductName(text: string | null | undefined, inactiveNames: Set<string>) {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  return Array.from(inactiveNames).some((name) => value === name || value === `业态-${name}` || value === `区域-${name}`);
+}
+
 async function ensureDictionary(projectId: string) {
   const count = await prisma.costDictionaryRow.count({ where: { projectId } });
   if (count >= 100) return;
@@ -47,16 +53,21 @@ export default async function LandCostPage({ params, searchParams }: { params: {
   const version = await prisma.projectVersion.findFirst({
     where: { projectId: params.id },
     orderBy: { createdAt: 'asc' },
-    include: { costs: { include: { costSubject: true }, orderBy: { sortOrder: 'asc' } } }
+    include: { products: true, costs: { include: { costSubject: true, productType: true }, orderBy: { sortOrder: 'asc' } } }
   });
+  const inactiveProductNames = new Set((version?.products || []).filter((item) => !item.isActive).map((item) => item.name));
 
   const dictionaryRows = await prisma.costDictionaryRow.findMany({
     where: { projectId: params.id, enabled: { not: '否' }, sourceTable: '土地费用明细表' },
     orderBy: { rowIndex: 'asc' }
   });
-  const leafRows = dictionaryRows.filter((row) => row.detailSubject);
+  const rawLeafRows = dictionaryRows.filter((row) => row.detailSubject);
+  const leafRows = rawLeafRows.filter((row) => !matchesInactiveProductName(row.applicableProductType, inactiveProductNames));
+  const hiddenDictionaryRows = rawLeafRows.length - leafRows.length;
   const leafCodes = new Set(leafRows.map((row) => row.costCode).filter(Boolean));
-  const costs = version?.costs || [];
+  const rawCosts = version?.costs || [];
+  const costs = rawCosts.filter((row) => (!row.productTypeId || row.productType?.isActive) && !matchesInactiveProductName(row.regionOrProductType, inactiveProductNames));
+  const hiddenCostRows = rawCosts.length - costs.length;
   const activeCosts = costs.filter((row) => row.professionalGroup === '土地费用' && leafCodes.has(row.costSubject.code));
   const costByCode = new Map<string, any>();
   costs.forEach((row) => costByCode.set(row.costSubject.code, row));
@@ -87,7 +98,7 @@ export default async function LandCostPage({ params, searchParams }: { params: {
           <div>
             <p className="eyebrow">土地费用明细表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">土地费已改为科目树结构，上级科目只汇总，末级科目录入亩数、万元/亩、税率、备注。</p>
+            <p className="subtitle">土地费已改为科目树结构，上级科目只汇总，末级科目录入亩数、万元/亩、税率、备注。停用业态关联数据不参与本页合计。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总表</Link>
@@ -97,6 +108,7 @@ export default async function LandCostPage({ params, searchParams }: { params: {
         </div>
 
         {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb' }}>土地费用已保存。{searchParams?.batch ? `本次处理 ${searchParams.batch} 行。` : ''}</div> : null}
+        {hiddenDictionaryRows || hiddenCostRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已隐藏停用业态相关科目 {hiddenDictionaryRows} 行、成本行 {hiddenCostRows} 行。</div> : null}
 
         <div className="summary-strip">
           <div className="stat"><div className="stat-label">土地费合计</div><div className="stat-value">{fmt(total)}元</div></div>
