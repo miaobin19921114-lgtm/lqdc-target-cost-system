@@ -10,8 +10,14 @@ export PORT="${PORT:-3000}"
 export UPLOAD_DIR="${UPLOAD_DIR:-/app/storage/uploads}"
 mkdir -p "$UPLOAD_DIR"
 
+echo "Upload directory: ${UPLOAD_DIR}"
 echo "Running Prisma migrations..."
 npx prisma migrate deploy
+
+if [ "${RUN_SEED:-true}" = "true" ]; then
+  echo "Running seed..."
+  npm run db:seed || true
+fi
 
 echo "Starting Next.js on port ${PORT}..."
 npx next start -p "$PORT"
