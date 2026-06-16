@@ -52,7 +52,13 @@ function revenueAmount(products: any[]) {
   return products.filter((item) => item.isActive && item.isSaleable).reduce((sum, item) => sum + Number(item.saleableArea || 0) * Number(item.salePrice || 0), 0);
 }
 
-export default async function ProjectWorkBench({ params }: { params: { id: string } }) {
+function StatusMessage({ searchParams }: { searchParams?: Record<string, string | undefined> }) {
+  if (searchParams?.templateSaved) return <div style={{ background: '#f0fff4', border: '1px solid #b2f2bb', borderRadius: 10, padding: 12, color: '#2b8a3e' }}>已将当前项目反向沉淀为个人模板，可在模板中心查看和编辑。</div>;
+  if (searchParams?.templateMissing) return <div style={{ background: '#fff9db', border: '1px solid #ffe066', borderRadius: 10, padding: 12, color: '#8a6d00' }}>模板沉淀失败：项目版本或登录状态异常。</div>;
+  return null;
+}
+
+export default async function ProjectWorkBench({ params, searchParams }: { params: { id: string }, searchParams?: Record<string, string | undefined> }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
 
@@ -67,6 +73,7 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
   const cost = costs.filter((row) => !row.productTypeId || row.productType?.isActive).reduce((sum, row) => sum + Number(row.taxInclusiveAmount || 0), 0);
   const buildingArea = Number(project.totalBuildingArea || 0);
   const saleableArea = Number(project.saleableArea || 0);
+  const defaultTemplateName = `${project.name}-${version?.stage || '当前阶段'}模板`;
   const quick = [
     ['项目概况', 'overview'],
     ['业态维护', 'product-maintenance'],
@@ -106,12 +113,13 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
         </aside>
 
         <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <StatusMessage searchParams={searchParams} />
           <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#0f4c5c', fontWeight: 900, fontSize: 12 }}>源信达目标成本测算工作台</div><h1 style={{ margin: '6px 0', fontSize: 24 }}>{project.name}</h1><div style={{ color: '#667085', fontSize: 14 }}>当前阶段：{version?.stage || '投拓阶段'}　版本：{version?.name || '初始版本'}　状态：草稿　启用业态：{activeProducts.length} 个　科目规则：{version?.costRules.length || 0} 条</div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>{quick.map(([name, href]) => <Link key={name} href={`/projects/${project.id}/${href}`} className="btn btn-primary" style={{ minHeight: 34 }}>{name}</Link>)}</div></div>
           <div className="sys-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>{[['含税销售收入', revenue], ['含税目标成本', cost], ['建面单方', buildingArea ? cost / buildingArea : 0], ['可售单方', saleableArea ? cost / saleableArea : 0]].map(([label, value]) => <div key={String(label)} style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#667085', fontSize: 12 }}>{label}</div><div style={{ fontWeight: 900, fontSize: 18, marginTop: 6 }}>{fmt(Number(value))}</div></div>)}</div>
           <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>成本测算主流程</b><div className="sys-flow" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 12 }}>{quick.map(([name, href], index) => <Link key={name} href={`/projects/${project.id}/${href}`} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#f8fafc' }}><div style={{ width: 26, height: 26, borderRadius: 6, background: '#e9f7f8', color: '#0f4c5c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{index + 1}</div><b style={{ display: 'block', marginTop: 10 }}>{name}</b><div style={{ color: '#667085', fontSize: 12 }}>进入维护</div></Link>)}</div></div>
         </section>
 
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本控制</b><p className="meta">当前阶段：{version?.stage || '投拓阶段'}；当前版本：{version?.name || '初始版本'}；状态：草稿。</p><Link className="btn btn-primary" href={`/projects/${project.id}/versions`}>进入版本管理</Link></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>测算口径</b><p className="meta">先维护“项目概况（含业态/产品构成）”，再进入目标成本编制和各专业明细表。</p></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>汇总联动</b><p className="meta">新增“汇总联动校验”，用于检查明细回写、汇总穿透和税额平衡。</p><Link className="btn btn-primary" href={`/projects/${project.id}/summary-check`}>进入校验</Link></div></aside>
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本控制</b><p className="meta">当前阶段：{version?.stage || '投拓阶段'}；当前版本：{version?.name || '初始版本'}；状态：草稿。</p><Link className="btn btn-primary" href={`/projects/${project.id}/versions`}>进入版本管理</Link></div><div style={{ background: '#fff', border: '1px solid #b2f2bb', borderRadius: 10, padding: 14 }}><b>沉淀为个人模板</b><p className="meta">把当前项目的启用业态、项目科目规则和税率规则保存为个人模板，后续新项目可复用。</p><form action={`/api/projects/${project.id}/save-template`} method="post" style={{ display: 'grid', gap: 8 }}><input name="name" defaultValue={defaultTemplateName} style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><input name="type" defaultValue="项目沉淀模板" style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><input name="description" placeholder="模板说明，可不填" style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><button className="btn btn-primary">一键保存为模板</button></form></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>测算口径</b><p className="meta">先维护“项目概况（含业态/产品构成）”，再进入目标成本编制和各专业明细表。</p></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>汇总联动</b><p className="meta">新增“汇总联动校验”，用于检查明细回写、汇总穿透和税额平衡。</p><Link className="btn btn-primary" href={`/projects/${project.id}/summary-check`}>进入校验</Link></div></aside>
       </div>
       <style>{`@media (max-width: 980px){.sys-shell,.sys-kpis,.sys-flow{grid-template-columns:1fr!important;padding:8px!important}}`}</style>
     </main>
