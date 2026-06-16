@@ -94,8 +94,12 @@ export async function POST(request: Request) {
           }
         }
       }
-    }
+    },
+    include: { versions: { orderBy: { createdAt: 'asc' } } }
   });
+
+  const firstVersion = project.versions[0];
+  if (firstVersion) await prisma.project.update({ where: { id: project.id }, data: { activeVersionId: firstVersion.id } });
 
   const baseUrl = getBaseUrl(request);
   return NextResponse.redirect(`${baseUrl}/projects/${project.id}/overview`, 303);
