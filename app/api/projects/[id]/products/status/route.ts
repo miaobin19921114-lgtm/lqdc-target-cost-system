@@ -12,6 +12,13 @@ function redirectTo(request: Request, projectId: string, result: string) {
   return NextResponse.redirect(`${getBaseUrl(request)}/projects/${projectId}/product-maintenance?${result}=1`, 303);
 }
 
+const disableData = {
+  isActive: false,
+  disabledAt: new Date(),
+  isSaleable: false,
+  participateAllocation: false
+};
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
   const productId = String(form.get('productId') || '');
@@ -22,7 +29,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!product || product.projectVersion.projectId !== params.id) return redirectTo(request, params.id, 'missing');
 
   if (action === 'disable') {
-    await prisma.productType.update({ where: { id: productId }, data: { isActive: false, disabledAt: new Date() } });
+    await prisma.productType.update({ where: { id: productId }, data: disableData });
     return redirectTo(request, params.id, 'disabled');
   }
 
@@ -37,7 +44,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       prisma.costLine.count({ where: { productTypeId: productId } })
     ]);
     if (revenueCount > 0 || costCount > 0) {
-      await prisma.productType.update({ where: { id: productId }, data: { isActive: false, disabledAt: new Date() } });
+      await prisma.productType.update({ where: { id: productId }, data: disableData });
       return redirectTo(request, params.id, 'cannotDelete');
     }
     await prisma.productType.delete({ where: { id: productId } });
