@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getOrCreateActiveVersion } from '@/lib/project-version';
+import { getEditableActiveVersion } from '@/lib/project-version';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -40,8 +40,9 @@ function calc(quantity: number, taxInclusiveUnitPrice: number, taxRate: number) 
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
-  const version = await getOrCreateActiveVersion(params.id);
+  const { version, locked } = await getEditableActiveVersion(params.id);
   if (!version) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/costs-batch?saved=0`, 303);
+  if (locked) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/costs-batch?locked=1`, 303);
 
   const rowIds = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
   let savedCount = 0;
