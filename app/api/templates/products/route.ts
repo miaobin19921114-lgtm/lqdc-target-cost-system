@@ -23,9 +23,14 @@ async function nextSortOrder(templateId: string, category: string) {
   return (last?.sortOrder || 0) + 1;
 }
 
+function getAction(form: FormData) {
+  const actions = form.getAll('action').map((item) => String(item || '').trim()).filter(Boolean);
+  return actions[actions.length - 1] || '';
+}
+
 export async function POST(request: Request) {
   const form = await request.formData();
-  const action = clean(form, 'action');
+  const action = getAction(form);
   const templateId = clean(form, 'templateId');
   const productId = clean(form, 'productId');
 
