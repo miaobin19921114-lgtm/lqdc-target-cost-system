@@ -36,6 +36,8 @@ model Template {
   ownerId         String?
   owner           User?              @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   baseTemplateId  String?
+  sourceProjectId String?
+  sourceProjectName String?
   name            String
   type            String             @default("住宅开发")
   description     String?
@@ -50,6 +52,7 @@ model Template {
 
   @@index([ownerId])
   @@index([baseTemplateId])
+  @@index([sourceProjectId])
 }
 
 model TemplateProduct {
@@ -105,6 +108,9 @@ model TemplateTaxRule {
 model Project {
   id                              String   @id @default(cuid())
   activeVersionId                 String?
+  sourceTemplateId                String?
+  sourceTemplateName              String?
+  sourceTemplateType              String?
   name                            String
   city                            String?
   district                        String?
@@ -183,6 +189,8 @@ model Project {
   versions                        ProjectVersion[]
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
+
+  @@index([sourceTemplateId])
 }
 
 model ProjectVersion {
