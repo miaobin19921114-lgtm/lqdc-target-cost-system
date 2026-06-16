@@ -56,9 +56,12 @@ model TemplateProduct {
   allocationWeight       Decimal  @default(1)
   sortOrder              Int      @default(0)
   remark                 String?
+  isActive               Boolean  @default(true)
+  disabledAt             DateTime?
 
   @@unique([templateId, name])
   @@index([templateId])
+  @@index([templateId, isActive])
 }
 
 model TemplateCostRule {
@@ -180,35 +183,15 @@ model ProjectVersion {
   projectId String
   project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
-  stage     String        @default("投拓阶段")
-  status    VersionStatus @default(draft)
-  isLocked  Boolean       @default(false)
+  stage     String?
+  status    String        @default("draft")
   products  ProductType[]
   costRules ProjectCostRule[]
-  revenues  RevenueLine[]
   costs     CostLine[]
+  revenues  RevenueLine[]
   taxes     TaxParameter?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
-}
-
-model ProjectCostRule {
-  id                String         @id @default(cuid())
-  projectVersionId  String
-  projectVersion    ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  costCode          String?
-  category          String?
-  subjectName       String
-  sourceTable       String?
-  measureBasis      String?
-  unit              String?
-  defaultTaxRate    Decimal        @default(0.09)
-  allocationMethod  String?
-  isActive          Boolean        @default(true)
-  sortOrder         Int            @default(0)
-  remark            String?
-
-  @@index([projectVersionId])
 }
 
 model ProductType {
@@ -216,76 +199,94 @@ model ProductType {
   projectVersionId       String
   projectVersion         ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
   name                  String
-  buildingArea           Decimal @default(0)
-  saleableArea           Decimal @default(0)
-  capacityArea           Decimal @default(0)
-  nonSaleableArea        Decimal @default(0)
-  salePrice              Decimal @default(0)
-  isSaleable             Boolean @default(true)
-  participateAllocation  Boolean @default(true)
-  allocationWeight       Decimal @default(1)
-  isActive               Boolean @default(true)
-  disabledAt             DateTime?
-  remark                 String?
-  revenues               RevenueLine[]
-  costs                  CostLine[]
+  buildingArea          Decimal @default(0)
+  saleableArea          Decimal @default(0)
+  capacityArea          Decimal @default(0)
+  nonSaleableArea       Decimal @default(0)
+  salePrice             Decimal @default(0)
+  isSaleable            Boolean @default(true)
+  participateAllocation Boolean @default(true)
+  allocationWeight      Decimal @default(1)
+  remark                String?
+  isActive              Boolean @default(true)
+  disabledAt            DateTime?
+  costs                 CostLine[]
+  revenues              RevenueLine[]
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([projectVersionId])
+  @@index([projectVersionId, isActive])
+}
+
+model ProjectCostRule {
+  id                 String         @id @default(cuid())
+  projectVersionId    String
+  projectVersion      ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  costCode            String?
+  category            String?
+  subjectName         String
+  sourceTable         String?
+  measureBasis        String?
+  unit                String?
+  defaultTaxRate      Decimal @default(0.09)
+  allocationMethod    String?
+  sortOrder           Int @default(0)
+  remark              String?
 }
 
 model CostSubject {
-  id                      String        @id @default(cuid())
-  code                    String        @unique
-  name                    String
-  level                   Int
-  parentId                String?
-  parent                  CostSubject?  @relation("CostSubjectTree", fields: [parentId], references: [id])
-  children                CostSubject[] @relation("CostSubjectTree")
-  fullPath                String?
-  defaultUnit             String?
-  defaultTaxRate          Decimal @default(0.09)
-  defaultMeasureBasis     String?
-  defaultAllocationMethod String?
-  sortOrder               Int @default(0)
-  enabled                 Boolean @default(true)
-  costs                   CostLine[]
+  id                       String     @id @default(cuid())
+  code                     String     @unique
+  name                     String
+  level                    Int
+  parentCode               String?
+  fullPath                 String?
+  defaultUnit              String?
+  defaultTaxRate           Decimal    @default(0.09)
+  defaultMeasureBasis      String?
+  defaultAllocationMethod  String?
+  enabled                  Boolean    @default(true)
+  sortOrder                Int        @default(0)
+  costs                    CostLine[]
 }
 
 model CostDictionaryRow {
-  id                         String   @id @default(cuid())
-  projectId                  String
-  rowIndex                   Int
-  costCode                   String?
-  parentCode                 String?
-  subjectLevel               String?
-  firstSubject               String?
-  secondSubject              String?
-  thirdSubject               String?
-  detailSubject              String?
-  subjectDefinition          String?
-  sourceTable                String?
-  enabled                    String?
-  writeBackToTarget          String?
-  targetMappingCode          String?
-  measureBasis               String?
-  unit                       String?
-  defaultTaxRate             String?
-  applicableProductType      String?
-  applicableStage            String?
-  investmentMethod           String?
-  conceptMethod              String?
-  schemeMethod               String?
-  drawingMethod              String?
-  tenderMethod               String?
-  dynamicMethod              String?
-  specialAdjustment          String?
-  remark                     String?
-  costAttributionMethod      String?
-  targetAllocationMethod     String?
-  landVatAllocationMethod    String?
+  id                        String   @id @default(cuid())
+  projectId                 String
+  rowIndex                  Int
+  firstSubject              String?
+  secondSubject             String?
+  thirdSubject              String?
+  detailSubject             String?
+  subjectLevel              String?
+  costCode                  String?
+  subjectDefinition         String?
+  sourceTable               String?
+  enabled                   String?
+  writeBackToTarget         String?
+  targetMappingCode         String?
+  measureBasis              String?
+  unit                      String?
+  defaultTaxRate            String?
+  applicableProductType     String?
+  applicableStage           String?
+  investmentMethod          String?
+  conceptMethod             String?
+  schemeMethod              String?
+  drawingMethod             String?
+  tenderMethod              String?
+  dynamicMethod             String?
+  specialAdjustment         String?
+  remark                    String?
+  costAttributionMethod     String?
+  targetAllocationMethod    String?
+  landVatAllocationMethod   String?
   incomeTaxDeductionCategory String?
-  preTaxDeduction            String?
-  taxRemark                  String?
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  preTaxDeduction           String?
+  taxRemark                 String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
   @@index([projectId])
   @@unique([projectId, rowIndex])
