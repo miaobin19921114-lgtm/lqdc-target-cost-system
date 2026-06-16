@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getOrCreateActiveVersion } from '@/lib/project-version';
 
 function clean(form: FormData, name: string) {
   return String(form.get(name) || '').trim();
@@ -16,15 +17,11 @@ function getBaseUrl(request: Request) {
   return host ? `${proto}://${host}` : new URL(request.url).origin;
 }
 
-async function getOrCreateVersion(projectId: string) {
-  const existing = await prisma.projectVersion.findFirst({ where: { projectId }, orderBy: { createdAt: 'asc' } });
-  if (existing) return existing;
-  return prisma.projectVersion.create({ data: { projectId, name: '初始版本', status: 'draft' } });
-}
-
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
-  const version = await getOrCreateVersion(params.id);
+  const version = await getOrCreateActiveVersion(params.id);
+  if (!version) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/overview?productSaved=0`, 303);
+
   const rowCount = Math.max(0, Math.min(200, Number(form.get('rowCount') || 0)));
   let savedCount = 0;
 
