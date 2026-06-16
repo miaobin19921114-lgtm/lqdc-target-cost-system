@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getOrCreateActiveVersion } from '@/lib/project-version';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -37,15 +38,11 @@ function calc(quantity: number, taxInclusiveUnitPrice: number, taxRate: number) 
   return { taxInclusiveAmount, taxExclusiveAmount, taxAmount, taxExclusiveUnitPrice };
 }
 
-async function getOrCreateVersion(projectId: string) {
-  const existing = await prisma.projectVersion.findFirst({ where: { projectId }, orderBy: { createdAt: 'asc' } });
-  if (existing) return existing;
-  return prisma.projectVersion.create({ data: { projectId, name: '初始版本', status: 'draft' } });
-}
-
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
-  const version = await getOrCreateVersion(params.id);
+  const version = await getOrCreateActiveVersion(params.id);
+  if (!version) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/costs-batch?saved=0`, 303);
+
   const rowIds = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
   let savedCount = 0;
 
@@ -114,8 +111,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
       remark
     };
 
-    if (costLineId) await prisma.costLine.update({ where: { id: costLineId }, data });
-    else await prisma.costLine.create({ data: { ...data, sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || Date.now() % 1000000000 } });
+    if (costLineId) {
+      const existing = await prisma.costLine.findFirst({ where: { id: costLineId, projectVersionId: version.id } });
+      if (existing) await prisma.costLine.update({ where: { id: costLineId }, data });
+    } else {
+      await prisma.costLine.create({ data: { ...data, sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || Date.now() % 1000000000 } });
+    }
     savedCount += 1;
   }
 
