@@ -15,17 +15,24 @@ function rateByName(taxRules: { name: string; rate: any }[], keyword: string, fa
   return row ? Number(row.rate) : fallback;
 }
 
+function clean(form: FormData, name: string) {
+  return String(form.get(name) || '').trim();
+}
+
 export async function POST(request: Request) {
   const form = await request.formData();
   const templateId = String(form.get('templateId') || '');
   const selectedIds = form.getAll('templateProductIds').map((item) => String(item));
+  const selectedCostRuleIds = form.getAll('costRuleIds').map((item) => String(item));
+  const stage = clean(form, 'stage') || '投拓阶段';
   const customProductName = String(form.get('customProductName') || '').trim();
   const customCategory = String(form.get('customCategory') || '').trim();
   const template = templateId ? await prisma.template.findUnique({
     where: { id: templateId },
-    include: { products: true, taxRules: true }
+    include: { products: true, costRules: true, taxRules: true }
   }) : null;
   const selectedProducts = template?.products.filter((item) => selectedIds.includes(item.id)) || [];
+  const selectedCostRules = template?.costRules.filter((item) => selectedCostRuleIds.includes(item.id)) || [];
   const taxRules = template?.taxRules || [];
   const productCreates = selectedProducts.map((item) => ({
     name: item.name,
@@ -33,6 +40,18 @@ export async function POST(request: Request) {
     participateAllocation: item.participateAllocation,
     allocationWeight: Number(item.allocationWeight || 1),
     remark: item.remark || ''
+  }));
+  const projectCostRuleCreates = selectedCostRules.map((rule) => ({
+    costCode: rule.costCode,
+    category: rule.category,
+    subjectName: rule.subjectName,
+    sourceTable: rule.sourceTable,
+    measureBasis: rule.measureBasis,
+    unit: rule.unit,
+    defaultTaxRate: toNumber(form.get(`costRuleTaxRate-${rule.id}`)) || Number(rule.defaultTaxRate || 0.09),
+    allocationMethod: clean(form, `costRuleAllocationMethod-${rule.id}`) || rule.allocationMethod || '建筑面积分摊',
+    sortOrder: rule.sortOrder,
+    remark: rule.remark
   }));
   if (customProductName) {
     productCreates.push({
@@ -58,8 +77,10 @@ export async function POST(request: Request) {
       versions: {
         create: {
           name: '初始版本',
+          stage,
           status: 'draft',
           products: { create: productCreates },
+          costRules: { create: projectCostRuleCreates },
           taxes: {
             create: {
               vatRate: rateByName(taxRules, '增值税', 0.09),
@@ -68,7 +89,7 @@ export async function POST(request: Request) {
               localEducationSurchargeRate: rateByName(taxRules, '地方教育附加', 0.02),
               corporateIncomeTaxRate: rateByName(taxRules, '企业所得税', 0.25),
               landValueAddedTaxRate: rateByName(taxRules, '土地增值税', 0),
-              remark: template ? `来自模板：${template.name}` : ''
+              remark: template ? `来自模板：${template.name}；阶段：${stage}` : `阶段：${stage}`
             }
           }
         }
