@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const protectedPrefixes = ['/workspace', '/projects', '/templates', '/api/projects', '/api/export'];
+const protectedPrefixes = ['/workspace', '/projects', '/templates', '/account', '/api/projects', '/api/export'];
 
 function isProtected(pathname: string) {
   return protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -24,5 +24,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/workspace/:path*', '/projects/:path*', '/templates/:path*', '/api/projects/:path*', '/api/export/:path*', '/login']
+  matcher: ['/workspace/:path*', '/projects/:path*', '/templates/:path*', '/account/:path*', '/api/projects/:path*', '/api/export/:path*', '/login']
 };
