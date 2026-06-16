@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { getV57CostDictionaryRows } from '@/data/cost-dictionary-v57';
 import { suggestQuantityFromOverview } from '@/lib/overview-quantity';
+import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,8 +47,8 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
   await ensureDictionary(project.id);
 
   const version = await prisma.projectVersion.findFirst({
-    where: { projectId: params.id },
-    orderBy: { createdAt: 'asc' },
+    where: activeVersionWhere(project),
+    orderBy: activeVersionOrder(project),
     include: { costs: { include: { costSubject: true, productType: true }, orderBy: { sortOrder: 'asc' } } }
   });
   const rawCosts = version?.costs || [];
@@ -84,7 +85,7 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
   const saleableArea = Number(project.saleableArea || 0);
 
   return <main className="page"><div className="container" style={{ maxWidth: 1700 }}>
-    <div className="page-header"><div><p className="eyebrow">目标成本编制</p><h1 className="title">{project.name}</h1><p className="subtitle">树状科目：工程量优先从项目概况表自动带入；一级 / 二级 / 三级为汇总节点，四级末级科目才允许录入单价、税率、备注。停用业态关联成本不再参与汇总。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/summary`} className="btn btn-primary">汇总表</Link><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">目标成本编制</p><h1 className="title">{project.name}</h1><p className="subtitle">树状科目：工程量优先从项目概况表自动带入；一级 / 二级 / 三级为汇总节点，四级末级科目才允许录入单价、税率、备注。当前只编辑当前启用版本，停用业态关联成本不再参与汇总。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/summary`} className="btn btn-primary">汇总表</Link><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
     {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb' }}>整表已保存。{searchParams?.batch ? `本次处理 ${searchParams.batch} 行。` : ''}</div> : null}
     {ignoredDisabledCostRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已排除 {ignoredDisabledCostRows} 条停用业态关联成本行，不参与目标成本汇总。</div> : null}
     <div className="summary-strip"><div className="stat"><div className="stat-label">含税目标成本</div><div className="stat-value">{fmt(total)}</div></div><div className="stat"><div className="stat-label">建面单方</div><div className="stat-value">{fmt(single(total, buildingArea))}</div></div><div className="stat"><div className="stat-label">可售单方</div><div className="stat-value">{fmt(single(total, saleableArea))}</div></div><div className="stat"><div className="stat-label">末级预设行</div><div className="stat-value">{leafRows.length}</div></div></div>
