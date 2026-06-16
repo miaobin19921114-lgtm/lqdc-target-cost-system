@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +15,8 @@ export default async function SummaryCheckPage({ params }: { params: { id: strin
   if (!project) return <main className="page">项目不存在</main>;
 
   const version = await prisma.projectVersion.findFirst({
-    where: { projectId: params.id },
-    orderBy: { createdAt: 'asc' },
+    where: activeVersionWhere(project),
+    orderBy: activeVersionOrder(project),
     include: { costs: { include: { costSubject: true, productType: true } }, revenues: { include: { productType: true } }, products: true }
   });
   const allProducts = version?.products || [];
@@ -39,17 +40,17 @@ export default async function SummaryCheckPage({ params }: { params: { id: strin
   const revenueTotal = revenues.reduce((sum, item) => sum + num(item.taxInclusiveRevenue), 0);
 
   const rows: Row[] = [
-    { name: '目标成本是否已录入', status: costs.length ? '通过' : '需处理', detail: `启用成本行 ${costs.length} 行，含税成本 ${fmt(costTotal)}`, href: 'costs-batch' },
+    { name: '目标成本是否已录入', status: costs.length ? '通过' : '需处理', detail: `当前版本启用成本行 ${costs.length} 行，含税成本 ${fmt(costTotal)}`, href: 'costs-batch' },
     { name: '预设科目回写进度', status: matchedRows > 0 ? '通过' : '提醒', detail: `已匹配 V57 预设行 ${matchedRows}/${dictRows.length}`, href: 'costs-batch' },
-    { name: '汇总穿透匹配', status: orphanCosts.length ? '提醒' : '通过', detail: orphanCosts.length ? `${orphanCosts.length} 行启用成本未匹配到词典科目` : '启用成本行均可按科目编码汇总', href: 'summary' },
+    { name: '汇总穿透匹配', status: orphanCosts.length ? '提醒' : '通过', detail: orphanCosts.length ? `${orphanCosts.length} 行当前版本启用成本未匹配到词典科目` : '当前版本启用成本行均可按科目编码汇总', href: 'summary' },
     { name: '科目路径完整性', status: noPathCosts.length ? '提醒' : '通过', detail: noPathCosts.length ? `${noPathCosts.length} 行缺少科目路径或说明` : '科目路径完整，可用于穿透', href: 'summary' },
     { name: '税额拆分公式', status: taxMismatch.length ? '需处理' : '通过', detail: taxMismatch.length ? `${taxMismatch.length} 行含税/不含税/税额不平衡` : '税额拆分平衡', href: 'costs-batch' },
-    { name: '收入与利润基础', status: revenueTotal > 0 && costTotal > 0 ? '通过' : '提醒', detail: `启用收入 ${fmt(revenueTotal)}，启用成本 ${fmt(costTotal)}，启用业态 ${products.length} 个`, href: 'summary' },
+    { name: '收入与利润基础', status: revenueTotal > 0 && costTotal > 0 ? '通过' : '提醒', detail: `当前版本启用收入 ${fmt(revenueTotal)}，启用成本 ${fmt(costTotal)}，启用业态 ${products.length} 个`, href: 'summary' },
     { name: '停用业态排除', status: disabledProducts || disabledCostRows || disabledRevenueRows ? '提醒' : '通过', detail: disabledProducts || disabledCostRows || disabledRevenueRows ? `已排除停用业态 ${disabledProducts} 个、成本行 ${disabledCostRows} 行、收入行 ${disabledRevenueRows} 行` : '无停用业态影响汇总', href: 'product-maintenance' }
   ];
 
   return <main className="page"><div className="container" style={{ maxWidth: 1180 }}>
-    <div className="page-header"><div><p className="eyebrow">汇总联动校验</p><h1 className="title">{project.name}</h1><p className="subtitle">检查明细页录入后是否能正常回写目标成本汇总、税额公式和穿透链接；停用业态自动排除。</p></div><div className="actions" style={{ marginTop: 0 }}><Link className="btn btn-primary" href={`/projects/${project.id}/summary`}>目标成本汇总表</Link><Link className="btn" href={`/projects/${project.id}`}>返回工作台</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">汇总联动校验</p><h1 className="title">{project.name}</h1><p className="subtitle">检查当前版本明细页录入后是否能正常回写目标成本汇总、税额公式和穿透链接；停用业态自动排除。</p></div><div className="actions" style={{ marginTop: 0 }}><Link className="btn btn-primary" href={`/projects/${project.id}/summary`}>目标成本汇总表</Link><Link className="btn" href={`/projects/${project.id}`}>返回工作台</Link></div></div>
     <section className="card"><h2>校验结果</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse' }}><thead><tr>{['检查项', '状态', '说明', '操作'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row.name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{row.name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: color(row.status), fontWeight: 900 }}>{row.status}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row.detail}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><Link className="btn" href={`/projects/${project.id}/${row.href}`}>进入</Link></td></tr>)}</tbody></table></div></section>
   </div></main>;
 }
