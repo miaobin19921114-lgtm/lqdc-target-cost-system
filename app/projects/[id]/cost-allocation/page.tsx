@@ -41,12 +41,16 @@ export default async function CostAllocationPage({ params }: { params: { id: str
     orderBy: { createdAt: 'asc' },
     include: {
       products: { orderBy: { name: 'asc' } },
-      costs: { include: { costSubject: true } }
+      costs: { include: { costSubject: true, productType: true } }
     }
   });
 
-  const products = (version?.products || []).filter((item) => item.participateAllocation);
-  const costs = version?.costs || [];
+  const allProducts = version?.products || [];
+  const disabledProductCount = allProducts.filter((item) => !item.isActive).length;
+  const products = allProducts.filter((item) => item.isActive && item.participateAllocation);
+  const rawCosts = version?.costs || [];
+  const costs = rawCosts.filter((row) => !row.productTypeId || row.productType?.isActive);
+  const ignoredDisabledCostRows = rawCosts.length - costs.length;
   const saleableProducts = products.filter((item) => item.isSaleable);
   const totalCost = costs.reduce((sum, row) => sum + n(row.taxInclusiveAmount), 0);
 
@@ -91,13 +95,16 @@ export default async function CostAllocationPage({ params }: { params: { id: str
           <div>
             <p className="eyebrow">成本分摊测算表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">按成本明细的分摊方式、区域/业态归属、产品面积和权重自动分摊，作为经营测算和税务测算接口。</p>
+            <p className="subtitle">只对启用且参与分摊的业态进行分摊；停用业态和停用业态关联成本不再参与经营测算和税务测算接口。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
-            <Link href={`/projects/${project.id}/costs`} className="btn btn-primary">目标成本测算</Link>
+            <Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">目标成本编制</Link>
+            <Link href={`/projects/${project.id}/product-maintenance`} className="btn">业态维护</Link>
             <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
           </div>
         </div>
+
+        {disabledProductCount || ignoredDisabledCostRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已排除 {disabledProductCount} 个停用业态、{ignoredDisabledCostRows} 条停用业态关联成本行。</div> : null}
 
         <div className="summary-strip">
           <div className="stat"><div className="stat-label">参与分摊业态</div><div className="stat-value">{products.length}</div></div>
