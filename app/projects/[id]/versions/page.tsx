@@ -37,7 +37,8 @@ export default async function ProjectVersionsPage({ params, searchParams }: { pa
             <p className="subtitle">当前版本：{activeVersion ? `${activeVersion.stage || '未分阶段'}｜${activeVersion.name}｜${statusText(activeVersion.status)}` : '暂无版本'}。锁定版本后，收入、业态和目标成本明细禁止继续编辑。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
-            <Link href={`/projects/${project.id}`} className="btn btn-primary">返回工作台</Link>
+            <Link href={`/projects/${project.id}/version-compare`} className="btn btn-primary">版本对比</Link>
+            <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
             <Link href="/projects" className="btn">项目列表</Link>
           </div>
         </div>
@@ -94,6 +95,7 @@ export default async function ProjectVersionsPage({ params, searchParams }: { pa
                               <button className="btn btn-primary">设为当前</button>
                             </form>
                           ) : null}
+                          <Link className="btn" href={`/projects/${project.id}/version-compare?baseId=${versions[0]?.id || version.id}&targetId=${version.id}`}>对比</Link>
                           <form action={`/api/projects/${project.id}/versions`} method="post">
                             <input type="hidden" name="action" value="copy" />
                             <input type="hidden" name="sourceVersionId" value={version.id} />
