@@ -94,6 +94,7 @@ model TemplateTaxRule {
 
 model Project {
   id                              String   @id @default(cuid())
+  activeVersionId                 String?
   name                            String
   city                            String?
   district                        String?
