@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,8 +38,8 @@ export default async function CostAllocationPage({ params }: { params: { id: str
   if (!project) return <main className="page">项目不存在</main>;
 
   const version = await prisma.projectVersion.findFirst({
-    where: { projectId: params.id },
-    orderBy: { createdAt: 'asc' },
+    where: activeVersionWhere(project),
+    orderBy: activeVersionOrder(project),
     include: {
       products: { orderBy: { name: 'asc' } },
       costs: { include: { costSubject: true, productType: true } }
@@ -95,7 +96,7 @@ export default async function CostAllocationPage({ params }: { params: { id: str
           <div>
             <p className="eyebrow">成本分摊测算表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">只对启用且参与分摊的业态进行分摊；停用业态和停用业态关联成本不再参与经营测算和税务测算接口。</p>
+            <p className="subtitle">只对当前版本中启用且参与分摊的业态进行分摊；停用业态和停用业态关联成本不再参与经营测算和税务测算接口。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">目标成本编制</Link>
