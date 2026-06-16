@@ -15,6 +15,10 @@ export function activeVersionOrder(project: ProjectVersionOwner) {
   return project.activeVersionId ? undefined : ({ createdAt: 'asc' } as const);
 }
 
+export function isVersionLocked(version: { status?: string | null }) {
+  return version.status === 'locked' || version.status === 'final';
+}
+
 export async function getOrCreateActiveVersion(projectId: string) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
@@ -55,4 +59,10 @@ export async function getOrCreateActiveVersion(projectId: string) {
   });
 
   return created;
+}
+
+export async function getEditableActiveVersion(projectId: string) {
+  const version = await getOrCreateActiveVersion(projectId);
+  if (!version) return { version: null, locked: false };
+  return { version, locked: isVersionLocked(version) };
 }
