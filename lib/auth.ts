@@ -1,1 +1,9 @@
-import bcrypt from 'bcryptjs';\n\nexport async function hashPassword(password: string) {\n  return bcrypt.hash(password, 10);\n}\n\nexport async function verifyPassword(password: string, hash: string) {\n  return bcrypt.compare(password, hash);\n}\n
+import bcrypt from 'bcryptjs';
+
+export async function hashPassword(password: string) {
+  return bcrypt.hash(password, 10);
+}
+
+export async function verifyPassword(password: string, hash: string) {
+  return bcrypt.compare(password, hash);
+}
