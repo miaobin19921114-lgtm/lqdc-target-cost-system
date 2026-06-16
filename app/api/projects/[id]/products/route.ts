@@ -10,6 +10,12 @@ function getBaseUrl(request: Request) {
   return new URL(request.url).origin;
 }
 
+function cookieValue(request: Request, name: string) {
+  const cookie = request.headers.get('cookie') || '';
+  const found = cookie.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`));
+  return found ? decodeURIComponent(found.slice(name.length + 1)) : '';
+}
+
 async function getOrCreateVersion(projectId: string) {
   const existing = await prisma.projectVersion.findFirst({
     where: { projectId },
@@ -21,8 +27,35 @@ async function getOrCreateVersion(projectId: string) {
   });
 }
 
-async function saveCustomProductToDefaultTemplate(input: { name: string; category: string; isSaleable: boolean; participateAllocation: boolean; allocationWeight: number; remark: string }) {
-  const template = await prisma.template.findFirst({ where: { isDefault: true, isActive: true } });
+async function copyDefaultTemplateToUser(userId: string) {
+  const source = await prisma.template.findFirst({
+    where: { isDefault: true, isActive: true, ownerId: null },
+    include: { products: true, costRules: true, taxRules: true }
+  });
+  if (!source) return null;
+  const existing = await prisma.template.findFirst({ where: { ownerId: userId, baseTemplateId: source.id } });
+  if (existing) return existing;
+  return prisma.template.create({
+    data: {
+      ownerId: userId,
+      baseTemplateId: source.id,
+      name: `${source.name}（我的模板）`,
+      type: source.type,
+      description: `个人模板，来源：${source.name}`,
+      isDefault: false,
+      isActive: true,
+      sortOrder: source.sortOrder,
+      products: { create: source.products.map((item) => ({ category: item.category, name: item.name, isSaleable: item.isSaleable, participateAllocation: item.participateAllocation, allocationWeight: item.allocationWeight, sortOrder: item.sortOrder, remark: item.remark, isActive: item.isActive, disabledAt: item.disabledAt })) },
+      costRules: { create: source.costRules.map((item) => ({ costCode: item.costCode, category: item.category, subjectName: item.subjectName, sourceTable: item.sourceTable, measureBasis: item.measureBasis, unit: item.unit, defaultTaxRate: item.defaultTaxRate, allocationMethod: item.allocationMethod, sortOrder: item.sortOrder, remark: item.remark })) },
+      taxRules: { create: source.taxRules.map((item) => ({ name: item.name, rate: item.rate, scope: item.scope, remark: item.remark, sortOrder: item.sortOrder })) }
+    }
+  });
+}
+
+async function saveCustomProductToPersonalTemplate(request: Request, input: { name: string; category: string; isSaleable: boolean; participateAllocation: boolean; allocationWeight: number; remark: string }) {
+  const userId = cookieValue(request, 'lqdc_session');
+  if (!userId) return false;
+  const template = await copyDefaultTemplateToUser(userId);
   if (!template) return false;
   const last = await prisma.templateProduct.findFirst({
     where: { templateId: template.id, category: input.category || '其他' },
@@ -37,7 +70,9 @@ async function saveCustomProductToDefaultTemplate(input: { name: string; categor
       isSaleable: input.isSaleable,
       participateAllocation: input.participateAllocation,
       allocationWeight: input.allocationWeight || 1,
-      remark: input.remark || '项目自定义业态沉淀'
+      remark: input.remark || '项目自定义业态沉淀',
+      isActive: true,
+      disabledAt: null
     },
     create: {
       templateId: template.id,
@@ -78,7 +113,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if (form.has('salePrice')) data.salePrice = toNumber(form, 'salePrice');
 
-  const templateSaved = customName && saveToTemplate ? await saveCustomProductToDefaultTemplate({ name, category, ...data }) : false;
+  const templateSaved = customName && saveToTemplate ? await saveCustomProductToPersonalTemplate(request, { name, category, ...data }) : false;
 
   if (existing) {
     if (form.get('mode') === 'create') {
