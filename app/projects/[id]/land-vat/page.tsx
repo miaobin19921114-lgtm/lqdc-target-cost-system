@@ -20,11 +20,16 @@ export default async function LandVatPage({ params }: { params: { id: string } }
   const version = await prisma.projectVersion.findFirst({
     where: { projectId: params.id },
     orderBy: { createdAt: 'asc' },
-    include: { revenues: true, costs: { include: { costSubject: true } } }
+    include: { revenues: { include: { productType: true } }, costs: { include: { costSubject: true, productType: true } }, products: true }
   });
 
-  const revenues = version?.revenues || [];
-  const costs = version?.costs || [];
+  const allProducts = version?.products || [];
+  const disabledProducts = allProducts.filter((item) => !item.isActive).length;
+  const allRevenues = version?.revenues || [];
+  const revenues = allRevenues.filter((row) => row.productType?.isActive && row.productType?.isSaleable);
+  const allCosts = version?.costs || [];
+  const costs = allCosts.filter((row) => !row.productTypeId || row.productType?.isActive);
+  const excludedRows = (allRevenues.length - revenues.length) + (allCosts.length - costs.length);
 
   const revenueInclusive = revenues.reduce((sum, row) => sum + n(row.taxInclusiveRevenue), 0);
   const revenueExclusive = revenues.reduce((sum, row) => sum + n(row.taxExclusiveRevenue), 0);
@@ -42,10 +47,10 @@ export default async function LandVatPage({ params }: { params: { id: string } }
   const landVat = Math.max(0, valueAdded * ladder.rate - deductionTotal * ladder.deduction);
 
   const rows = [
-    ['含税销售收入', revenueInclusive, '来自收入明细表'],
+    ['含税销售收入', revenueInclusive, '来自启用且可售业态收入明细表'],
     ['不含税销售收入', revenueExclusive, '销售收入剔除销项税'],
-    ['土地成本', landCost, '01 土地成本'],
-    ['开发成本', devCost, '02 前期 + 03 建安'],
+    ['土地成本', landCost, '01 土地成本，已排除停用业态关联成本'],
+    ['开发成本', devCost, '02 前期 + 03 建安，已排除停用业态关联成本'],
     ['销售/管理/财务费用', saleManageFinance, '04/05/06 期间费用，清算口径后续可细化'],
     ['税金及附加', taxAndSurcharge, '暂按销项税×12%测算'],
     ['加计扣除', additionalDeduction, '土地成本+开发成本的20%'],
@@ -58,7 +63,8 @@ export default async function LandVatPage({ params }: { params: { id: string } }
   ];
 
   return <main className="page"><div className="container" style={{ maxWidth: 1180 }}>
-    <div className="page-header"><div><p className="eyebrow">土地增值税测算表</p><h1 className="title">{project.name}</h1><p className="subtitle">按收入、土地成本、开发成本、税金及附加和加计扣除自动测算。当前为投资测算口径，后续可继续细化普通住宅/非普通住宅/车位分项清算。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/cost-allocation`} className="btn btn-primary">成本分摊</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">土地增值税测算表</p><h1 className="title">{project.name}</h1><p className="subtitle">按收入、土地成本、开发成本、税金及附加和加计扣除自动测算。当前只统计启用业态收入与启用业态成本，停用业态自动排除。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/cost-allocation`} className="btn btn-primary">成本分摊</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税金明细</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+    {disabledProducts || excludedRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已排除停用业态 {disabledProducts} 个、收入/成本行 {excludedRows} 行。</div> : null}
     <div className="summary-strip"><div className="stat"><div className="stat-label">不含税收入</div><div className="stat-value">{fmt(revenueExclusive)}</div></div><div className="stat"><div className="stat-label">扣除项目</div><div className="stat-value">{fmt(deductionTotal)}</div></div><div className="stat"><div className="stat-label">增值率</div><div className="stat-value">{fmt(valueAddedRatio * 100)}%</div></div><div className="stat"><div className="stat-label">土增税</div><div className="stat-value">{fmt(landVat)}</div></div></div>
     <section className="card"><h2>测算明细</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 920, borderCollapse: 'collapse', fontSize: 13 }}><thead><tr>{['项目', '金额/比例', '说明'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={String(row[0])}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 700 }}>{row[0]}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row[1])}{String(row[0]).includes('率') || String(row[0]).includes('系数') ? '%' : ''}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row[2]}</td></tr>)}</tbody></table></div></section>
   </div></main>;
