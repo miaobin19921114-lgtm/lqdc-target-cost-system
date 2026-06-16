@@ -22,11 +22,16 @@ export default async function TaxDetailsPage({ params }: { params: { id: string 
   const version = await prisma.projectVersion.findFirst({
     where: { projectId: params.id },
     orderBy: { createdAt: 'asc' },
-    include: { revenues: true, costs: { include: { costSubject: true } }, taxes: true }
+    include: { revenues: { include: { productType: true } }, costs: { include: { costSubject: true, productType: true } }, taxes: true, products: true }
   });
 
-  const revenues = version?.revenues || [];
-  const costs = version?.costs || [];
+  const allProducts = version?.products || [];
+  const disabledProducts = allProducts.filter((item) => !item.isActive).length;
+  const allRevenues = version?.revenues || [];
+  const revenues = allRevenues.filter((row) => row.productType?.isActive && row.productType?.isSaleable);
+  const allCosts = version?.costs || [];
+  const costs = allCosts.filter((row) => !row.productTypeId || row.productType?.isActive);
+  const excludedRows = (allRevenues.length - revenues.length) + (allCosts.length - costs.length);
   const taxParam = version?.taxes;
 
   const outputVat = revenues.reduce((sum, row) => sum + n(row.taxAmount), 0);
@@ -52,8 +57,8 @@ export default async function TaxDetailsPage({ params }: { params: { id: string 
   const totalTax = payableVat + surcharge + landVat + incomeTax;
 
   const rows = [
-    ['销项税额', outputVat, '收入明细表税额汇总'],
-    ['进项税额', inputVat, '成本明细税额汇总'],
+    ['销项税额', outputVat, '启用且可售业态收入明细表税额汇总'],
+    ['进项税额', inputVat, '启用业态成本明细税额汇总'],
     ['应缴增值税', payableVat, '销项税额-进项税额，低于0按0暂估'],
     ['附加税费', surcharge, '应缴增值税×附加税率'],
     ['土地增值税', landVat, '按土增税测算逻辑自动取数'],
@@ -63,7 +68,8 @@ export default async function TaxDetailsPage({ params }: { params: { id: string 
   ];
 
   return <main className="page"><div className="container" style={{ maxWidth: 1180 }}>
-    <div className="page-header"><div><p className="eyebrow">税金明细表</p><h1 className="title">{project.name}</h1><p className="subtitle">自动汇总增值税、附加税、土地增值税和企业所得税。当前按测算口径暂估，后续可接入税务参数和分业态清算。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/land-vat`} className="btn btn-primary">土地增值税</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">税金明细表</p><h1 className="title">{project.name}</h1><p className="subtitle">自动汇总增值税、附加税、土地增值税和企业所得税。当前只统计启用业态收入与启用业态成本，停用业态自动排除。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/land-vat`} className="btn btn-primary">土地增值税</Link><Link href={`/projects/${project.id}/product-maintenance`} className="btn">业态维护</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+    {disabledProducts || excludedRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已排除停用业态 {disabledProducts} 个、收入/成本行 {excludedRows} 行。</div> : null}
     <div className="summary-strip"><div className="stat"><div className="stat-label">应缴增值税</div><div className="stat-value">{fmt(payableVat)}</div></div><div className="stat"><div className="stat-label">附加税</div><div className="stat-value">{fmt(surcharge)}</div></div><div className="stat"><div className="stat-label">土增税</div><div className="stat-value">{fmt(landVat)}</div></div><div className="stat"><div className="stat-label">税费合计</div><div className="stat-value">{fmt(totalTax)}</div></div></div>
     <section className="card"><h2>税金明细</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 920, borderCollapse: 'collapse', fontSize: 13 }}><thead><tr>{['税费项目', '金额', '取数/计算说明'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={String(row[0])}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 700 }}>{row[0]}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row[1])}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row[2]}</td></tr>)}</tbody></table></div></section>
   </div></main>;
