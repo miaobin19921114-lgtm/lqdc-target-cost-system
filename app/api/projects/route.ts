@@ -19,15 +19,49 @@ function clean(form: FormData, name: string) {
   return String(form.get(name) || '').trim();
 }
 
-async function saveCustomProductToTemplate(input: { templateId: string; name: string; category: string; isSaleable: boolean; participateAllocation: boolean }) {
+function cookieValue(request: Request, name: string) {
+  const cookie = request.headers.get('cookie') || '';
+  const found = cookie.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`));
+  return found ? decodeURIComponent(found.slice(name.length + 1)) : '';
+}
+
+async function copyTemplateToUser(templateId: string, userId: string) {
+  const source = await prisma.template.findUnique({ where: { id: templateId }, include: { products: true, costRules: true, taxRules: true } });
+  if (!source || !userId) return null;
+  if (source.ownerId === userId) return source;
+  const baseTemplateId = source.baseTemplateId || source.id;
+  const existing = await prisma.template.findFirst({ where: { ownerId: userId, baseTemplateId } });
+  if (existing) return existing;
+  return prisma.template.create({
+    data: {
+      ownerId: userId,
+      baseTemplateId,
+      name: `${source.name}（我的模板）`,
+      type: source.type,
+      description: `个人模板，来源：${source.name}`,
+      isDefault: false,
+      isActive: true,
+      sortOrder: source.sortOrder,
+      products: { create: source.products.map((item) => ({ category: item.category, name: item.name, isSaleable: item.isSaleable, participateAllocation: item.participateAllocation, allocationWeight: item.allocationWeight, sortOrder: item.sortOrder, remark: item.remark, isActive: item.isActive, disabledAt: item.disabledAt })) },
+      costRules: { create: source.costRules.map((item) => ({ costCode: item.costCode, category: item.category, subjectName: item.subjectName, sourceTable: item.sourceTable, measureBasis: item.measureBasis, unit: item.unit, defaultTaxRate: item.defaultTaxRate, allocationMethod: item.allocationMethod, sortOrder: item.sortOrder, remark: item.remark })) },
+      taxRules: { create: source.taxRules.map((item) => ({ name: item.name, rate: item.rate, scope: item.scope, remark: item.remark, sortOrder: item.sortOrder })) }
+    }
+  });
+}
+
+async function saveCustomProductToPersonalTemplate(request: Request, input: { templateId: string; name: string; category: string; isSaleable: boolean; participateAllocation: boolean }) {
   if (!input.templateId || !input.name) return;
+  const userId = cookieValue(request, 'lqdc_session');
+  if (!userId) return;
+  const template = await copyTemplateToUser(input.templateId, userId);
+  if (!template) return;
   const last = await prisma.templateProduct.findFirst({
-    where: { templateId: input.templateId, category: input.category || '其他' },
+    where: { templateId: template.id, category: input.category || '其他' },
     orderBy: { sortOrder: 'desc' },
     select: { sortOrder: true }
   });
   await prisma.templateProduct.upsert({
-    where: { templateId_name: { templateId: input.templateId, name: input.name } },
+    where: { templateId_name: { templateId: template.id, name: input.name } },
     update: {
       category: input.category || '其他',
       isSaleable: input.isSaleable,
@@ -38,7 +72,7 @@ async function saveCustomProductToTemplate(input: { templateId: string; name: st
       disabledAt: null
     },
     create: {
-      templateId: input.templateId,
+      templateId: template.id,
       category: input.category || '其他',
       name: input.name,
       isSaleable: input.isSaleable,
@@ -95,7 +129,7 @@ export async function POST(request: Request) {
       remark: customCategory ? `模板业态｜${customCategory}` : '自定义业态'
     });
     if (form.get('saveToTemplate') === 'on') {
-      await saveCustomProductToTemplate({ templateId, name: customProductName, category: customCategory || '其他', isSaleable: customIsSaleable, participateAllocation: customParticipateAllocation });
+      await saveCustomProductToPersonalTemplate(request, { templateId, name: customProductName, category: customCategory || '其他', isSaleable: customIsSaleable, participateAllocation: customParticipateAllocation });
     }
   }
 
