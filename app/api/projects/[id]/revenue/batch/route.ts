@@ -27,6 +27,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
   for (let index = 0; index < rowCount; index += 1) {
     const productId = clean(form, `productId-${index}`);
     if (!productId) continue;
+    const product = await prisma.productType.findFirst({ where: { id: productId, projectVersionId: version.id, isActive: true, isSaleable: true } });
+    if (!product) continue;
     await prisma.productType.update({
       where: { id: productId },
       data: { salePrice: toNumber(form, `salePrice-${index}`) }
