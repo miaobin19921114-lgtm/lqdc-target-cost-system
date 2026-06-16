@@ -39,12 +39,20 @@ async function getOrCreateVersion(projectId: string) {
   return prisma.projectVersion.create({ data: { projectId, name: '初始版本' } });
 }
 
+function matchesInactiveProductName(text: string | null | undefined, inactiveNames: Set<string>) {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  return Array.from(inactiveNames).some((name) => value === name || value === `业态-${name}` || value === `区域-${name}`);
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
   const baseUrl = getBaseUrl(request);
   const professionalGroup = clean(form.get('professionalGroup')) || '专业明细';
   const returnPath = clean(form.get('returnPath')) || 'costs';
   const version = await getOrCreateVersion(params.id);
+  const products = await prisma.productType.findMany({ where: { projectVersionId: version.id }, select: { name: true, isActive: true } });
+  const inactiveProductNames = new Set(products.filter((item) => !item.isActive).map((item) => item.name));
   const rowIds = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
   let savedCount = 0;
 
@@ -59,6 +67,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!quantity && !taxInclusiveUnitPrice && !remark && !costLineId) continue;
     const dict = await prisma.costDictionaryRow.findUnique({ where: { id: rowId } });
     if (!dict || !dict.detailSubject) continue;
+    if (matchesInactiveProductName(dict.applicableProductType, inactiveProductNames)) continue;
+
+    const existingCostLine = costLineId ? await prisma.costLine.findFirst({ where: { id: costLineId, projectVersionId: version.id }, include: { productType: true } }) : null;
+    if (existingCostLine?.productTypeId && !existingCostLine.productType?.isActive) continue;
+    if (matchesInactiveProductName(existingCostLine?.regionOrProductType, inactiveProductNames)) continue;
 
     const code = dict.costCode || '03';
     const subjectName = dict.detailSubject;
