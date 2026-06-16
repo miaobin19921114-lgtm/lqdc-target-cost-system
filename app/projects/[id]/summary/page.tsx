@@ -74,14 +74,18 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
     orderBy: { createdAt: 'asc' },
     include: {
       products: true,
-      costs: { include: { costSubject: true } }
+      costs: { include: { costSubject: true, productType: true } }
     }
   });
 
   if (!project) return <main className="page">项目不存在</main>;
 
-  const products = version?.products || [];
-  const allCosts = version?.costs || [];
+  const allProducts = version?.products || [];
+  const products = allProducts.filter((item) => item.isActive);
+  const disabledProductCount = allProducts.length - products.length;
+  const rawCosts = version?.costs || [];
+  const allCosts = rawCosts.filter((row) => !row.productTypeId || row.productType?.isActive);
+  const ignoredDisabledCostRows = rawCosts.length - allCosts.length;
   const leafDictionaryRows = await prisma.costDictionaryRow.findMany({
     where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null }, detailSubject: { not: null } },
     select: { costCode: true }
@@ -148,7 +152,7 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
           <div>
             <p className="eyebrow">目标成本汇总表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">只汇总末级科目成本；历史误保存的上级科目成本行已自动排除，避免重复计入。</p>
+            <p className="subtitle">只汇总启用业态、末级科目成本；已停用业态和历史误保存的上级科目成本行自动排除，避免重复计入。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/revenue`} className="btn">收入明细</Link>
@@ -158,6 +162,16 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
           </div>
         </div>
 
+        {disabledProductCount > 0 ? (
+          <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>
+            本项目有 {disabledProductCount} 个停用业态，已从销售收入和目标成本汇总中排除。
+          </div>
+        ) : null}
+        {ignoredDisabledCostRows > 0 ? (
+          <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>
+            已排除 {ignoredDisabledCostRows} 条停用业态关联成本行，当前汇总只统计启用业态成本。
+          </div>
+        ) : null}
         {ignoredNonLeafCostRows > 0 ? (
           <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>
             已发现并排除 {ignoredNonLeafCostRows} 条非末级历史成本行，当前汇总只统计末级科目，避免重复计算。
