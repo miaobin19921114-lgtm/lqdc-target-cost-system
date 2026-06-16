@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,8 +19,8 @@ export default async function LandVatPage({ params }: { params: { id: string } }
   if (!project) return <main className="page">项目不存在</main>;
 
   const version = await prisma.projectVersion.findFirst({
-    where: { projectId: params.id },
-    orderBy: { createdAt: 'asc' },
+    where: activeVersionWhere(project),
+    orderBy: activeVersionOrder(project),
     include: { revenues: { include: { productType: true } }, costs: { include: { costSubject: true, productType: true } }, products: true }
   });
 
@@ -47,7 +48,7 @@ export default async function LandVatPage({ params }: { params: { id: string } }
   const landVat = Math.max(0, valueAdded * ladder.rate - deductionTotal * ladder.deduction);
 
   const rows = [
-    ['含税销售收入', revenueInclusive, '来自启用且可售业态收入明细表'],
+    ['含税销售收入', revenueInclusive, '来自当前版本启用且可售业态收入明细表'],
     ['不含税销售收入', revenueExclusive, '销售收入剔除销项税'],
     ['土地成本', landCost, '01 土地成本，已排除停用业态关联成本'],
     ['开发成本', devCost, '02 前期 + 03 建安，已排除停用业态关联成本'],
@@ -63,7 +64,7 @@ export default async function LandVatPage({ params }: { params: { id: string } }
   ];
 
   return <main className="page"><div className="container" style={{ maxWidth: 1180 }}>
-    <div className="page-header"><div><p className="eyebrow">土地增值税测算表</p><h1 className="title">{project.name}</h1><p className="subtitle">按收入、土地成本、开发成本、税金及附加和加计扣除自动测算。当前只统计启用业态收入与启用业态成本，停用业态自动排除。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/cost-allocation`} className="btn btn-primary">成本分摊</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税金明细</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">土地增值税测算表</p><h1 className="title">{project.name}</h1><p className="subtitle">按当前版本收入、土地成本、开发成本、税金及附加和加计扣除自动测算。当前只统计启用业态收入与启用业态成本，停用业态自动排除。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/cost-allocation`} className="btn btn-primary">成本分摊</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税金明细</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
     {disabledProducts || excludedRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已排除停用业态 {disabledProducts} 个、收入/成本行 {excludedRows} 行。</div> : null}
     <div className="summary-strip"><div className="stat"><div className="stat-label">不含税收入</div><div className="stat-value">{fmt(revenueExclusive)}</div></div><div className="stat"><div className="stat-label">扣除项目</div><div className="stat-value">{fmt(deductionTotal)}</div></div><div className="stat"><div className="stat-label">增值率</div><div className="stat-value">{fmt(valueAddedRatio * 100)}%</div></div><div className="stat"><div className="stat-label">土增税</div><div className="stat-value">{fmt(landVat)}</div></div></div>
     <section className="card"><h2>测算明细</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 920, borderCollapse: 'collapse', fontSize: 13 }}><thead><tr>{['项目', '金额/比例', '说明'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={String(row[0])}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 700 }}>{row[0]}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row[1])}{String(row[0]).includes('率') || String(row[0]).includes('系数') ? '%' : ''}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row[2]}</td></tr>)}</tbody></table></div></section>
