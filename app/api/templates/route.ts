@@ -97,6 +97,14 @@ export async function POST(request: Request) {
   const template = templateId ? await prisma.template.findFirst({ where: { id: templateId, ownerId: userId } }) : null;
   if (!template) return redirectTo(request, 'systemTemplateReadonly');
 
+  if (action === 'setDefault') {
+    await prisma.$transaction([
+      prisma.template.updateMany({ where: { ownerId: userId }, data: { isDefault: false } }),
+      prisma.template.update({ where: { id: template.id }, data: { isDefault: true } })
+    ]);
+    return redirectTo(request, 'templateDefaulted');
+  }
+
   if (action === 'rename') {
     const name = clean(form, 'name');
     if (!name) return redirectTo(request, 'missing');
