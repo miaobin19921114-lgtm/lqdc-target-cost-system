@@ -179,14 +179,35 @@ model ProjectVersion {
   projectId String
   project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
+  stage     String        @default("投拓阶段")
   status    VersionStatus @default(draft)
   isLocked  Boolean       @default(false)
   products  ProductType[]
+  costRules ProjectCostRule[]
   revenues  RevenueLine[]
   costs     CostLine[]
   taxes     TaxParameter?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+}
+
+model ProjectCostRule {
+  id                String         @id @default(cuid())
+  projectVersionId  String
+  projectVersion    ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  costCode          String?
+  category          String?
+  subjectName       String
+  sourceTable       String?
+  measureBasis      String?
+  unit              String?
+  defaultTaxRate    Decimal        @default(0.09)
+  allocationMethod  String?
+  isActive          Boolean        @default(true)
+  sortOrder         Int            @default(0)
+  remark            String?
+
+  @@index([projectVersionId])
 }
 
 model ProductType {
