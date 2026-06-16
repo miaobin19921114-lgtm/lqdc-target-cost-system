@@ -1,13 +1,31 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { calculateIncomeTax, calculateRevenueLine } from '@/lib/calculations';
+import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 
 export const dynamic = 'force-dynamic';
 
-const VAT_RATE = 0.09;
-const SURCHARGE_RATE = 0.12;
-const INCOME_TAX_RATE = 0.25;
+const DEFAULT_VAT_RATE = 0.09;
+const DEFAULT_SURCHARGE_RATE = 0.12;
+const DEFAULT_INCOME_TAX_RATE = 0.25;
 
-type CostGroupRow = { level1: string; level2: string; group: string; inclusive: number; exclusive: number; tax: number; count: number };
+type CostGroupRow = {
+  level1: string;
+  level2: string;
+  inclusive: number;
+  exclusive: number;
+  tax: number;
+  count: number;
+};
+
+type LevelOneRow = {
+  level1: string;
+  inclusive: number;
+  exclusive: number;
+  tax: number;
+  count: number;
+  children: CostGroupRow[];
+};
 
 function fmt(value: number) {
   return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -15,13 +33,6 @@ function fmt(value: number) {
 
 function pct(value: number) {
   return `${(value * 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
-}
-
-function calcRevenue(saleableArea: number, salePrice: number) {
-  const taxInclusiveRevenue = saleableArea * salePrice;
-  const taxExclusiveRevenue = taxInclusiveRevenue / (1 + VAT_RATE);
-  const taxAmount = taxInclusiveRevenue - taxExclusiveRevenue;
-  return { taxInclusiveRevenue, taxExclusiveRevenue, taxAmount };
 }
 
 function subjectLevels(subject: { code: string; name: string; fullPath: string | null }) {
@@ -32,8 +43,8 @@ function subjectLevels(subject: { code: string; name: string; fullPath: string |
   return { level1, level2 };
 }
 
-function detailHref(projectId: string, row: { level1: string; level2: string; group?: string }) {
-  const text = `${row.level1} ${row.level2} ${row.group || ''}`;
+function detailHref(projectId: string, row: { level1: string; level2: string }) {
+  const text = `${row.level1} ${row.level2}`;
   const rules: Array<[RegExp, string]> = [
     [/土地/, 'land'],
     [/前期|设计|报批|勘察|测绘|三通一平/, 'pre-costs'],
@@ -69,35 +80,41 @@ function warningColor(text: string) {
 
 export default async function TargetCostSummaryPage({ params }: { params: { id: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
+  if (!project) return <main className="page">项目不存在</main>;
+
   const version = await prisma.projectVersion.findFirst({
-    where: { projectId: params.id },
-    orderBy: { createdAt: 'asc' },
+    where: activeVersionWhere(project),
+    orderBy: activeVersionOrder(project),
     include: {
       products: true,
+      taxes: true,
       costs: { include: { costSubject: true, productType: true } }
     }
   });
 
-  if (!project) return <main className="page">项目不存在</main>;
+  const vatRate = Number(version?.taxes?.vatRate || DEFAULT_VAT_RATE);
+  const surchargeRate = DEFAULT_SURCHARGE_RATE;
+  const incomeTaxRate = Number(version?.taxes?.corporateIncomeTaxRate || DEFAULT_INCOME_TAX_RATE);
 
   const allProducts = version?.products || [];
-  const products = allProducts.filter((item) => item.isActive);
-  const disabledProductCount = allProducts.length - products.length;
+  const activeProducts = allProducts.filter((item) => item.isActive);
+  const disabledProductCount = allProducts.length - activeProducts.length;
+
   const rawCosts = version?.costs || [];
-  const allCosts = rawCosts.filter((row) => !row.productTypeId || row.productType?.isActive);
-  const ignoredDisabledCostRows = rawCosts.length - allCosts.length;
+  const activeCosts = rawCosts.filter((row) => !row.productTypeId || row.productType?.isActive);
+  const ignoredDisabledCostRows = rawCosts.length - activeCosts.length;
+
   const leafDictionaryRows = await prisma.costDictionaryRow.findMany({
     where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null }, detailSubject: { not: null } },
     select: { costCode: true }
   });
   const leafCodes = new Set(leafDictionaryRows.map((row) => row.costCode).filter(Boolean));
-  const costs = allCosts.filter((row) => leafCodes.has(row.costSubject.code));
-  const ignoredNonLeafCostRows = allCosts.length - costs.length;
+  const costs = leafCodes.size > 0 ? activeCosts.filter((row) => leafCodes.has(row.costSubject.code)) : activeCosts;
+  const ignoredNonLeafCostRows = activeCosts.length - costs.length;
 
-  const revenueRows = products
+  const revenueRows = activeProducts
     .filter((item) => item.isSaleable)
-    .map((item) => calcRevenue(Number(item.saleableArea || 0), Number(item.salePrice || 0)));
-
+    .map((item) => calculateRevenueLine(Number(item.saleableArea || 0), Number(item.salePrice || 0), vatRate));
   const revenueInclusive = revenueRows.reduce((sum, row) => sum + row.taxInclusiveRevenue, 0);
   const revenueExclusive = revenueRows.reduce((sum, row) => sum + row.taxExclusiveRevenue, 0);
   const outputTax = revenueRows.reduce((sum, row) => sum + row.taxAmount, 0);
@@ -107,10 +124,10 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
   const inputTax = costs.reduce((sum, row) => sum + Number(row.taxAmount || 0), 0);
 
   const vatPayable = Math.max(outputTax - inputTax, 0);
-  const surcharge = vatPayable * SURCHARGE_RATE;
+  const surcharge = vatPayable * surchargeRate;
   const landValueAddedTax = 0;
   const taxBeforeProfit = revenueExclusive - costExclusive - surcharge - landValueAddedTax;
-  const incomeTax = Math.max(taxBeforeProfit, 0) * INCOME_TAX_RATE;
+  const incomeTax = calculateIncomeTax(taxBeforeProfit, incomeTaxRate);
   const netProfit = taxBeforeProfit - incomeTax;
   const preTaxMargin = revenueInclusive ? taxBeforeProfit / revenueInclusive : 0;
   const netMargin = revenueInclusive ? netProfit / revenueInclusive : 0;
@@ -123,18 +140,17 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
   const costGroups = new Map<string, CostGroupRow>();
   for (const row of costs) {
     const levels = subjectLevels(row.costSubject);
-    const group = row.professionalGroup || row.description || '';
     const key = `${levels.level1}__${levels.level2}`;
-    const current = costGroups.get(key) || { ...levels, group, inclusive: 0, exclusive: 0, tax: 0, count: 0 };
+    const current = costGroups.get(key) || { ...levels, inclusive: 0, exclusive: 0, tax: 0, count: 0 };
     current.inclusive += Number(row.taxInclusiveAmount || 0);
     current.exclusive += Number(row.taxExclusiveAmount || 0);
     current.tax += Number(row.taxAmount || 0);
     current.count += 1;
     costGroups.set(key, current);
   }
-  const groupedCosts = Array.from(costGroups.values()).sort((a, b) => a.level1.localeCompare(b.level1) || a.level2.localeCompare(b.level2));
-  const levelOneGroups = new Map<string, { level1: string; inclusive: number; exclusive: number; tax: number; count: number; children: CostGroupRow[] }>();
-  for (const row of groupedCosts) {
+
+  const levelOneGroups = new Map<string, LevelOneRow>();
+  for (const row of Array.from(costGroups.values())) {
     const current = levelOneGroups.get(row.level1) || { level1: row.level1, inclusive: 0, exclusive: 0, tax: 0, count: 0, children: [] };
     current.inclusive += row.inclusive;
     current.exclusive += row.exclusive;
@@ -145,6 +161,23 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
   }
   const levelOneRows = Array.from(levelOneGroups.values()).sort((a, b) => a.level1.localeCompare(b.level1));
 
+  const metrics: Array<[string, number, 'money' | 'percent']> = [
+    ['销售收入（含税）', revenueInclusive, 'money'],
+    ['销售收入（不含税）', revenueExclusive, 'money'],
+    ['开发成本及费用合计（含税，末级）', costInclusive, 'money'],
+    ['开发成本及费用合计（不含税，末级）', costExclusive, 'money'],
+    ['销项税额', outputTax, 'money'],
+    ['进项税额（末级）', inputTax, 'money'],
+    ['应缴增值税', vatPayable, 'money'],
+    ['附加税费', surcharge, 'money'],
+    ['土地增值税（待专项表接入）', landValueAddedTax, 'money'],
+    ['税前经营利润', taxBeforeProfit, 'money'],
+    ['税前销售利润率', preTaxMargin, 'percent'],
+    [`所得税（${pct(incomeTaxRate)}）`, incomeTax, 'money'],
+    ['税后净利', netProfit, 'money'],
+    ['销售净利率', netMargin, 'percent']
+  ];
+
   return (
     <main className="page">
       <div className="container" style={{ maxWidth: 1380 }}>
@@ -152,7 +185,7 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
           <div>
             <p className="eyebrow">目标成本汇总表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">只汇总启用业态、末级科目成本；已停用业态和历史误保存的上级科目成本行自动排除，避免重复计入。</p>
+            <p className="subtitle">当前汇总基于当前启用版本，只统计启用业态和末级成本行；充电桩作为车位/设备指标，不作为业态。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/revenue`} className="btn">收入明细</Link>
@@ -162,21 +195,9 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
           </div>
         </div>
 
-        {disabledProductCount > 0 ? (
-          <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>
-            本项目有 {disabledProductCount} 个停用业态，已从销售收入和目标成本汇总中排除。
-          </div>
-        ) : null}
-        {ignoredDisabledCostRows > 0 ? (
-          <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>
-            已排除 {ignoredDisabledCostRows} 条停用业态关联成本行，当前汇总只统计启用业态成本。
-          </div>
-        ) : null}
-        {ignoredNonLeafCostRows > 0 ? (
-          <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>
-            已发现并排除 {ignoredNonLeafCostRows} 条非末级历史成本行，当前汇总只统计末级科目，避免重复计算。
-          </div>
-        ) : null}
+        {disabledProductCount > 0 ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>本项目当前版本有 {disabledProductCount} 个停用业态，已从销售收入和目标成本汇总中排除。</div> : null}
+        {ignoredDisabledCostRows > 0 ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已排除 {ignoredDisabledCostRows} 条停用业态关联成本行，当前汇总只统计启用业态成本。</div> : null}
+        {ignoredNonLeafCostRows > 0 ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已发现并排除 {ignoredNonLeafCostRows} 条非末级历史成本行，当前汇总只统计末级科目，避免重复计算。</div> : null}
 
         <div className="summary-strip">
           <div className="stat"><div className="stat-label">含税销售收入</div><div className="stat-value">{fmt(revenueInclusive)}元</div></div>
@@ -190,26 +211,11 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
               <tbody>
-                {[
-                  ['销售收入（含税）', revenueInclusive, '元'],
-                  ['销售收入（不含税）', revenueExclusive, '元'],
-                  ['开发成本及费用合计（含税，末级）', costInclusive, '元'],
-                  ['开发成本及费用合计（不含税，末级）', costExclusive, '元'],
-                  ['销项税额', outputTax, '元'],
-                  ['进项税额（末级）', inputTax, '元'],
-                  ['应缴增值税', vatPayable, '元'],
-                  ['附加税费（暂按12%）', surcharge, '元'],
-                  ['土地增值税（待专项表接入）', landValueAddedTax, '元'],
-                  ['税前经营利润', taxBeforeProfit, '元'],
-                  ['税前销售利润率', preTaxMargin, 'percent'],
-                  ['所得税（暂按25%）', incomeTax, '元'],
-                  ['税后净利', netProfit, '元'],
-                  ['销售净利率', netMargin, 'percent']
-                ].map(([name, value, unit]) => (
-                  <tr key={String(name)}>
+                {metrics.map(([name, value, unit]) => (
+                  <tr key={name}>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{name}</td>
-                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 800 }}>{unit === 'percent' ? pct(Number(value)) : fmt(Number(value))}</td>
-                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{unit === 'percent' ? '' : unit}</td>
+                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 800 }}>{unit === 'percent' ? pct(value) : fmt(value)}</td>
+                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{unit === 'percent' ? '' : '元'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -231,25 +237,13 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
                 return (
                   <details key={group.level1} open style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
                     <summary style={{ cursor: 'pointer', listStyle: 'none', padding: 12, background: '#f8fafc', display: 'grid', gridTemplateColumns: '1fr 90px 130px 110px 110px 100px 110px', gap: 10, alignItems: 'center' }}>
-                      <b>{group.level1}</b>
-                      <span className="meta">{group.count} 行</span>
-                      <span style={{ textAlign: 'right', fontWeight: 900 }}>{fmt(group.inclusive)}</span>
-                      <span style={{ textAlign: 'right' }}>{fmt(buildingArea ? group.inclusive / buildingArea : 0)}</span>
-                      <span style={{ textAlign: 'right' }}>{fmt(saleableArea ? group.inclusive / saleableArea : 0)}</span>
-                      <span style={{ color: warningColor(groupWarning), fontWeight: 900 }}>{groupWarning}</span>
-                      <span style={{ color: '#0b7285', textAlign: 'right' }}>展开/收起</span>
+                      <b>{group.level1}</b><span className="meta">{group.count} 行</span><span style={{ textAlign: 'right', fontWeight: 900 }}>{fmt(group.inclusive)}</span><span style={{ textAlign: 'right' }}>{fmt(buildingArea ? group.inclusive / buildingArea : 0)}</span><span style={{ textAlign: 'right' }}>{fmt(saleableArea ? group.inclusive / saleableArea : 0)}</span><span style={{ color: warningColor(groupWarning), fontWeight: 900 }}>{groupWarning}</span><span style={{ color: '#0b7285', textAlign: 'right' }}>展开/收起</span>
                     </summary>
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1240 }}>
-                        <thead>
-                          <tr>
-                            {['二级科目', '末级行数', '含税成本', '建面单方', '可售单方', '不含税成本', '税额', '占比', '预警', '穿透'].map((head) => (
-                              <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>
-                            ))}
-                          </tr>
-                        </thead>
+                        <thead><tr>{['二级科目', '末级行数', '含税成本', '建面单方', '可售单方', '不含税成本', '税额', '占比', '预警', '穿透'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead>
                         <tbody>
-                          {group.children.map((row) => {
+                          {group.children.sort((a, b) => a.level2.localeCompare(b.level2)).map((row) => {
                             const warn = warningText(row, costInclusive, buildingArea, saleableArea);
                             return (
                               <tr key={`${row.level1}-${row.level2}`}>
