@@ -3,11 +3,10 @@
 
 FROM node:20-bookworm-slim AS deps
 WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
-COPY package.json ./
+COPY package.json package-lock.json* ./
 RUN npm install
 
 FROM deps AS builder
@@ -24,7 +23,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates dumb-init \
   && rm -rf /var/lib/apt/lists/*
 COPY package.json ./
-RUN npm install --omit=dev && npm cache clean --force
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
