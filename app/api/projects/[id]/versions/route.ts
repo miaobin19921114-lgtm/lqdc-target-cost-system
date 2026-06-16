@@ -58,7 +58,6 @@ async function copyVersion(projectId: string, sourceVersionId: string, name: str
         unit: rule.unit,
         defaultTaxRate: rule.defaultTaxRate,
         allocationMethod: rule.allocationMethod,
-        isActive: rule.isActive,
         sortOrder: rule.sortOrder,
         remark: rule.remark
       }
