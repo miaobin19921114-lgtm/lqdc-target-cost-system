@@ -9,6 +9,12 @@ function fmt(value: number) {
   return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
+function statusText(status: string) {
+  if (status === 'locked') return '已锁定';
+  if (status === 'final') return '定稿';
+  return '草稿';
+}
+
 export default async function ProjectVersionsPage({ params, searchParams }: { params: { id: string }; searchParams?: Record<string, string | undefined> }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
@@ -19,6 +25,7 @@ export default async function ProjectVersionsPage({ params, searchParams }: { pa
     include: { products: true, costRules: true, costs: true, taxes: true }
   });
   const activeId = project.activeVersionId || versions[0]?.id || '';
+  const activeVersion = versions.find((item) => item.id === activeId);
 
   return (
     <main className="page">
@@ -27,7 +34,7 @@ export default async function ProjectVersionsPage({ params, searchParams }: { pa
           <div>
             <p className="eyebrow">版本管理</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">一个项目可以沉淀投拓、定位、方案、施工图、招采、动态成本、结算等不同阶段版本。当前版本会作为工作台和测算页面默认版本。</p>
+            <p className="subtitle">当前版本：{activeVersion ? `${activeVersion.stage || '未分阶段'}｜${activeVersion.name}｜${statusText(activeVersion.status)}` : '暂无版本'}。锁定版本后，收入、业态和目标成本明细禁止继续编辑。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}`} className="btn btn-primary">返回工作台</Link>
@@ -38,8 +45,11 @@ export default async function ProjectVersionsPage({ params, searchParams }: { pa
         {searchParams?.created ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb' }}>空白版本已创建，并已设为当前版本。</div> : null}
         {searchParams?.cloned ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb' }}>版本已复制，并已设为当前版本。</div> : null}
         {searchParams?.active ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb' }}>当前版本已切换。</div> : null}
+        {searchParams?.locked ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb' }}>版本已锁定，测算明细将禁止编辑。</div> : null}
+        {searchParams?.unlocked ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb' }}>版本已解锁，可继续编辑。</div> : null}
         {searchParams?.deleted ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb' }}>版本已删除。</div> : null}
         {searchParams?.cannotDelete ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>至少保留一个版本，不能删除最后一个版本。</div> : null}
+        {searchParams?.lockedDelete ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>锁定版本不能直接删除，请先解锁。</div> : null}
 
         <section className="card" style={{ marginBottom: 14 }}>
           <h2>新增版本</h2>
@@ -57,20 +67,20 @@ export default async function ProjectVersionsPage({ params, searchParams }: { pa
         <section className="card">
           <h2>已有版本</h2>
           <div style={{ overflowX: 'auto', marginTop: 12 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1080, fontSize: 13 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1120, fontSize: 13 }}>
               <thead>
                 <tr>{['当前', '阶段', '版本名称', '状态', '业态', '科目规则', '成本明细', '含税成本', '操作'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #eef2f6', color: '#667085' }}>{head}</th>)}</tr>
               </thead>
               <tbody>
                 {versions.map((version) => {
                   const cost = version.costs.reduce((sum, row) => sum + Number(row.taxInclusiveAmount || 0), 0);
-                  const lockedText = version.status === 'locked' ? '｜已锁定' : '';
+                  const locked = version.status === 'locked' || version.status === 'final';
                   return (
                     <tr key={version.id} style={{ background: version.id === activeId ? '#f0fbfc' : '#fff' }}>
                       <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{version.id === activeId ? '当前' : '-'}</td>
                       <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 800 }}>{version.stage}</td>
                       <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.name}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.status}{lockedText}</td>
+                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', color: locked ? '#c92a2a' : '#2f9e44', fontWeight: 900 }}>{statusText(version.status)}</td>
                       <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.products.length}</td>
                       <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.costRules.length}</td>
                       <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.costs.length}</td>
@@ -91,6 +101,11 @@ export default async function ProjectVersionsPage({ params, searchParams }: { pa
                             <input type="hidden" name="stage" value={version.stage || ''} />
                             <button className="btn">复制</button>
                             <label style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 12 }}><input name="copyCosts" type="checkbox" />含成本</label>
+                          </form>
+                          <form action={`/api/projects/${project.id}/versions`} method="post">
+                            <input type="hidden" name="action" value={locked ? 'unlock' : 'lock'} />
+                            <input type="hidden" name="versionId" value={version.id} />
+                            <button className="btn" style={{ color: locked ? '#0b7285' : '#c92a2a' }}>{locked ? '解锁' : '锁定'}</button>
                           </form>
                           <form action={`/api/projects/${project.id}/versions`} method="post">
                             <input type="hidden" name="action" value="delete" />
