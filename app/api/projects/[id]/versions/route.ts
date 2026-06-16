@@ -144,11 +144,23 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return redirectTo(request, params.id, 'active');
   }
 
+  if (action === 'lock' || action === 'unlock') {
+    const versionId = clean(form, 'versionId');
+    const version = project.versions.find((item) => item.id === versionId);
+    if (!version) return redirectTo(request, params.id, 'missing');
+    await prisma.projectVersion.update({
+      where: { id: version.id },
+      data: { status: action === 'lock' ? 'locked' : 'draft' }
+    });
+    return redirectTo(request, params.id, action === 'lock' ? 'locked' : 'unlocked');
+  }
+
   if (action === 'delete') {
     const versionId = clean(form, 'versionId');
     if (project.versions.length <= 1) return redirectTo(request, params.id, 'cannotDelete');
     const version = project.versions.find((item) => item.id === versionId);
     if (!version) return redirectTo(request, params.id, 'missing');
+    if (version.status === 'locked' || version.status === 'final') return redirectTo(request, params.id, 'lockedDelete');
     await prisma.projectVersion.delete({ where: { id: version.id } });
     if (project.activeVersionId === version.id || !project.activeVersionId) {
       const fallback = project.versions.find((item) => item.id !== version.id);
