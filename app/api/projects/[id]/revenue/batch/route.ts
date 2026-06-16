@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getOrCreateActiveVersion } from '@/lib/project-version';
 
 function clean(form: FormData, name: string) {
   return String(form.get(name) || '').trim();
@@ -21,7 +22,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const rowCount = Math.max(0, Math.min(200, Number(form.get('rowCount') || 0)));
   let savedCount = 0;
 
-  const version = await prisma.projectVersion.findFirst({ where: { projectId: params.id }, orderBy: { createdAt: 'asc' } });
+  const version = await getOrCreateActiveVersion(params.id);
   if (!version) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/revenue?saved=0`, 303);
 
   for (let index = 0; index < rowCount; index += 1) {
