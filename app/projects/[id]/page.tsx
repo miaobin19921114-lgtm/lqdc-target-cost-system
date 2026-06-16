@@ -48,7 +48,7 @@ function fmt(value: number) {
 }
 
 function revenueAmount(products: any[]) {
-  return products.filter((item) => item.isSaleable).reduce((sum, item) => sum + Number(item.saleableArea || 0) * Number(item.salePrice || 0), 0);
+  return products.filter((item) => item.isActive && item.isSaleable).reduce((sum, item) => sum + Number(item.saleableArea || 0) * Number(item.salePrice || 0), 0);
 }
 
 export default async function ProjectWorkBench({ params }: { params: { id: string } }) {
@@ -58,13 +58,14 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
   const version = await prisma.projectVersion.findFirst({
     where: { projectId: params.id },
     orderBy: { createdAt: 'asc' },
-    include: { products: true, costs: true }
+    include: { products: true, costs: { include: { productType: true } } }
   });
 
   const products = version?.products || [];
+  const activeProducts = products.filter((item) => item.isActive);
   const costs = version?.costs || [];
   const revenue = revenueAmount(products);
-  const cost = costs.reduce((sum, row) => sum + Number(row.taxInclusiveAmount || 0), 0);
+  const cost = costs.filter((row) => !row.productTypeId || row.productType?.isActive).reduce((sum, row) => sum + Number(row.taxInclusiveAmount || 0), 0);
   const buildingArea = Number(project.totalBuildingArea || 0);
   const saleableArea = Number(project.saleableArea || 0);
   const quick = [
@@ -90,8 +91,8 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
     <main style={{ minHeight: '100vh', background: '#eef3f8', color: '#102033' }}>
       <div style={{ height: 52, background: '#12384b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 6, background: '#0b7285', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>九</div>
-          <div><b>九坤地产成本管理平台</b><div style={{ fontSize: 11, opacity: .75 }}>Target Cost Management</div></div>
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: '#0b7285', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>源</div>
+          <div><b>源信达地产目标成本测算系统</b><div style={{ fontSize: 11, opacity: .75 }}>Target Cost Management</div></div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}><Link href={`/projects/${project.id}/export`} className="btn" style={{ minHeight: 34, background: '#fff', color: '#12384b' }}>导入/导出</Link><Link href="/projects" className="btn" style={{ minHeight: 34, color: '#fff', background: 'transparent', borderColor: 'rgba(255,255,255,.35)' }}>项目列表</Link></div>
       </div>
@@ -105,7 +106,7 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
         </aside>
 
         <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#0f4c5c', fontWeight: 900, fontSize: 12 }}>目标成本测算工作台</div><h1 style={{ margin: '6px 0', fontSize: 24 }}>{project.name}</h1><div style={{ color: '#667085', fontSize: 14 }}>版本：{version?.name || '初始版本'}　状态：草稿　口径：含税金额录入，系统自动拆税</div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>{quick.map(([name, href]) => <Link key={name} href={`/projects/${project.id}/${href}`} className="btn btn-primary" style={{ minHeight: 34 }}>{name}</Link>)}</div></div>
+          <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#0f4c5c', fontWeight: 900, fontSize: 12 }}>源信达目标成本测算工作台</div><h1 style={{ margin: '6px 0', fontSize: 24 }}>{project.name}</h1><div style={{ color: '#667085', fontSize: 14 }}>版本：{version?.name || '初始版本'}　状态：草稿　启用业态：{activeProducts.length} 个　口径：含税金额录入，系统自动拆税</div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>{quick.map(([name, href]) => <Link key={name} href={`/projects/${project.id}/${href}`} className="btn btn-primary" style={{ minHeight: 34 }}>{name}</Link>)}</div></div>
           <div className="sys-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>{[['含税销售收入', revenue], ['含税目标成本', cost], ['建面单方', buildingArea ? cost / buildingArea : 0], ['可售单方', saleableArea ? cost / saleableArea : 0]].map(([label, value]) => <div key={String(label)} style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#667085', fontSize: 12 }}>{label}</div><div style={{ fontWeight: 900, fontSize: 18, marginTop: 6 }}>{fmt(Number(value))}</div></div>)}</div>
           <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>成本测算主流程</b><div className="sys-flow" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 12 }}>{quick.map(([name, href], index) => <Link key={name} href={`/projects/${project.id}/${href}`} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#f8fafc' }}><div style={{ width: 26, height: 26, borderRadius: 6, background: '#e9f7f8', color: '#0f4c5c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{index + 1}</div><b style={{ display: 'block', marginTop: 10 }}>{name}</b><div style={{ color: '#667085', fontSize: 12 }}>进入维护</div></Link>)}</div></div>
         </section>
