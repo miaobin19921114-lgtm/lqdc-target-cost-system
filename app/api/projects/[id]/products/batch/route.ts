@@ -48,11 +48,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!hasData) continue;
 
     if (id) {
+      const product = await prisma.productType.findFirst({ where: { id, projectVersionId: version.id, isActive: true } });
+      if (!product) continue;
       await prisma.productType.update({ where: { id }, data: { name, ...data } });
     } else {
       const existing = await prisma.productType.findFirst({ where: { projectVersionId: version.id, name } });
-      if (existing) await prisma.productType.update({ where: { id: existing.id }, data });
-      else await prisma.productType.create({ data: { projectVersionId: version.id, name, ...data } });
+      if (existing) {
+        if (!existing.isActive) continue;
+        await prisma.productType.update({ where: { id: existing.id }, data });
+      } else {
+        await prisma.productType.create({ data: { projectVersionId: version.id, name, ...data } });
+      }
     }
     savedCount += 1;
   }
