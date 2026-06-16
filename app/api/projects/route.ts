@@ -36,6 +36,8 @@ async function copyTemplateToUser(templateId: string, userId: string) {
     data: {
       ownerId: userId,
       baseTemplateId,
+      sourceProjectId: source.sourceProjectId,
+      sourceProjectName: source.sourceProjectName,
       name: `${source.name}（我的模板）`,
       type: source.type,
       description: `个人模板，来源：${source.name}`,
@@ -135,6 +137,9 @@ export async function POST(request: Request) {
 
   const project = await prisma.project.create({
     data: {
+      sourceTemplateId: template?.id || null,
+      sourceTemplateName: template?.name || null,
+      sourceTemplateType: template ? (template.ownerId ? '个人模板' : '系统模板') : null,
       name: String(form.get('name') || '未命名项目'),
       city: String(form.get('city') || ''),
       district: String(form.get('district') || ''),
@@ -159,7 +164,7 @@ export async function POST(request: Request) {
               localEducationSurchargeRate: rateByName(taxRules, '地方教育附加', 0.02),
               corporateIncomeTaxRate: rateByName(taxRules, '企业所得税', 0.25),
               landValueAddedTaxRate: rateByName(taxRules, '土地增值税', 0),
-              remark: template ? `来自模板：${template.name}；阶段：${stage}` : `阶段：${stage}`
+              remark: template ? `来自${template.ownerId ? '个人模板' : '系统模板'}：${template.name}；阶段：${stage}` : `阶段：${stage}`
             }
           }
         }
