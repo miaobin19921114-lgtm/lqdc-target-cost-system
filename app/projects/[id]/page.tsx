@@ -56,11 +56,9 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
 
-  const version = await prisma.projectVersion.findFirst({
-    where: { projectId: params.id },
-    orderBy: { createdAt: 'asc' },
-    include: { products: true, costs: { include: { productType: true } }, costRules: true }
-  });
+  const version = project.activeVersionId
+    ? await prisma.projectVersion.findFirst({ where: { id: project.activeVersionId, projectId: params.id }, include: { products: true, costs: { include: { productType: true } }, costRules: true } })
+    : await prisma.projectVersion.findFirst({ where: { projectId: params.id }, orderBy: { createdAt: 'asc' }, include: { products: true, costs: { include: { productType: true } }, costRules: true } });
 
   const products = version?.products || [];
   const activeProducts = products.filter((item) => item.isActive);
@@ -108,7 +106,7 @@ export default async function ProjectWorkBench({ params }: { params: { id: strin
         </aside>
 
         <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#0f4c5c', fontWeight: 900, fontSize: 12 }}>源信达目标成本测算工作台</div><h1 style={{ margin: '6px 0', fontSize: 24 }}>{project.name}</h1><div style={{ color: '#667085', fontSize: 14 }}>阶段：{version?.stage || '投拓阶段'}　版本：{version?.name || '初始版本'}　状态：草稿　启用业态：{activeProducts.length} 个　科目规则：{version?.costRules.length || 0} 条</div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>{quick.map(([name, href]) => <Link key={name} href={`/projects/${project.id}/${href}`} className="btn btn-primary" style={{ minHeight: 34 }}>{name}</Link>)}</div></div>
+          <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#0f4c5c', fontWeight: 900, fontSize: 12 }}>源信达目标成本测算工作台</div><h1 style={{ margin: '6px 0', fontSize: 24 }}>{project.name}</h1><div style={{ color: '#667085', fontSize: 14 }}>当前阶段：{version?.stage || '投拓阶段'}　版本：{version?.name || '初始版本'}　状态：草稿　启用业态：{activeProducts.length} 个　科目规则：{version?.costRules.length || 0} 条</div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>{quick.map(([name, href]) => <Link key={name} href={`/projects/${project.id}/${href}`} className="btn btn-primary" style={{ minHeight: 34 }}>{name}</Link>)}</div></div>
           <div className="sys-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>{[['含税销售收入', revenue], ['含税目标成本', cost], ['建面单方', buildingArea ? cost / buildingArea : 0], ['可售单方', saleableArea ? cost / saleableArea : 0]].map(([label, value]) => <div key={String(label)} style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#667085', fontSize: 12 }}>{label}</div><div style={{ fontWeight: 900, fontSize: 18, marginTop: 6 }}>{fmt(Number(value))}</div></div>)}</div>
           <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>成本测算主流程</b><div className="sys-flow" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 12 }}>{quick.map(([name, href], index) => <Link key={name} href={`/projects/${project.id}/${href}`} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#f8fafc' }}><div style={{ width: 26, height: 26, borderRadius: 6, background: '#e9f7f8', color: '#0f4c5c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{index + 1}</div><b style={{ display: 'block', marginTop: 10 }}>{name}</b><div style={{ color: '#667085', fontSize: 12 }}>进入维护</div></Link>)}</div></div>
         </section>
