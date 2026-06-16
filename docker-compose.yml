@@ -1,1 +1,40 @@
-services:\n  postgres:\n    image: postgres:16-alpine\n    environment:\n      POSTGRES_USER: postgres\n      POSTGRES_PASSWORD: postgres\n      POSTGRES_DB: lqdc_target_cost\n    ports:\n      - "5432:5432"\n    volumes:\n      - postgres_data:/var/lib/postgresql/data\n  web:\n    build: .\n    depends_on:\n      - postgres\n    environment:\n      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/lqdc_target_cost?schema=public\n      ADMIN_EMAIL: admin@lqdc.local\n      ADMIN_PASSWORD: admin123456\n      ADMIN_NAME: 系统管理员\n      SESSION_SECRET: local-dev-secret\n    ports:\n      - "3000:3000"\nvolumes:\n  postgres_data:\n
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: lqdc-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lqdc-target-cost-system:latest
+    container_name: lqdc-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-3000}:${PORT:-3000}"
+    volumes:
+      - ${UPLOAD_DIR_ON_HOST:-./storage/uploads}:${UPLOAD_DIR:-/app/storage/uploads}
+
+volumes:
+  postgres_data:
