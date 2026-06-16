@@ -35,6 +35,8 @@ async function copyTemplate(sourceId: string, userId: string, newName?: string) 
     data: {
       ownerId: userId,
       baseTemplateId,
+      sourceProjectId: source.sourceProjectId,
+      sourceProjectName: source.sourceProjectName,
       name: newName || copyName(source.name),
       type: source.type,
       description: source.ownerId ? `个人模板副本，来源：${source.name}` : `个人模板，来源：${source.name}`,
