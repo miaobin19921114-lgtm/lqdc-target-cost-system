@@ -28,7 +28,7 @@ model User {
   role         UserRole @default(admin)
   templates    Template[]
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime @default(now()) @updatedAt
 }
 
 model Template {
@@ -48,7 +48,7 @@ model Template {
   costRules       TemplateCostRule[]
   taxRules        TemplateTaxRule[]
   createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  updatedAt       DateTime           @default(now()) @updatedAt
 
   @@index([ownerId])
   @@index([baseTemplateId])
@@ -188,7 +188,7 @@ model Project {
   remark                          String?
   versions                        ProjectVersion[]
   createdAt                       DateTime @default(now())
-  updatedAt                       DateTime @updatedAt
+  updatedAt                       DateTime @default(now()) @updatedAt
 
   @@index([sourceTemplateId])
 }
@@ -206,7 +206,7 @@ model ProjectVersion {
   revenues  RevenueLine[]
   taxes     TaxParameter?
   createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  updatedAt DateTime      @default(now()) @updatedAt
 }
 
 model ProductType {
@@ -228,7 +228,7 @@ model ProductType {
   costs                 CostLine[]
   revenues              RevenueLine[]
   createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  updatedAt             DateTime @default(now()) @updatedAt
 
   @@index([projectVersionId])
   @@index([projectVersionId, isActive])
@@ -267,41 +267,41 @@ model CostSubject {
 }
 
 model CostDictionaryRow {
-  id                        String   @id @default(cuid())
-  projectId                 String
-  rowIndex                  Int
-  firstSubject              String?
-  secondSubject             String?
-  thirdSubject              String?
-  detailSubject             String?
-  subjectLevel              String?
-  costCode                  String?
-  subjectDefinition         String?
-  sourceTable               String?
-  enabled                   String?
-  writeBackToTarget         String?
-  targetMappingCode         String?
-  measureBasis              String?
-  unit                      String?
-  defaultTaxRate            String?
-  applicableProductType     String?
-  applicableStage           String?
-  investmentMethod          String?
-  conceptMethod             String?
-  schemeMethod              String?
-  drawingMethod             String?
-  tenderMethod              String?
-  dynamicMethod             String?
-  specialAdjustment         String?
-  remark                    String?
-  costAttributionMethod     String?
-  targetAllocationMethod    String?
-  landVatAllocationMethod   String?
+  id                         String   @id @default(cuid())
+  projectId                  String
+  rowIndex                   Int
+  firstSubject               String?
+  secondSubject              String?
+  thirdSubject               String?
+  detailSubject              String?
+  subjectLevel               String?
+  costCode                   String?
+  subjectDefinition          String?
+  sourceTable                String?
+  enabled                    String?
+  writeBackToTarget          String?
+  targetMappingCode          String?
+  measureBasis               String?
+  unit                       String?
+  defaultTaxRate             String?
+  applicableProductType      String?
+  applicableStage            String?
+  investmentMethod           String?
+  conceptMethod              String?
+  schemeMethod               String?
+  drawingMethod              String?
+  tenderMethod               String?
+  dynamicMethod              String?
+  specialAdjustment          String?
+  remark                     String?
+  costAttributionMethod      String?
+  targetAllocationMethod     String?
+  landVatAllocationMethod    String?
   incomeTaxDeductionCategory String?
-  preTaxDeduction           String?
-  taxRemark                 String?
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  preTaxDeduction            String?
+  taxRemark                  String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @default(now()) @updatedAt
 
   @@index([projectId])
   @@unique([projectId, rowIndex])
