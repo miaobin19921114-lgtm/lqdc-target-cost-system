@@ -35,11 +35,11 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
         ) : (
           <div className="card-grid">
             {projects.map((project) => {
-              const firstVersion = project.versions[0];
+              const activeVersion = project.versions.find((item) => item.id === project.activeVersionId) || project.versions[0];
               return <article key={project.id} className="card">
-                <span className="badge">{firstVersion?.stage || '投拓阶段'}</span>
+                <span className="badge">{activeVersion?.stage || '投拓阶段'}</span>
                 <h2 style={{ marginTop: 12 }}>{project.name}</h2>
-                <p className="meta">{project.city || '未填城市'} · {project.district || '未填区域'}</p>
+                <p className="meta">{project.city || '未填城市'} · {project.district || '未填区域'} · 当前：{activeVersion?.name || '初始版本'}</p>
                 <div className="stat-grid">
                   <div className="stat"><div className="stat-label">总建面</div><div className="stat-value">{Number(project.totalBuildingArea).toLocaleString()}㎡</div></div>
                   <div className="stat"><div className="stat-label">可售面积</div><div className="stat-value">{Number(project.saleableArea).toLocaleString()}㎡</div></div>
@@ -47,6 +47,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
                 </div>
                 <div className="actions">
                   <Link href={`/projects/${project.id}`} className="btn btn-primary">进入工作台</Link>
+                  <Link href={`/projects/${project.id}/versions`} className="btn">版本管理</Link>
                   <Link href={`/projects/${project.id}/export`} className="btn">Excel 导出</Link>
                   <form action={`/api/projects/${project.id}/delete`} method="post"><button className="btn" style={{ color: '#c92a2a' }}>删除项目</button></form>
                 </div>
