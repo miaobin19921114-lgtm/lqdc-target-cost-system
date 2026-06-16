@@ -15,38 +15,16 @@ function redirectTo(request: Request, projectId: string, result: string) {
   return NextResponse.redirect(`${getBaseUrl(request)}/projects/${projectId}/versions?${result}=1`, 303);
 }
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
-  const form = await request.formData();
-  const name = clean(form, 'name') || '新测算版本';
-  const stage = clean(form, 'stage') || '投拓阶段';
-  const sourceVersionId = clean(form, 'sourceVersionId');
-  const copyCosts = form.get('copyCosts') === 'on';
-
-  const project = await prisma.project.findUnique({ where: { id: params.id }, select: { id: true } });
-  if (!project) return redirectTo(request, params.id, 'missing');
-
-  if (!sourceVersionId) {
-    await prisma.projectVersion.create({ data: { projectId: params.id, name, stage, status: 'draft' } });
-    return redirectTo(request, params.id, 'created');
-  }
-
+async function copyVersion(projectId: string, sourceVersionId: string, name: string, stage: string, copyCosts: boolean) {
   const source = await prisma.projectVersion.findFirst({
-    where: { id: sourceVersionId, projectId: params.id },
-    include: {
-      products: true,
-      costRules: true,
-      taxes: true,
-      revenues: true,
-      costs: true
-    }
+    where: { id: sourceVersionId, projectId },
+    include: { products: true, costRules: true, taxes: true, revenues: true, costs: true }
   });
-  if (!source) return redirectTo(request, params.id, 'missing');
+  if (!source) return null;
 
-  const target = await prisma.projectVersion.create({
-    data: { projectId: params.id, name, stage, status: 'draft' }
-  });
-
+  const target = await prisma.projectVersion.create({ data: { projectId, name, stage, status: 'draft' } });
   const productIdMap = new Map<string, string>();
+
   for (const product of source.products) {
     const created = await prisma.productType.create({
       data: {
@@ -150,5 +128,49 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
   }
 
+  return target;
+}
+
+export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const form = await request.formData();
+  const action = clean(form, 'action') || 'copy';
+  const project = await prisma.project.findUnique({ where: { id: params.id }, include: { versions: { orderBy: { createdAt: 'asc' } } } });
+  if (!project) return redirectTo(request, params.id, 'missing');
+
+  if (action === 'set-active') {
+    const versionId = clean(form, 'versionId');
+    const version = project.versions.find((item) => item.id === versionId);
+    if (!version) return redirectTo(request, params.id, 'missing');
+    await prisma.project.update({ where: { id: params.id }, data: { activeVersionId: version.id } });
+    return redirectTo(request, params.id, 'active');
+  }
+
+  if (action === 'delete') {
+    const versionId = clean(form, 'versionId');
+    if (project.versions.length <= 1) return redirectTo(request, params.id, 'cannotDelete');
+    const version = project.versions.find((item) => item.id === versionId);
+    if (!version) return redirectTo(request, params.id, 'missing');
+    await prisma.projectVersion.delete({ where: { id: version.id } });
+    if (project.activeVersionId === version.id || !project.activeVersionId) {
+      const fallback = project.versions.find((item) => item.id !== version.id);
+      await prisma.project.update({ where: { id: params.id }, data: { activeVersionId: fallback?.id || null } });
+    }
+    return redirectTo(request, params.id, 'deleted');
+  }
+
+  const name = clean(form, 'name') || '新测算版本';
+  const stage = clean(form, 'stage') || '投拓阶段';
+  const sourceVersionId = clean(form, 'sourceVersionId') || project.activeVersionId || project.versions[0]?.id || '';
+  const copyCosts = form.get('copyCosts') === 'on';
+
+  if (!sourceVersionId) {
+    const created = await prisma.projectVersion.create({ data: { projectId: params.id, name, stage, status: 'draft' } });
+    await prisma.project.update({ where: { id: params.id }, data: { activeVersionId: created.id } });
+    return redirectTo(request, params.id, 'created');
+  }
+
+  const created = await copyVersion(params.id, sourceVersionId, name, stage, copyCosts);
+  if (!created) return redirectTo(request, params.id, 'missing');
+  await prisma.project.update({ where: { id: params.id }, data: { activeVersionId: created.id } });
   return redirectTo(request, params.id, 'cloned');
 }
