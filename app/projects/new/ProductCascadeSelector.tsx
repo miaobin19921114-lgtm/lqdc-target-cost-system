@@ -96,7 +96,7 @@ export default function ProductCascadeSelector({ templates }: { templates: Templ
 
       <div style={{ border: '1px dashed #b6c7d6', borderRadius: 12, padding: 12, background: '#fcfdff' }}>
         <b>当前分类下新增自定义业态</b>
-        <p className="meta" style={{ marginTop: 4 }}>模板里没有的业态，可先加入本项目；后续再考虑保存到个人模板。</p>
+        <p className="meta" style={{ marginTop: 4 }}>模板里没有的业态，可先加入本项目；也可保存回模板，后续新项目复用。</p>
         <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr 130px 130px', gap: 10, alignItems: 'end' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>分类
             <select name="customCategory" value={activeCategory} onChange={(event) => setCategory(event.target.value)} style={{ height: 36, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 10px' }}>
@@ -106,6 +106,7 @@ export default function ProductCascadeSelector({ templates }: { templates: Templ
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>自定义业态名称<input name="customProductName" placeholder="如：叠墅、商业地下夹层" style={{ height: 36, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 10px' }} /></label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, height: 36 }}><input name="customIsSaleable" type="checkbox" />可售</label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, height: 36 }}><input name="customParticipateAllocation" type="checkbox" defaultChecked />参与分摊</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, gridColumn: '1 / -1', color: '#475467' }}><input name="saveToTemplate" type="checkbox" defaultChecked />保存回当前模板</label>
         </div>
       </div>
     </div>
