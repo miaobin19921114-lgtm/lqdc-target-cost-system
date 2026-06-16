@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getOrCreateActiveVersion } from '@/lib/project-version';
 
 const toNumber = (form: FormData, name: string) => Number(form.get(name) || 0);
 
@@ -14,17 +15,6 @@ function cookieValue(request: Request, name: string) {
   const cookie = request.headers.get('cookie') || '';
   const found = cookie.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`));
   return found ? decodeURIComponent(found.slice(name.length + 1)) : '';
-}
-
-async function getOrCreateVersion(projectId: string) {
-  const existing = await prisma.projectVersion.findFirst({
-    where: { projectId },
-    orderBy: { createdAt: 'asc' }
-  });
-  if (existing) return existing;
-  return prisma.projectVersion.create({
-    data: { projectId, name: '初始版本', status: 'draft' }
-  });
 }
 
 async function copyDefaultTemplateToUser(userId: string) {
@@ -90,7 +80,9 @@ async function saveCustomProductToPersonalTemplate(request: Request, input: { na
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
-  const version = await getOrCreateVersion(params.id);
+  const version = await getOrCreateActiveVersion(params.id);
+  if (!version) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/overview?productSaved=0`, 303);
+
   const customName = String(form.get('customName') || '').trim();
   const name = customName || String(form.get('name') || '未命名业态').trim();
   const category = String(form.get('category') || form.get('customCategory') || '').trim();
