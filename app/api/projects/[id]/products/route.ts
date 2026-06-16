@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getOrCreateActiveVersion } from '@/lib/project-version';
+import { getEditableActiveVersion } from '@/lib/project-version';
 
 const toNumber = (form: FormData, name: string) => Number(form.get(name) || 0);
 
@@ -18,10 +18,7 @@ function cookieValue(request: Request, name: string) {
 }
 
 async function copyDefaultTemplateToUser(userId: string) {
-  const source = await prisma.template.findFirst({
-    where: { isDefault: true, isActive: true, ownerId: null },
-    include: { products: true, costRules: true, taxRules: true }
-  });
+  const source = await prisma.template.findFirst({ where: { isDefault: true, isActive: true, ownerId: null }, include: { products: true, costRules: true, taxRules: true } });
   if (!source) return null;
   const existing = await prisma.template.findFirst({ where: { ownerId: userId, baseTemplateId: source.id } });
   if (existing) return existing;
@@ -47,69 +44,39 @@ async function saveCustomProductToPersonalTemplate(request: Request, input: { na
   if (!userId) return false;
   const template = await copyDefaultTemplateToUser(userId);
   if (!template) return false;
-  const last = await prisma.templateProduct.findFirst({
-    where: { templateId: template.id, category: input.category || '其他' },
-    orderBy: { sortOrder: 'desc' },
-    select: { sortOrder: true }
-  });
+  const last = await prisma.templateProduct.findFirst({ where: { templateId: template.id, category: input.category || '其他' }, orderBy: { sortOrder: 'desc' }, select: { sortOrder: true } });
   const sortOrder = (last?.sortOrder ?? 0) + 1;
   await prisma.templateProduct.upsert({
     where: { templateId_name: { templateId: template.id, name: input.name } },
-    update: {
-      category: input.category || '其他',
-      isSaleable: input.isSaleable,
-      participateAllocation: input.participateAllocation,
-      allocationWeight: input.allocationWeight || 1,
-      remark: input.remark || '项目自定义业态沉淀',
-      isActive: true,
-      disabledAt: null
-    },
-    create: {
-      templateId: template.id,
-      category: input.category || '其他',
-      name: input.name,
-      isSaleable: input.isSaleable,
-      participateAllocation: input.participateAllocation,
-      allocationWeight: input.allocationWeight || 1,
-      sortOrder,
-      remark: input.remark || '项目自定义业态沉淀'
-    }
+    update: { category: input.category || '其他', isSaleable: input.isSaleable, participateAllocation: input.participateAllocation, allocationWeight: input.allocationWeight || 1, remark: input.remark || '项目自定义业态沉淀', isActive: true, disabledAt: null },
+    create: { templateId: template.id, category: input.category || '其他', name: input.name, isSaleable: input.isSaleable, participateAllocation: input.participateAllocation, allocationWeight: input.allocationWeight || 1, sortOrder, remark: input.remark || '项目自定义业态沉淀' }
   });
   return true;
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
-  const version = await getOrCreateActiveVersion(params.id);
-  if (!version) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/overview?productSaved=0`, 303);
+  const { version, locked } = await getEditableActiveVersion(params.id);
+  const returnPath = String(form.get('returnPath') || 'products');
+  const baseUrl = getBaseUrl(request);
+  if (!version) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/overview?productSaved=0`, 303);
+  if (locked) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?locked=1`, 303);
 
   const customName = String(form.get('customName') || '').trim();
   const name = customName || String(form.get('name') || '未命名业态').trim();
   const category = String(form.get('category') || form.get('customCategory') || '').trim();
-  const returnPath = String(form.get('returnPath') || 'products');
   const saveToTemplate = form.get('saveToTemplate') === 'on';
   const existing = await prisma.productType.findFirst({ where: { projectVersionId: version.id, name } });
   const rawRemark = String(form.get('remark') || '');
   const remark = category && !rawRemark.includes('模板业态｜') ? `${rawRemark ? `${rawRemark}；` : ''}模板业态｜${category}` : rawRemark;
 
-  const data: any = {
-    buildingArea: toNumber(form, 'buildingArea'),
-    saleableArea: toNumber(form, 'saleableArea'),
-    capacityArea: toNumber(form, 'capacityArea'),
-    nonSaleableArea: toNumber(form, 'nonSaleableArea'),
-    isSaleable: form.get('isSaleable') === 'on',
-    participateAllocation: form.get('participateAllocation') === 'on',
-    allocationWeight: toNumber(form, 'allocationWeight') || 1,
-    remark
-  };
-
+  const data: any = { buildingArea: toNumber(form, 'buildingArea'), saleableArea: toNumber(form, 'saleableArea'), capacityArea: toNumber(form, 'capacityArea'), nonSaleableArea: toNumber(form, 'nonSaleableArea'), isSaleable: form.get('isSaleable') === 'on', participateAllocation: form.get('participateAllocation') === 'on', allocationWeight: toNumber(form, 'allocationWeight') || 1, remark };
   if (form.has('salePrice')) data.salePrice = toNumber(form, 'salePrice');
 
   const templateSaved = customName && saveToTemplate ? await saveCustomProductToPersonalTemplate(request, { name, category, ...data }) : false;
 
   if (existing) {
     if (form.get('mode') === 'create') {
-      const baseUrl = getBaseUrl(request);
       const duplicateTarget = returnPath === 'product-maintenance' ? `product-maintenance?duplicate=1${templateSaved ? '&templateSaved=1' : ''}` : returnPath === 'overview' ? `overview?productSaved=duplicate${templateSaved ? '&templateSaved=1' : ''}` : `products?duplicate=1${templateSaved ? '&templateSaved=1' : ''}`;
       return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${duplicateTarget}`, 303);
     }
@@ -118,7 +85,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
     await prisma.productType.create({ data: { projectVersionId: version.id, name, ...data } });
   }
 
-  const baseUrl = getBaseUrl(request);
   const templateParam = templateSaved ? '&templateSaved=1' : '';
   const target = returnPath === 'product-maintenance' ? `product-maintenance?saved=1${templateParam}` : returnPath === 'overview' ? `overview?productSaved=1${templateParam}` : `products?saved=1${templateParam}`;
   return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${target}`, 303);
