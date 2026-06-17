@@ -19,6 +19,10 @@ const disableData = {
   participateAllocation: false
 };
 
+function isTemplatePresetProduct(remark?: string | null) {
+  return String(remark || '').includes('模板业态｜');
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
   const productId = String(form.get('productId') || '');
@@ -56,6 +60,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
       prisma.revenueLine.count({ where: { productTypeId: productId } }),
       prisma.costLine.count({ where: { productTypeId: productId } })
     ]);
+    if (isTemplatePresetProduct(product.remark)) {
+      await prisma.productType.update({ where: { id: productId }, data: disableData });
+      return redirectTo(request, params.id, 'defaultProtected');
+    }
     if (revenueCount > 0 || costCount > 0) {
       await prisma.productType.update({ where: { id: productId }, data: disableData });
       return redirectTo(request, params.id, 'cannotDelete');
