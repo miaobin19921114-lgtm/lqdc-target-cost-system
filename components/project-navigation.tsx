@@ -18,8 +18,8 @@ export const projectNavGroups = [
       ['投决评审', 'decision', 'done'],
       ['经营报告', 'report', 'done'],
       ['打印版经营报告', 'report-print', 'done'],
+      ['敏感性测算', 'sensitivity', 'done'],
       ['敏感性报告', 'sensitivity-report', 'done'],
-      ['税务报告', 'tax-report', 'done'],
       ['老板汇报版', '', 'planned'],
       ['PDF/Word导出', '', 'planned']
     ]
@@ -50,7 +50,16 @@ export const projectNavGroups = [
       ['围墙出入口', 'wall-gate-details', 'done'],
       ['销售费用', 'sales-expense-details', 'done'],
       ['管理费用', 'admin-expense-details', 'done'],
-      ['财务费用', 'finance-expense-details', 'done']
+      ['财务费用', 'finance-expense-details', 'done'],
+      ['成本分摊', 'cost-allocation', 'done'],
+      ['税金明细', 'tax-details', 'done'],
+      ['土地增值税', 'land-vat', 'done'],
+      ['税务报告', 'tax-report', 'done'],
+      ['业态利润', 'profit-analysis', 'done'],
+      ['汇总校验', 'summary-check', 'done'],
+      ['所得税成本对象', '', 'planned'],
+      ['土增税清算模拟', '', 'planned'],
+      ['税费风险清单', '', 'planned']
     ]
   },
   {
@@ -62,28 +71,19 @@ export const projectNavGroups = [
       ['定标记录', '', 'planned'],
       ['合同台账', '', 'planned'],
       ['总包合同对比', '', 'planned'],
-      ['合同变更', '', 'planned'],
-      ['签证变更', '', 'planned'],
-      ['结算管理', '', 'planned'],
       ['付款计划', '', 'planned'],
-      ['动态成本跟踪', '', 'planned'],
       ['招采成本对比', '', 'planned']
     ]
   },
   {
-    title: '税务测算',
+    title: '动态成本',
     items: [
-      ['税金明细', 'tax-details', 'done'],
-      ['土地增值税', 'land-vat', 'done'],
-      ['税务报告', 'tax-report', 'done'],
-      ['成本分摊', 'cost-allocation', 'done'],
-      ['业态利润', 'profit-analysis', 'done'],
-      ['敏感性测算', 'sensitivity', 'done'],
-      ['敏感性报告', 'sensitivity-report', 'done'],
-      ['汇总校验', 'summary-check', 'done'],
-      ['所得税成本对象', '', 'planned'],
-      ['土增税清算模拟', '', 'planned'],
-      ['税费风险清单', '', 'planned']
+      ['动态成本跟踪', '', 'planned'],
+      ['合同变更', '', 'planned'],
+      ['签证变更', '', 'planned'],
+      ['结算管理', '', 'planned'],
+      ['成本预警', '', 'planned'],
+      ['待发生预测', '', 'planned']
     ]
   },
   {
