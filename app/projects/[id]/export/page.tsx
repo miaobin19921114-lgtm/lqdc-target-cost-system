@@ -40,6 +40,12 @@ function money(value?: string) {
   return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function modeText(value?: string) {
+  if (value === 'append') return '追加导入';
+  if (value === 'clear') return '清空旧导入后重导';
+  return '更新同名科目';
+}
+
 export default function ExportPage({ params, searchParams }: { params: { id: string }; searchParams?: Record<string, string | undefined> }) {
   const preview = readBase64Json<SheetPreview[]>(searchParams?.preview, []);
   const costPreview = readBase64Json<CostPreviewRow[]>(searchParams?.costPreview, []);
@@ -82,6 +88,7 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
         {searchParams?.costsImported === '1' ? (
           <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>
             <div style={{ fontWeight: 900, marginBottom: 10 }}>成本明细导入完成：写入或更新 {searchParams.count || 0} 行，已进入当前启用版本。</div>
+            <div className="meta" style={{ marginBottom: 10 }}>导入模式：{modeText(searchParams.importMode)}；清空旧导入行：{searchParams.deletedCount || 0} 行。</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
               <div><span className="meta">含税合计</span><div style={{ fontSize: 20, fontWeight: 900 }}>{money(searchParams.inclusiveTotal)} 元</div></div>
               <div><span className="meta">不含税合计</span><div style={{ fontSize: 20, fontWeight: 900 }}>{money(searchParams.exclusiveTotal)} 元</div></div>
@@ -103,6 +110,14 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
           <p className="meta">同一个入口，选择不同按钮执行不同导入模式。建议先点“预览成本明细”，确认无误后再“正式导入成本明细”。</p>
           <form action={`/api/projects/${params.id}/import-excel`} method="post" encType="multipart/form-data" style={{ display: 'grid', gap: 12, marginTop: 12 }}>
             <input name="file" type="file" accept=".xlsx" required style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, background: '#fff' }} />
+            <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 12, background: '#f8fafc' }}>
+              <div style={{ fontWeight: 900, marginBottom: 8 }}>成本正式导入模式</div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <label><input type="radio" name="costImportMode" value="update" defaultChecked /> 更新同名科目：同一版本、同一工作表、同一科目路径则覆盖更新，适合反复修正同一份 Excel。</label>
+                <label><input type="radio" name="costImportMode" value="append" /> 追加导入：不查重，每次都新增，适合不同批次补充数据。</label>
+                <label><input type="radio" name="costImportMode" value="clear" /> 清空旧导入后重导：先删除当前版本中“Excel导入”的成本行，再重新导入，适合最终重跑模板。</label>
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button name="mode" value="preview" className="btn" style={{ width: 180 }}>只预览结构</button>
               <button name="mode" value="overview" className="btn" style={{ width: 180 }}>只导入项目概况</button>
@@ -176,7 +191,7 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
             <div><b>项目概况：</b><span className="meta">项目名称、城市、区县、占地、红线、容积率、建面、车位、充电桩、景观、楼栋、单元等。</span></div>
             <div><b>业态指标：</b><span className="meta">业态名称、建筑面积、计容面积、可售面积、不可售面积、含税销售单价、备注。</span></div>
             <div><b>成本导入：</b><span className="meta">成本编码、一级/二级/三级科目、明细科目、测算依据、工程量、单位、含税单价、税率、含税金额。</span></div>
-            <div><b>去重规则：</b><span className="meta">同一版本、同一工作表、同一科目路径会更新已有行，避免重复堆叠。</span></div>
+            <div><b>导入模式：</b><span className="meta">更新同名科目、追加导入、清空旧导入后重导。</span></div>
           </div>
         </section>
       </div>
