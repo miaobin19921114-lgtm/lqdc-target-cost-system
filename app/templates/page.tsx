@@ -6,6 +6,15 @@ export const dynamic = 'force-dynamic';
 
 const categories = ['住宅类', '商业商办', '车位储藏', '配套用房', '地下空间', '专项区域', '其他'];
 
+const systemTemplateGroups = [
+  { title: '项目测算模板', desc: '用于新建项目时快速套用项目结构、业态、税率和基础规则。', items: ['住宅开发测算模板', '商业开发测算模板', '产业园测算模板', '旧改/代建测算模板'] },
+  { title: '目标成本模板', desc: '用于沉淀成本科目、目标成本层级、测算依据和单方指标。', items: ['目标成本科目模板', '业态成本模板', '地区成本模板', '档次成本模板'] },
+  { title: '合约招采模板', desc: '用于沉淀合约台账、招采计划、清标分析和付款计划表单。', items: ['合同台账模板', '招采计划模板', '付款计划模板', '清标分析模板'] },
+  { title: '审批流程模板', desc: '用于沉淀投决、目标成本、招采、合同、付款审批表和风控项。', items: ['投决审批模板', '目标成本审批模板', '招采审批模板', '合同审批模板'] },
+  { title: '报告输出模板', desc: '用于沉淀经营报告、投决报告、敏感性报告、税务报告输出格式。', items: ['经营报告模板', '投决报告模板', '敏感性报告模板', '税务报告模板'] },
+  { title: 'AI提示词模板', desc: '用于沉淀成本复核、招标文件审查、合同风险审查、报告生成提示词。', items: ['成本复核提示词', '招标文件审查提示词', '合同风险审查提示词', '报告生成提示词'] }
+] as const;
+
 function fmt(value: unknown) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
@@ -49,9 +58,16 @@ export default async function TemplatesPage({ searchParams }: { searchParams?: R
   });
 
   return <main className="page"><div className="container" style={{ maxWidth: 1380 }}>
-    <div className="page-header"><div><p className="eyebrow">模板中心</p><h1 className="title">系统模板 / 个人模板</h1><p className="subtitle">系统默认模板只读。个人模板可复制、重命名、删除、设为默认；模板会显示来源系统模板或来源项目。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href="/projects" className="btn">项目列表</Link><Link href="/projects/new" className="btn btn-primary">用模板新建项目</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">系统模板中心</p><h1 className="title">系统模板 / 个人模板</h1><p className="subtitle">系统模板是底座，个人模板是你的复用版本。系统默认模板只读；个人模板可复制、重命名、删除、设为默认。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href="/projects" className="btn">个人工作台</Link><Link href="/knowledge" className="btn">个人知识库</Link><Link href="/projects/new" className="btn btn-primary">用模板新建项目</Link></div></div>
     <StatusMessage searchParams={searchParams} />
+
+    <section className="card" style={{ marginBottom: 14, borderColor: '#c5eef3', background: '#f8fbff' }}>
+      <div className="page-header" style={{ marginBottom: 12 }}><div><p className="eyebrow">系统模板结构</p><h2 style={{ margin: 0 }}>模板分类</h2><p className="meta">先按地产成本、招采、合约、审批和报告的实际使用场景分组，后续逐步接入对应模板维护页面。</p></div><span className="badge">模板底座</span></div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>{systemTemplateGroups.map((group) => <div key={group.title} style={{ border: '1px solid #d9e2ec', borderRadius: 12, padding: 14, background: '#fff' }}><b>{group.title}</b><p className="meta" style={{ minHeight: 42 }}>{group.desc}</p><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{group.items.map((item) => <span key={item} style={{ fontSize: 12, color: '#344054', background: '#f2f4f7', border: '1px solid #e4e7ec', borderRadius: 999, padding: '5px 8px' }}>{item}</span>)}</div></div>)}</div>
+    </section>
+
     <section className="card" style={{ marginBottom: 14, borderColor: '#d0ebff', background: '#f8fbff' }}><b>模板保护规则</b><p className="meta" style={{ margin: '6px 0 0' }}>系统默认模板不能被任何个人直接改动。个人模板可以设为默认模板，之后新建项目时会排在最前面。</p></section>
+
     {templates.length === 0 ? <section className="card"><h2>暂无模板</h2><p className="meta">部署迁移完成后会自动生成“住宅开发目标成本标准模板”。</p></section> : <div style={{ display: 'grid', gap: 16 }}>{templates.map((tpl) => {
       const canEdit = !!userId && tpl.ownerId === userId;
       const activeProducts = tpl.products.filter((item) => item.isActive);
