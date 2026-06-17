@@ -39,6 +39,7 @@ const groups = [
     ['系统校验', 'check'],
     ['产品库 / 业态配置标准', 'product-library'],
     ['成本科目及测算词典', 'cost-dictionary'],
+    ['成本科目映射', 'cost-mapping'],
     ['下拉字典', ''],
     ['Excel导入导出', 'export']
   ]]
@@ -83,6 +84,7 @@ export default async function ProjectWorkBench({ params, searchParams }: { param
     ['系统校验', 'check'],
     ['目标成本编制', 'costs-batch'],
     ['汇总联动校验', 'summary-check'],
+    ['成本科目映射', 'cost-mapping'],
     ['收入明细', 'revenue'],
     ['土地费用', 'land'],
     ['前期费用', 'pre-costs'],
@@ -102,7 +104,7 @@ export default async function ProjectWorkBench({ params, searchParams }: { param
           <div style={{ width: 28, height: 28, borderRadius: 6, background: '#0b7285', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>源</div>
           <div><b>源信达地产目标成本测算系统</b><div style={{ fontSize: 11, opacity: .75 }}>Target Cost Management</div></div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}><Link href={`/projects/${project.id}/export`} className="btn" style={{ minHeight: 34, background: '#fff', color: '#12384b' }}>导入/导出</Link><Link href="/projects" className="btn" style={{ minHeight: 34, color: '#fff', background: 'transparent', borderColor: 'rgba(255,255,255,.35)' }}>项目列表</Link></div>
+        <div style={{ display: 'flex', gap: 8 }}><Link href={`/projects/${project.id}/cost-mapping`} className="btn" style={{ minHeight: 34, background: '#fff', color: '#12384b' }}>科目映射</Link><Link href={`/projects/${project.id}/export`} className="btn" style={{ minHeight: 34, background: '#fff', color: '#12384b' }}>导入/导出</Link><Link href="/projects" className="btn" style={{ minHeight: 34, color: '#fff', background: 'transparent', borderColor: 'rgba(255,255,255,.35)' }}>项目列表</Link></div>
       </div>
 
       <div className="sys-shell" style={{ display: 'grid', gridTemplateColumns: '260px 1fr 300px', gap: 12, padding: 12 }}>
@@ -120,9 +122,9 @@ export default async function ProjectWorkBench({ params, searchParams }: { param
           <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>成本测算主流程</b><div className="sys-flow" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 12 }}>{quick.map(([name, href], index) => <Link key={name} href={`/projects/${project.id}/${href}`} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#f8fafc' }}><div style={{ width: 26, height: 26, borderRadius: 6, background: '#e9f7f8', color: '#0f4c5c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{index + 1}</div><b style={{ display: 'block', marginTop: 10 }}>{name}</b><div style={{ color: '#667085', fontSize: 12 }}>进入维护</div></Link>)}</div></div>
         </section>
 
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本控制</b><p className="meta">当前阶段：{version?.stage || '投拓阶段'}；当前版本：{version?.name || '初始版本'}；状态：草稿。</p><Link className="btn btn-primary" href={`/projects/${project.id}/versions`}>进入版本管理</Link></div><div style={{ background: '#fff', border: '1px solid #d0ebff', borderRadius: 10, padding: 14 }}><b>模板来源</b><p className="meta">{sourceTemplateLabel}</p>{project.sourceTemplateId ? <Link className="btn" href="/templates">查看模板中心</Link> : null}</div><div style={{ background: '#fff', border: '1px solid #b2f2bb', borderRadius: 10, padding: 14 }}><b>沉淀为个人模板</b><p className="meta">把当前项目的启用业态、项目科目规则和税率规则保存为个人模板，后续新项目可复用。</p><form action={`/api/projects/${project.id}/save-template`} method="post" style={{ display: 'grid', gap: 8 }}><input name="name" defaultValue={defaultTemplateName} style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><input name="type" defaultValue="项目沉淀模板" style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><input name="description" placeholder="模板说明，可不填" style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><button className="btn btn-primary">一键保存为模板</button></form></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>测算口径</b><p className="meta">先维护“项目概况（含业态/产品构成）”，再进入目标成本编制和各专业明细表。</p></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>汇总联动</b><p className="meta">新增“汇总联动校验”，用于检查明细回写、汇总穿透和税额平衡。</p><Link className="btn btn-primary" href={`/projects/${project.id}/summary-check`}>进入校验</Link></div></aside>
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本控制</b><p className="meta">当前阶段：{version?.stage || '投拓阶段'}；当前版本：{version?.name || '初始版本'}；状态：草稿。</p><Link className="btn btn-primary" href={`/projects/${project.id}/versions`}>进入版本管理</Link></div><div style={{ background: '#fff', border: '1px solid #d0ebff', borderRadius: 10, padding: 14 }}><b>模板来源</b><p className="meta">{sourceTemplateLabel}</p>{project.sourceTemplateId ? <Link className="btn" href="/templates">查看模板中心</Link> : null}</div><div style={{ background: '#fff', border: '1px solid #b2f2bb', borderRadius: 10, padding: 14 }}><b>沉淀为个人模板</b><p className="meta">把当前项目的启用业态、项目科目规则和税率规则保存为个人模板，后续新项目可复用。</p><form action={`/api/projects/${project.id}/save-template`} method="post" style={{ display: 'grid', gap: 8 }}><input name="name" defaultValue={defaultTemplateName} style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><input name="type" defaultValue="项目沉淀模板" style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><input name="description" placeholder="模板说明，可不填" style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><button className="btn btn-primary">一键保存为模板</button></form></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>科目映射</b><p className="meta">把 Excel 里的乱科目映射到系统标准科目，避免目标成本汇总归集混乱。</p><Link className="btn btn-primary" href={`/projects/${project.id}/cost-mapping`}>进入科目映射</Link></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>测算口径</b><p className="meta">先维护“项目概况（含业态/产品构成）”，再进入目标成本编制和各专业明细表。</p></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>汇总联动</b><p className="meta">新增“汇总联动校验”，用于检查明细回写、汇总穿透和税额平衡。</p><Link className="btn btn-primary" href={`/projects/${project.id}/summary-check`}>进入校验</Link></div></aside>
       </div>
-      <style>{`@media (max-width: 980px){.sys-shell,.sys-kpis,.sys-flow{grid-template-columns:1fr!important;padding:8px!important}}`}</style>
+      <style>{`@media (max-width: 980px){.sys-shell,.sys-kpis,.sys-flow{grid-template-columns:1fr!important}.sys-shell{padding:8px!important}}`}</style>
     </main>
   );
 }
