@@ -2,64 +2,50 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { getV57CostDictionaryRows } from '@/data/cost-dictionary-v57';
 import { suggestQuantityFromOverview } from '@/lib/overview-quantity';
+import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 
-function fmt(value: unknown) {
-  return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
+function fmt(value: unknown) { return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 
 async function ensurePresetRows(projectId: string) {
   const count = await prisma.costDictionaryRow.count({ where: { projectId } });
   const presetRows = getV57CostDictionaryRows().map((row) => ({ ...row, projectId }));
   if (!presetRows.length || count >= 100) return;
-  await prisma.$transaction([
-    prisma.costDictionaryRow.deleteMany({ where: { projectId } }),
-    prisma.costDictionaryRow.createMany({ data: presetRows })
-  ]);
+  await prisma.$transaction([prisma.costDictionaryRow.deleteMany({ where: { projectId } }), prisma.costDictionaryRow.createMany({ data: presetRows })]);
 }
 
-type DetailPageProps = {
-  projectId: string;
-  saved?: string;
-  title: string;
-  eyebrow: string;
-  subtitle: string;
-  professionalGroup: string;
-  returnPath: string;
-  dictionaryKeywords: string[];
-  emptyText: string;
-  selectPlaceholder: string;
-  detailPlaceholder: string;
-  measurePlaceholder: string;
-  note: string;
-};
-
-type TreeNode = { name: string; amount: number; rows: number; filled: number; children: Map<string, TreeNode>; leaves: any[] };
+type DetailPageProps = { projectId: string; saved?: string; title: string; eyebrow: string; subtitle: string; professionalGroup: string; returnPath: string; dictionaryKeywords: string[]; emptyText: string; selectPlaceholder: string; detailPlaceholder: string; measurePlaceholder: string; note: string };
+type Group = { id: string; name: string; amount: number; rows: number; filled: number; entries: Array<{ entryId: string; dict: any; saved: any; amount: number; groupName: string }> };
 
 const cell = { padding: 8, borderBottom: '1px solid #eef2f6', borderRight: '1px solid #eef2f6', whiteSpace: 'nowrap' as const };
 const inputStyle = { width: '100%', minWidth: 88, height: 32, border: '1px solid #d9e2ec', borderRadius: 6, padding: '4px 6px' };
+const stickyCode = { ...cell, position: 'sticky' as const, left: 0, zIndex: 2, background: '#fff', fontWeight: 900, color: '#0f4c5c' };
+const stickyName = { ...cell, position: 'sticky' as const, left: 94, zIndex: 2, background: '#fff', fontWeight: 800 };
 
-function node(name: string): TreeNode {
-  return { name, amount: 0, rows: 0, filled: 0, children: new Map(), leaves: [] };
-}
+function entryKey(entryId: string, field: string) { return `${field}-${entryId}`; }
+function normalize(value: string | null | undefined) { return String(value || '').trim(); }
+function hasAny(text: string | null | undefined, words: string[]) { const value = normalize(text); return words.some((word) => value.includes(word)); }
+function groupKey(code: string | null | undefined, groupName: string) { return `${code || ''}__${groupName}`; }
 
-function child(parent: TreeNode, name: string) {
-  const found = parent.children.get(name);
-  if (found) return found;
-  const created = node(name);
-  parent.children.set(name, created);
-  return created;
-}
-
-function addStat(target: TreeNode, amount: number, filled: boolean) {
-  target.amount += amount;
-  target.rows += 1;
-  target.filled += filled ? 1 : 0;
+function productTokens(name: string) {
+  const tokens = [name];
+  if (hasAny(name, ['住宅', '高层', '洋房', '别墅', '合院', '叠拼', '小高'])) tokens.push('住宅', '高层', '洋房', '别墅', '合院');
+  if (hasAny(name, ['商业', '底商', '商铺', '集中商业'])) tokens.push('商业', '底商', '商铺');
+  if (hasAny(name, ['地下', '车位', '车库', '地库'])) tokens.push('地下', '地下车库', '地下车位', '车位', '车库', '地库');
+  if (hasAny(name, ['配套', '物业', '社区', '会所'])) tokens.push('配套', '物业', '社区', '会所');
+  return Array.from(new Set(tokens));
 }
 
 function matchesInactiveProductName(text: string | null | undefined, inactiveNames: Set<string>) {
-  const value = String(text || '').trim();
+  const value = normalize(text);
   if (!value) return false;
-  return Array.from(inactiveNames).some((name) => value === name || value === `业态-${name}` || value === `区域-${name}`);
+  return Array.from(inactiveNames).some((name) => value === name || value === `业态-${name}` || value === `区域-${name}` || value.includes(name));
+}
+
+function appliesToProduct(row: any, product: any) {
+  const applicable = normalize(row.applicableProductType);
+  if (!applicable) return true;
+  if (hasAny(applicable, ['全项目', '项目整体', '项目共用'])) return false;
+  return productTokens(product.name).some((token) => applicable.includes(token));
 }
 
 export async function ProfessionalDetailPage(props: DetailPageProps) {
@@ -67,141 +53,56 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
   if (!project) return <main className="page">项目不存在</main>;
 
   await ensurePresetRows(project.id);
-  const version = await prisma.projectVersion.findFirst({ where: { projectId: props.projectId }, orderBy: { createdAt: 'asc' }, include: { products: true } });
+  const version = await prisma.projectVersion.findFirst({ where: activeVersionWhere(project), orderBy: activeVersionOrder(project), include: { products: true } });
+  const activeProducts = (version?.products || []).filter((item) => item.isActive);
   const inactiveProductNames = new Set((version?.products || []).filter((item) => !item.isActive).map((item) => item.name));
 
-  const dictionaryRows = await prisma.costDictionaryRow.findMany({
-    where: { projectId: props.projectId, enabled: { not: '否' }, sourceTable: props.eyebrow },
-    orderBy: { rowIndex: 'asc' }
-  });
-
+  const dictionaryRows = await prisma.costDictionaryRow.findMany({ where: { projectId: props.projectId, enabled: { not: '否' }, sourceTable: props.eyebrow }, orderBy: { rowIndex: 'asc' } });
   const rawLeafRows = dictionaryRows.filter((row) => row.detailSubject);
-  const leafRows = rawLeafRows.filter((row) => !matchesInactiveProductName(row.applicableProductType, inactiveProductNames));
-  const hiddenDictionaryRows = rawLeafRows.length - leafRows.length;
-  const leafCodes = new Set(leafRows.map((row) => row.costCode).filter(Boolean));
-  const rawCosts = version ? await prisma.costLine.findMany({
-    where: { projectVersionId: version.id, professionalGroup: props.professionalGroup },
-    include: { costSubject: true, productType: true },
-    orderBy: { sortOrder: 'asc' }
-  }) : [];
+  const rawCosts = version ? await prisma.costLine.findMany({ where: { projectVersionId: version.id, professionalGroup: props.professionalGroup }, include: { costSubject: true, productType: true }, orderBy: { sortOrder: 'asc' } }) : [];
   const costs = rawCosts.filter((row) => (!row.productTypeId || row.productType?.isActive) && !matchesInactiveProductName(row.regionOrProductType, inactiveProductNames));
   const hiddenCostRows = rawCosts.length - costs.length;
-  const activeCosts = costs.filter((row) => leafCodes.has(row.costSubject.code));
 
-  const costByCode = new Map<string, any>();
-  costs.forEach((row) => costByCode.set(row.costSubject.code, row));
-  const totalInclusive = activeCosts.reduce((sum, row) => sum + Number(row.taxInclusiveAmount || 0), 0);
+  const costByCodeAndGroup = new Map<string, any>();
+  costs.forEach((row) => costByCodeAndGroup.set(groupKey(row.costSubject.code, row.regionOrProductType || '项目整体共用'), row));
+
+  const sharedRows = rawLeafRows.filter((row) => hasAny(row.applicableProductType, ['全项目', '项目整体', '项目共用']));
+  const productGroups: Group[] = activeProducts.map((product) => ({ id: product.id, name: product.name, amount: 0, rows: 0, filled: 0, entries: [] }));
+  const groups: Group[] = [...productGroups];
+  if (sharedRows.length) groups.push({ id: 'shared', name: '项目整体共用', amount: 0, rows: 0, filled: 0, entries: [] });
+
+  let hiddenDictionaryRows = 0;
+  for (const dict of rawLeafRows) {
+    const targetGroups = hasAny(dict.applicableProductType, ['全项目', '项目整体', '项目共用']) ? groups.filter((group) => group.id === 'shared') : productGroups.filter((group) => activeProducts.find((product) => product.id === group.id && appliesToProduct(dict, product)));
+    if (!targetGroups.length || matchesInactiveProductName(dict.applicableProductType, inactiveProductNames)) { hiddenDictionaryRows += 1; continue; }
+    for (const group of targetGroups) {
+      const saved = dict.costCode ? costByCodeAndGroup.get(groupKey(dict.costCode, group.name)) : null;
+      const amount = Number(saved?.taxInclusiveAmount || 0);
+      const entryId = `${dict.id}__${group.id}`;
+      group.entries.push({ entryId, dict, saved, amount, groupName: group.name });
+      group.amount += amount;
+      group.rows += 1;
+      group.filled += amount > 0 ? 1 : 0;
+    }
+  }
+
+  const visibleGroups = groups.filter((group) => group.rows > 0);
+  const visibleRows = visibleGroups.reduce((sum, group) => sum + group.rows, 0);
+  const filledRows = visibleGroups.reduce((sum, group) => sum + group.filled, 0);
+  const totalInclusive = visibleGroups.reduce((sum, group) => sum + group.amount, 0);
+  const activeCostCodes = new Set(visibleGroups.flatMap((group) => group.entries.map((entry) => entry.dict.costCode).filter(Boolean)));
+  const activeCosts = costs.filter((row) => activeCostCodes.has(row.costSubject.code));
   const totalExclusive = activeCosts.reduce((sum, row) => sum + Number(row.taxExclusiveAmount || 0), 0);
   const totalTax = activeCosts.reduce((sum, row) => sum + Number(row.taxAmount || 0), 0);
-  const filledRows = leafRows.filter((row) => row.costCode && costByCode.has(row.costCode)).length;
 
-  const root = node('root');
-  leafRows.forEach((row) => {
-    const saved = row.costCode ? costByCode.get(row.costCode) : null;
-    const amount = Number(saved?.taxInclusiveAmount || 0);
-    const filled = amount > 0;
-    const level1 = child(root, row.firstSubject || '未分类');
-    const level2 = child(level1, row.secondSubject || '未分类');
-    const level3 = child(level2, row.thirdSubject || row.secondSubject || '未分类');
-    addStat(level1, amount, filled);
-    addStat(level2, amount, filled);
-    addStat(level3, amount, filled);
-    level3.leaves.push(row);
-  });
-  const levelOneRows = Array.from(root.children.values());
-
-  return (
-    <main className="page">
-      <div className="container" style={{ maxWidth: 1600 }}>
-        <div className="page-header">
-          <div>
-            <p className="eyebrow">{props.eyebrow}</p>
-            <h1 className="title">{project.name}</h1>
-            <p className="subtitle">{props.subtitle} 停用业态相关科目和成本行自动隐藏，不参与本页合计。</p>
-          </div>
-          <div className="actions" style={{ marginTop: 0 }}>
-            <Link href={`/projects/${project.id}/cost-dictionary`} className="btn btn-primary">成本科目词典</Link>
-            <Link href={`/projects/${project.id}/product-maintenance`} className="btn">业态维护</Link>
-            <Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link>
-            <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
-          </div>
-        </div>
-
-        {props.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>{props.title}已批量保存。</div> : null}
-        {hiddenDictionaryRows || hiddenCostRows ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8', background: '#fff9db' }}>已隐藏停用业态相关科目 {hiddenDictionaryRows} 行、成本行 {hiddenCostRows} 行。</div> : null}
-
-        <div className="summary-strip">
-          <div className="stat"><div className="stat-label">含税合计</div><div className="stat-value">{fmt(totalInclusive)}</div></div>
-          <div className="stat"><div className="stat-label">不含税金额</div><div className="stat-value">{fmt(totalExclusive)}</div></div>
-          <div className="stat"><div className="stat-label">税额</div><div className="stat-value">{fmt(totalTax)}</div></div>
-          <div className="stat"><div className="stat-label">已填 / 末级行</div><div className="stat-value">{filledRows} / {leafRows.length}</div></div>
-        </div>
-
-        <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <div><b>{props.title}｜科目树填报</b><div className="meta">工程量优先从项目概况表自动带入；已保存行继续用保存值。上级科目只汇总，末级才录入单价和备注。</div></div>
-            <button form={`${props.returnPath}-batch`} className="btn btn-primary" style={{ minHeight: 34 }}>整表批量保存</button>
-          </div>
-          <form id={`${props.returnPath}-batch`} action={`/api/projects/${project.id}/professional-costs/batch`} method="post" />
-          <input form={`${props.returnPath}-batch`} type="hidden" name="professionalGroup" value={props.professionalGroup} />
-          <input form={`${props.returnPath}-batch`} type="hidden" name="returnPath" value={props.returnPath} />
-          <div style={{ maxHeight: '72vh', overflow: 'auto', padding: 12 }}>
-            {levelOneRows.length === 0 ? <p className="meta">{props.emptyText}</p> : levelOneRows.map((level1) => (
-              <details key={level1.name} open style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 10, overflow: 'hidden', background: '#fff' }}>
-                <summary style={{ cursor: 'pointer', padding: 12, background: '#e9f7f8', display: 'grid', gridTemplateColumns: '1fr 130px 140px', gap: 10, alignItems: 'center', fontWeight: 900 }}>
-                  <span>一级｜{level1.name}</span><span>已填 {level1.filled}/{level1.rows}</span><span style={{ textAlign: 'right' }}>{fmt(level1.amount)}</span>
-                </summary>
-                <div style={{ padding: 10 }}>
-                  {Array.from(level1.children.values()).map((level2) => (
-                    <details key={level2.name} open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
-                      <summary style={{ cursor: 'pointer', padding: 10, background: '#f8fafc', display: 'grid', gridTemplateColumns: '1fr 120px 140px', gap: 10, alignItems: 'center', fontWeight: 800 }}>
-                        <span>二级｜{level2.name}</span><span>已填 {level2.filled}/{level2.rows}</span><span style={{ textAlign: 'right' }}>{fmt(level2.amount)}</span>
-                      </summary>
-                      <div style={{ padding: 8 }}>
-                        {Array.from(level2.children.values()).map((level3) => (
-                          <details key={level3.name} open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
-                            <summary style={{ cursor: 'pointer', padding: 10, background: '#fcfdff', display: 'grid', gridTemplateColumns: '1fr 120px 140px', gap: 10, alignItems: 'center' }}>
-                              <b>三级｜{level3.name}</b><span>已填 {level3.filled}/{level3.rows}</span><span style={{ textAlign: 'right', fontWeight: 800 }}>{fmt(level3.amount)}</span>
-                            </summary>
-                            <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1500, borderCollapse: 'collapse', fontSize: 12 }}>
-                              <thead><tr style={{ background: '#fff' }}>{['编码', '末级科目', '区域/业态', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额', '不含税金额', '税额', '分摊方式', '备注', '状态'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#475467' }}>{head}</th>)}</tr></thead>
-                              <tbody>{level3.leaves.map((dict, index) => {
-                                const saved = dict.costCode ? costByCode.get(dict.costCode) : null;
-                                const amount = Number(saved?.taxInclusiveAmount || 0);
-                                const suggestion = suggestQuantityFromOverview(project, dict);
-                                const quantity = saved ? Number(saved.quantity || 0) : suggestion.quantity;
-                                const unit = saved?.unit || suggestion.unit || dict.unit || '';
-                                const unitPrice = Number(saved?.taxInclusiveUnitPrice || 0);
-                                const isFilled = amount > 0;
-                                return <tr key={dict.id} style={{ background: isFilled ? '#f8fff9' : index % 2 ? '#fff' : '#fcfdff' }}>
-                                  <td style={{ ...cell, fontWeight: 900, color: '#0f4c5c' }}>{dict.costCode || '-'}</td>
-                                  <td style={{ ...cell, fontWeight: 800 }}>{dict.detailSubject || '-'}</td>
-                                  <td style={cell}>{saved?.regionOrProductType || dict.applicableProductType || '项目整体共用'}</td>
-                                  <td style={cell}>{saved?.measureBasis || dict.measureBasis || '-'}{!saved && suggestion.source ? <div className="meta">默认取数：{suggestion.source}</div> : null}</td>
-                                  <td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} type="hidden" name="dictionaryRowId" value={dict.id} />{saved ? <input form={`${props.returnPath}-batch`} type="hidden" name={`costLineId-${dict.id}`} value={saved.id} /> : null}<input form={`${props.returnPath}-batch`} name={`quantity-${dict.id}`} type="number" step="0.01" defaultValue={quantity || ''} placeholder="工程量" style={inputStyle} /></td>
-                                  <td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={`unit-${dict.id}`} defaultValue={unit} style={{ ...inputStyle, minWidth: 70 }} /></td>
-                                  <td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={`taxInclusiveUnitPrice-${dict.id}`} type="number" step="0.01" defaultValue={unitPrice || ''} placeholder="单价" style={inputStyle} /></td>
-                                  <td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={`taxRate-${dict.id}`} defaultValue={dict.defaultTaxRate || (saved ? `${Number(saved.taxRate || 0) * 100}%` : '9%')} style={{ ...inputStyle, minWidth: 68 }} /></td>
-                                  <td style={{ ...cell, textAlign: 'right', fontWeight: 900 }}>{fmt(amount)}</td>
-                                  <td style={{ ...cell, textAlign: 'right' }}>{fmt(saved?.taxExclusiveAmount || 0)}</td>
-                                  <td style={{ ...cell, textAlign: 'right' }}>{fmt(saved?.taxAmount || 0)}</td>
-                                  <td style={cell}>{saved?.allocationMethod || dict.targetAllocationMethod || '建筑面积分摊'}</td>
-                                  <td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={`remark-${dict.id}`} defaultValue={saved?.remark || ''} placeholder="备注" style={{ ...inputStyle, minWidth: 130 }} /></td>
-                                  <td style={{ ...cell, color: isFilled ? '#2f9e44' : '#98a2b3', fontWeight: 800 }}>{isFilled ? '已填' : (suggestion.quantity ? '已带入' : '未填')}</td>
-                                </tr>;
-                              })}</tbody>
-                            </table></div>
-                          </details>
-                        ))}
-                      </div>
-                    </details>
-                  ))}
-                </div>
-              </details>
-            ))}
-          </div>
-        </section>
-      </div>
-    </main>
-  );
+  return <main className="page"><div className="container" style={{ maxWidth: 1680 }}>
+    <div className="page-header"><div><p className="eyebrow">{props.eyebrow}</p><h1 className="title">{project.name}</h1><p className="subtitle">{props.subtitle} 当前按启用业态/区域分组展示；未启用业态不生成分组、不参与本页合计。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总</Link><Link href={`/projects/${project.id}/cost-mapping`} className="btn">导入科目映射</Link><Link href={`/projects/${project.id}/product-maintenance`} className="btn">业态维护</Link><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+    {props.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>{props.title}已批量保存。</div> : null}
+    {hiddenDictionaryRows || hiddenCostRows ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8', background: '#fff9db' }}>已隐藏未启用业态相关科目 {hiddenDictionaryRows} 行、成本行 {hiddenCostRows} 行。</div> : null}
+    <div className="summary-strip"><div className="stat"><div className="stat-label">含税合计</div><div className="stat-value">{fmt(totalInclusive)}</div></div><div className="stat"><div className="stat-label">不含税金额</div><div className="stat-value">{fmt(totalExclusive)}</div></div><div className="stat"><div className="stat-label">税额</div><div className="stat-value">{fmt(totalTax)}</div></div><div className="stat"><div className="stat-label">已填 / 明细行</div><div className="stat-value">{filledRows} / {visibleRows}</div></div></div>
+    <section className="card" style={{ padding: 0, overflow: 'hidden' }}><div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><div><b>{props.title}｜启用业态分组填报</b><div className="meta">保留原科目、测算依据、工程量、单价、税率、分摊方式；仅把展示结构改为“业态/区域优先”。</div></div><button form={`${props.returnPath}-batch`} className="btn btn-primary" style={{ minHeight: 34 }}>整表批量保存</button></div><form id={`${props.returnPath}-batch`} action={`/api/projects/${project.id}/professional-costs/batch`} method="post" /><input form={`${props.returnPath}-batch`} type="hidden" name="professionalGroup" value={props.professionalGroup} /><input form={`${props.returnPath}-batch`} type="hidden" name="returnPath" value={props.returnPath} />
+      <div style={{ maxHeight: '72vh', overflow: 'auto', padding: 12 }}>
+        {visibleGroups.length === 0 ? <p className="meta">{props.emptyText} 请先在项目概况/业态维护中启用对应业态。</p> : visibleGroups.map((group) => <details key={group.id} open style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 10, overflow: 'hidden', background: '#fff' }}><summary style={{ cursor: 'pointer', padding: 12, background: '#e9f7f8', display: 'grid', gridTemplateColumns: '1fr 130px 150px 150px', gap: 10, alignItems: 'center', fontWeight: 900 }}><span>业态/区域｜{group.name}</span><span>已填 {group.filled}/{group.rows}</span><span style={{ textAlign: 'right' }}>{fmt(group.amount)}</span><span style={{ textAlign: 'right' }}>展开/收起</span></summary><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1700, borderCollapse: 'collapse', fontSize: 12 }}><thead><tr style={{ background: '#fff' }}>{['编码', '末级科目', '专业/部位', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额', '不含税金额', '税额', '分摊方式', '备注', '状态'].map((head, index) => <th key={head} style={{ ...(index === 0 ? stickyCode : index === 1 ? stickyName : cell), textAlign: 'left', color: '#475467' }}>{head}</th>)}</tr></thead><tbody>{group.entries.map((entry, index) => { const dict = entry.dict; const saved = entry.saved; const amount = entry.amount; const suggestion = suggestQuantityFromOverview(project, dict); const quantity = saved ? Number(saved.quantity || 0) : suggestion.quantity; const unit = saved?.unit || suggestion.unit || dict.unit || ''; const unitPrice = Number(saved?.taxInclusiveUnitPrice || 0); const isFilled = amount > 0; const taxRateText = saved ? `${Number(saved.taxRate || 0) * 100}%` : dict.defaultTaxRate || '9%'; return <tr key={entry.entryId} style={{ background: isFilled ? '#f8fff9' : index % 2 ? '#fff' : '#fcfdff' }}><td style={stickyCode}>{dict.costCode || '-'}</td><td style={stickyName}>{dict.detailSubject || '-'}</td><td style={cell}>{dict.thirdSubject || dict.secondSubject || '-'}</td><td style={cell}><input form={`${props.returnPath}-batch`} type="hidden" name="dictionaryRowId" value={entry.entryId} />{saved ? <input form={`${props.returnPath}-batch`} type="hidden" name={entryKey(entry.entryId, 'costLineId')} value={saved.id} /> : null}<input form={`${props.returnPath}-batch`} type="hidden" name={entryKey(entry.entryId, 'regionOrProductType')} value={entry.groupName} /><input form={`${props.returnPath}-batch`} name={entryKey(entry.entryId, 'measureBasis')} defaultValue={saved?.measureBasis || dict.measureBasis || ''} style={{ ...inputStyle, minWidth: 180 }} />{!saved && suggestion.source ? <div className="meta">默认取数：{suggestion.source}</div> : null}</td><td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={entryKey(entry.entryId, 'quantity')} type="number" step="0.01" defaultValue={quantity || ''} placeholder="工程量" style={inputStyle} /></td><td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={entryKey(entry.entryId, 'unit')} defaultValue={unit} style={{ ...inputStyle, minWidth: 70 }} /></td><td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={entryKey(entry.entryId, 'taxInclusiveUnitPrice')} type="number" step="0.01" defaultValue={unitPrice || ''} placeholder="单价" style={inputStyle} /></td><td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={entryKey(entry.entryId, 'taxRate')} defaultValue={taxRateText} style={{ ...inputStyle, minWidth: 68 }} /></td><td style={{ ...cell, textAlign: 'right', fontWeight: 900 }}>{fmt(amount)}</td><td style={{ ...cell, textAlign: 'right' }}>{fmt(saved?.taxExclusiveAmount || 0)}</td><td style={{ ...cell, textAlign: 'right' }}>{fmt(saved?.taxAmount || 0)}</td><td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={entryKey(entry.entryId, 'allocationMethod')} defaultValue={saved?.allocationMethod || dict.targetAllocationMethod || '建筑面积分摊'} style={{ ...inputStyle, minWidth: 140 }} /></td><td style={{ ...cell, padding: 0 }}><input form={`${props.returnPath}-batch`} name={entryKey(entry.entryId, 'remark')} defaultValue={saved?.remark || ''} placeholder="备注" style={{ ...inputStyle, minWidth: 130 }} /></td><td style={{ ...cell, color: isFilled ? '#2f9e44' : '#98a2b3', fontWeight: 800 }}>{isFilled ? '已填' : (suggestion.quantity ? '已带入' : '未填')}</td></tr>; })}</tbody></table></div></details>)}
+      </div></section>
+  </div></main>;
 }
