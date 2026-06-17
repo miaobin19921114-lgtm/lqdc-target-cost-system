@@ -27,8 +27,8 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
         <div className="page-header">
           <div>
             <p className="eyebrow">Excel 导入导出</p>
-            <h1 className="title">Excel 结构预览</h1>
-            <p className="subtitle">第二阶段只读取工作表名称、行数、列数和前几列表头，不写数据库。确认模板结构后，再启用正式解析。</p>
+            <h1 className="title">Excel 导入分步处理</h1>
+            <p className="subtitle">当前支持两种模式：只预览 Excel 结构；或只导入项目概况。暂不写入业态和成本明细。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${params.id}`} className="btn btn-primary">返回工作台</Link>
@@ -41,17 +41,25 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
             Excel 已读取：{searchParams.file || '-'}，共识别 {preview.length} 个工作表。当前只是预览，没有写入项目数据。
           </div>
         ) : null}
+        {searchParams?.overviewImported === '1' ? (
+          <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>
+            项目概况导入完成：更新 {searchParams.count || 0} 个字段。字段：{searchParams.fields || '-'}。未写入业态和成本明细。
+          </div>
+        ) : null}
         {searchParams?.uploaded === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb' }}>文件已接收：{searchParams.file || '-'}</div> : null}
         {searchParams?.locked ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>当前版本已锁定，不能导入覆盖数据。请先到版本管理解锁，或复制新版本后导入。</div> : null}
         {searchParams?.missingFile ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>请选择需要导入的 Excel 文件。</div> : null}
         {searchParams?.importError ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffc9c9' }}>Excel 解析失败：{searchParams.importError}</div> : null}
 
         <section className="card" style={{ marginBottom: 16 }}>
-          <h2>上传 Excel 预览</h2>
-          <p className="meta">支持 .xlsx 文件。系统会读取工作表名称、行数、列数，以及每个表前 12 个表头/示例字段。</p>
+          <h2>上传 Excel</h2>
+          <p className="meta">同一个入口，先上传文件，再选择“只预览”或“只导入项目概况”。项目概况会写入项目基础数据，业态和成本不会被修改。</p>
           <form action={`/api/projects/${params.id}/import-excel`} method="post" encType="multipart/form-data" style={{ display: 'grid', gap: 12, marginTop: 12 }}>
             <input name="file" type="file" accept=".xlsx" required style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, background: '#fff' }} />
-            <button className="btn btn-primary" style={{ width: 180 }}>上传并预览</button>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button name="mode" value="preview" className="btn" style={{ width: 180 }}>只预览结构</button>
+              <button name="mode" value="overview" className="btn btn-primary" style={{ width: 180 }}>只导入项目概况</button>
+            </div>
           </form>
         </section>
 
@@ -80,11 +88,12 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
         ) : null}
 
         <section className="card">
-          <h2>后续解析计划</h2>
+          <h2>当前项目概况识别字段</h2>
           <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-            <div><b>第三阶段：</b><span className="meta">只解析项目概况，写入项目基础指标。</span></div>
-            <div><b>第四阶段：</b><span className="meta">解析业态指标，写入当前启用版本。</span></div>
-            <div><b>第五阶段：</b><span className="meta">解析目标成本明细，写入当前启用版本的成本明细行。</span></div>
+            <div><b>基础：</b><span className="meta">项目名称、城市、区县、占地面积、红线面积、容积率。</span></div>
+            <div><b>面积：</b><span className="meta">总建筑面积、计容面积、地上面积、地下面积、可售面积、不可售面积。</span></div>
+            <div><b>车位和工程量：</b><span className="meta">车位、充电桩、周界、硬景、软景、景观、楼栋、单元、户数、电梯、层数、层高。</span></div>
+            <div><b>下一步：</b><span className="meta">解析业态指标，写入当前启用版本。</span></div>
           </div>
         </section>
       </div>
