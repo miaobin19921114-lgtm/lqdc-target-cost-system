@@ -77,9 +77,9 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
       <div className="container">
         <div className="page-header">
           <div>
-            <p className="eyebrow">个人工作台</p>
-            <h1 className="title">项目中心、知识库与系统模板</h1>
-            <p className="subtitle">个人层级用于管理项目、个人知识库和系统默认模板；进入具体项目后再进入“项目测算中心”。</p>
+            <p className="eyebrow">地产成本智算平台</p>
+            <h1 className="title">个人工作台</h1>
+            <p className="subtitle">先管理项目，再沉淀个人知识库和系统模板；项目测算、知识沉淀、模板复用分层管理。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href="/templates" className="btn">模板中心</Link>
@@ -88,6 +88,50 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
         </div>
 
         {searchParams?.deleted === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>项目已删除。</div> : null}
+
+        <section className="card" style={{ marginBottom: 18, borderColor: '#c5eef3' }}>
+          <div className="page-header" style={{ marginBottom: 12 }}>
+            <div>
+              <p className="eyebrow">项目中心</p>
+              <h2 style={{ margin: 0 }}>我的项目</h2>
+              <p className="meta">优先进入项目测算中心，完成项目概况、收入、成本、税费、投决和报告。</p>
+            </div>
+            <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
+          </div>
+
+          {projects.length === 0 ? (
+            <div style={{ border: '1px dashed var(--border)', borderRadius: 12, padding: 18, background: '#f8fafc' }}>
+              <h2 style={{ marginTop: 0 }}>还没有项目</h2>
+              <p className="meta">先到模板中心确认默认模板，再新建项目并选择本项目需要的业态、科目和规则。</p>
+              <div className="actions">
+                <Link href="/templates" className="btn">模板中心</Link>
+                <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
+              </div>
+            </div>
+          ) : (
+            <div className="card-grid">
+              {projects.map((project) => {
+                const activeVersion = project.versions.find((item) => item.id === project.activeVersionId) || project.versions[0];
+                return <article key={project.id} className="card" style={{ background: '#fff' }}>
+                  <span className="badge">{activeVersion?.stage || '投拓阶段'}</span>
+                  <h2 style={{ marginTop: 12 }}>{project.name}</h2>
+                  <p className="meta">{project.city || '未填城市'} · {project.district || '未填区域'} · 当前：{activeVersion?.name || '初始版本'}</p>
+                  <div className="stat-grid">
+                    <div className="stat"><div className="stat-label">总建面</div><div className="stat-value">{Number(project.totalBuildingArea).toLocaleString()}㎡</div></div>
+                    <div className="stat"><div className="stat-label">可售面积</div><div className="stat-value">{Number(project.saleableArea).toLocaleString()}㎡</div></div>
+                    <div className="stat"><div className="stat-label">版本数</div><div className="stat-value">{project.versions.length}</div></div>
+                  </div>
+                  <div className="actions">
+                    <Link href={`/projects/${project.id}`} className="btn btn-primary">进入项目测算中心</Link>
+                    <Link href={`/projects/${project.id}/dashboard-lite`} className="btn">经营总控</Link>
+                    <Link href={`/projects/${project.id}/versions`} className="btn">版本管理</Link>
+                    <form action={`/api/projects/${project.id}/delete`} method="post"><button className="btn" style={{ color: '#c92a2a' }}>删除项目</button></form>
+                  </div>
+                </article>;
+              })}
+            </div>
+          )}
+        </section>
 
         <section className="card" style={{ marginBottom: 18 }}>
           <div className="page-header" style={{ marginBottom: 10 }}>
@@ -124,47 +168,6 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
             </div>)}
           </div>
         </section>
-
-        <div className="page-header" style={{ marginBottom: 12 }}>
-          <div>
-            <p className="eyebrow">项目中心</p>
-            <h2 style={{ margin: 0 }}>我的项目</h2>
-          </div>
-          <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
-        </div>
-
-        {projects.length === 0 ? (
-          <section className="card">
-            <h2>还没有项目</h2>
-            <p className="meta">先到模板中心确认默认模板，再新建项目并选择本项目需要的业态、科目和规则。</p>
-            <div className="actions">
-              <Link href="/templates" className="btn">模板中心</Link>
-              <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
-            </div>
-          </section>
-        ) : (
-          <div className="card-grid">
-            {projects.map((project) => {
-              const activeVersion = project.versions.find((item) => item.id === project.activeVersionId) || project.versions[0];
-              return <article key={project.id} className="card">
-                <span className="badge">{activeVersion?.stage || '投拓阶段'}</span>
-                <h2 style={{ marginTop: 12 }}>{project.name}</h2>
-                <p className="meta">{project.city || '未填城市'} · {project.district || '未填区域'} · 当前：{activeVersion?.name || '初始版本'}</p>
-                <div className="stat-grid">
-                  <div className="stat"><div className="stat-label">总建面</div><div className="stat-value">{Number(project.totalBuildingArea).toLocaleString()}㎡</div></div>
-                  <div className="stat"><div className="stat-label">可售面积</div><div className="stat-value">{Number(project.saleableArea).toLocaleString()}㎡</div></div>
-                  <div className="stat"><div className="stat-label">版本数</div><div className="stat-value">{project.versions.length}</div></div>
-                </div>
-                <div className="actions">
-                  <Link href={`/projects/${project.id}`} className="btn btn-primary">进入项目测算中心</Link>
-                  <Link href={`/projects/${project.id}/dashboard-lite`} className="btn">经营总控</Link>
-                  <Link href={`/projects/${project.id}/versions`} className="btn">版本管理</Link>
-                  <form action={`/api/projects/${project.id}/delete`} method="post"><button className="btn" style={{ color: '#c92a2a' }}>删除项目</button></form>
-                </div>
-              </article>;
-            })}
-          </div>
-        )}
       </div>
     </main>
   );
