@@ -34,6 +34,12 @@ function readBase64Json<T>(value: string | undefined, fallback: T): T {
   }
 }
 
+function money(value?: string) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return '0.00';
+  return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default function ExportPage({ params, searchParams }: { params: { id: string }; searchParams?: Record<string, string | undefined> }) {
   const preview = readBase64Json<SheetPreview[]>(searchParams?.preview, []);
   const costPreview = readBase64Json<CostPreviewRow[]>(searchParams?.costPreview, []);
@@ -75,7 +81,16 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
         ) : null}
         {searchParams?.costsImported === '1' ? (
           <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>
-            成本明细导入完成：写入或更新 {searchParams.count || 0} 行，已进入当前启用版本。
+            <div style={{ fontWeight: 900, marginBottom: 10 }}>成本明细导入完成：写入或更新 {searchParams.count || 0} 行，已进入当前启用版本。</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+              <div><span className="meta">含税合计</span><div style={{ fontSize: 20, fontWeight: 900 }}>{money(searchParams.inclusiveTotal)} 元</div></div>
+              <div><span className="meta">不含税合计</span><div style={{ fontSize: 20, fontWeight: 900 }}>{money(searchParams.exclusiveTotal)} 元</div></div>
+              <div><span className="meta">税额合计</span><div style={{ fontSize: 20, fontWeight: 900 }}>{money(searchParams.taxTotal)} 元</div></div>
+            </div>
+            <div className="actions" style={{ marginTop: 12 }}>
+              <Link href={`/projects/${params.id}/costs-batch`} className="btn btn-primary">查看目标成本编制</Link>
+              <Link href={`/projects/${params.id}/summary`} className="btn">查看目标成本汇总表</Link>
+            </div>
           </div>
         ) : null}
         {searchParams?.uploaded === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb' }}>文件已接收：{searchParams.file || '-'}</div> : null}
