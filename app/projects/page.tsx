@@ -36,6 +36,39 @@ const knowledgeGroups = [
   }
 ] as const;
 
+const systemTemplateGroups = [
+  {
+    title: '项目测算模板',
+    items: ['住宅开发测算模板', '商业开发测算模板', '产业园测算模板', '旧改/代建测算模板'],
+    note: '系统默认项目模板，用于新建项目时快速套用业态、税率、科目和基础规则。'
+  },
+  {
+    title: '目标成本模板',
+    items: ['目标成本科目模板', '业态成本模板', '地区成本模板', '档次成本模板'],
+    note: '系统默认成本科目、层级、编码和测算逻辑。'
+  },
+  {
+    title: '合约招采模板',
+    items: ['合同台账模板', '招采计划模板', '付款计划模板', '清标分析模板'],
+    note: '系统默认合约、招采、付款和清标表单模板。'
+  },
+  {
+    title: '审批流程模板',
+    items: ['投决审批模板', '目标成本审批模板', '招采审批模板', '合同审批模板'],
+    note: '系统默认审批表、审批节点和风控检查项。'
+  },
+  {
+    title: '报告输出模板',
+    items: ['经营报告模板', '投决报告模板', '敏感性报告模板', '税务报告模板'],
+    note: '系统默认汇报模板，后续用于导出 Word、PDF 或老板汇报版。'
+  },
+  {
+    title: 'AI提示词模板',
+    items: ['成本复核提示词', '招标文件审查提示词', '合同风险审查提示词', '报告生成提示词'],
+    note: '系统内置 AI 工作流提示词模板，后续可和个人知识库联动。'
+  }
+] as const;
+
 export default async function ProjectsPage({ searchParams }: { searchParams?: { deleted?: string } }) {
   const projects = await prisma.project.findMany({ orderBy: { updatedAt: 'desc' }, include: { versions: { orderBy: { createdAt: 'asc' } } } });
 
@@ -45,8 +78,8 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
         <div className="page-header">
           <div>
             <p className="eyebrow">个人工作台</p>
-            <h1 className="title">项目中心与个人知识库</h1>
-            <p className="subtitle">个人层级用于管理项目、模板和跨项目复用的成本招采合约知识库；进入具体项目后再进入“项目测算中心”。</p>
+            <h1 className="title">项目中心、知识库与系统模板</h1>
+            <p className="subtitle">个人层级用于管理项目、个人知识库和系统默认模板；进入具体项目后再进入“项目测算中心”。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href="/templates" className="btn">模板中心</Link>
@@ -70,6 +103,24 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}><b>{group.title}</b><span style={{ fontSize: 12, color: '#8a6d00', background: '#fff9db', border: '1px solid #ffd8a8', borderRadius: 999, padding: '3px 8px' }}>待接入</span></div>
               <p className="meta" style={{ minHeight: 42 }}>{group.note}</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{group.items.map((item) => <span key={item} style={{ fontSize: 12, color: '#0f4c5c', background: '#e9f7f8', border: '1px solid #c5eef3', borderRadius: 999, padding: '5px 8px' }}>{item}</span>)}</div>
+            </div>)}
+          </div>
+        </section>
+
+        <section className="card" style={{ marginBottom: 18 }}>
+          <div className="page-header" style={{ marginBottom: 10 }}>
+            <div>
+              <p className="eyebrow">系统模板</p>
+              <h2 style={{ margin: 0 }}>系统模板中心</h2>
+              <p className="meta">系统默认模板是底座，个人知识库是你的沉淀；后续新建项目优先选择系统模板，再叠加个人规则。</p>
+            </div>
+            <div className="actions" style={{ marginTop: 0 }}><Link href="/templates" className="btn">进入模板中心</Link><span className="badge">部分已接入</span></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+            {systemTemplateGroups.map((group) => <div key={group.title} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 14, background: '#fff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}><b>{group.title}</b><span style={{ fontSize: 12, color: '#8a6d00', background: '#fff9db', border: '1px solid #ffd8a8', borderRadius: 999, padding: '3px 8px' }}>待完善</span></div>
+              <p className="meta" style={{ minHeight: 42 }}>{group.note}</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{group.items.map((item) => <span key={item} style={{ fontSize: 12, color: '#344054', background: '#f2f4f7', border: '1px solid #e4e7ec', borderRadius: 999, padding: '5px 8px' }}>{item}</span>)}</div>
             </div>)}
           </div>
         </section>
