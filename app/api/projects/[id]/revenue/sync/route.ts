@@ -11,6 +11,15 @@ function getBaseUrl(request: Request) {
   return host ? `${proto}://${host}` : new URL(request.url).origin;
 }
 
+function isParkingProduct(name?: string | null) {
+  const value = name || '';
+  return value.includes('车位') || value.includes('人防');
+}
+
+function isChargingProduct(name?: string | null) {
+  return (name || '').includes('充电');
+}
+
 async function upsertRevenueLine(input: { projectVersionId: string; productTypeId: string; saleableArea: number; salePrice: number; taxRate: number }) {
   const result = calculateRevenueLine(input.saleableArea, input.salePrice, input.taxRate);
   const data = {
@@ -20,7 +29,7 @@ async function upsertRevenueLine(input: { projectVersionId: string; productTypeI
     taxInclusiveRevenue: result.taxInclusiveRevenue,
     taxExclusiveRevenue: result.taxExclusiveRevenue,
     taxAmount: result.taxAmount,
-    remark: '按业态指标自动同步'
+    remark: '按普通业态面积自动同步'
   };
   const old = await prisma.revenueLine.findFirst({ where: { projectVersionId: input.projectVersionId, productTypeId: input.productTypeId } });
   if (old) await prisma.revenueLine.update({ where: { id: old.id }, data });
@@ -36,9 +45,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const tax = await prisma.taxParameter.findUnique({ where: { projectVersionId: version.id } });
   const taxRate = Number(tax?.vatRate || 0.09);
   const products = await prisma.productType.findMany({ where: { projectVersionId: version.id, isActive: true, isSaleable: true } });
+  const ordinaryProducts = products.filter((product) => !isParkingProduct(product.name) && !isChargingProduct(product.name));
 
   let count = 0;
-  for (const product of products) {
+  for (const product of ordinaryProducts) {
     await upsertRevenueLine({
       projectVersionId: version.id,
       productTypeId: product.id,
@@ -54,7 +64,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       projectVersionId: version.id,
       OR: [
         { productType: { isActive: false } },
-        { productType: { isSaleable: false } }
+        { productType: { isSaleable: false } },
+        { productType: { name: { contains: '充电' } } }
       ]
     }
   });
