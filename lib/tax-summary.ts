@@ -11,7 +11,7 @@ export function rateByLandVatRatio(ratio: number) {
   return { rate: 0.6, deduction: 0.35 };
 }
 
-export function effectiveCostRows<T extends { productTypeId?: string | null; productType?: { isActive?: boolean | null } | null; costSubject: { code: string; level: number } }>(costs: T[], leafCodes: Set<string>) {
+export function effectiveCostRows<T extends { productTypeId?: string | null; productType?: { isActive?: boolean | null } | null; costSubject: { code: string; level: number } }>(costs: T[], leafCodes: Set<string | null>) {
   const activeCosts = costs.filter((row) => !row.productTypeId || row.productType?.isActive);
   const effective = leafCodes.size ? activeCosts.filter((row) => row.costSubject.level >= 4 || leafCodes.has(row.costSubject.code)) : activeCosts;
   return {
