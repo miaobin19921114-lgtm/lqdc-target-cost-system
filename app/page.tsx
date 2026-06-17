@@ -4,14 +4,14 @@ export default function HomePage() {
   return (
     <main className="hero">
       <section className="hero-card">
-        <p className="eyebrow">源信达</p>
-        <h1 className="title">地产目标成本测算系统</h1>
+        <p className="eyebrow">地产成本智算平台</p>
+        <h1 className="title">个人地产成本、招采、合约知识库与测算工具</h1>
         <p className="subtitle">
-          面向个人和小团队，专注地产项目概况、业态模板、收入明细、目标成本、税金分摊和汇总管理。
-          登录后才能查看项目数据。
+          面向个人和小团队，沉淀成本指标、工程量、招标文件、合同条款和审批表模板，
+          支持项目概况、收入、目标成本、税务、投决和经营报告测算。
         </p>
         <div className="actions">
-          <Link href="/login" className="btn btn-primary">登录系统</Link>
+          <Link href="/login" className="btn btn-primary">进入系统</Link>
         </div>
       </section>
     </main>
