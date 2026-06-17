@@ -9,6 +9,7 @@ function fmt(value: unknown) { return n(value).toLocaleString('zh-CN', { maximum
 function pct(value: number) { return `${(value * 100).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}%`; }
 function statusText(value: number) { return value >= 0 ? '盈利' : '亏损'; }
 function statusColor(value: number) { return value >= 0 ? '#2f9e44' : '#e03131'; }
+function factorText(value: number | null, label: string) { return value === null ? '无法测算' : `${label}${pct(value - 1)}`; }
 
 export default async function ProjectOperatingReport({ params }: { params: { id: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
@@ -68,7 +69,53 @@ export default async function ProjectOperatingReport({ params }: { params: { id:
     return { revenueInclusive, netProfit: t.netProfit, netMargin: revenueInclusive ? t.netProfit / revenueInclusive : 0 };
   }
 
+  function solveBreakEvenPrice() {
+    if (simulate(2, 1, 1).netProfit < 0) return null;
+    let low = 0;
+    let high = 2;
+    for (let i = 0; i < 45; i++) {
+      const mid = (low + high) / 2;
+      if (simulate(mid, 1, 1).netProfit >= 0) high = mid;
+      else low = mid;
+    }
+    return high;
+  }
+
+  function solveMaxCostFactor() {
+    if (simulate(1, 0, 1).netProfit < 0) return null;
+    if (simulate(1, 2, 1).netProfit >= 0) return 2;
+    let low = 0;
+    let high = 2;
+    for (let i = 0; i < 45; i++) {
+      const mid = (low + high) / 2;
+      if (simulate(1, mid, 1).netProfit >= 0) low = mid;
+      else high = mid;
+    }
+    return low;
+  }
+
+  function solveMaxLandFactor() {
+    if (simulate(1, 1, 0).netProfit < 0) return null;
+    if (simulate(1, 1, 2).netProfit >= 0) return 2;
+    let low = 0;
+    let high = 2;
+    for (let i = 0; i < 45; i++) {
+      const mid = (low + high) / 2;
+      if (simulate(1, 1, mid).netProfit >= 0) low = mid;
+      else high = mid;
+    }
+    return low;
+  }
+
   const baseSensitivity = simulate(1, 1, 1);
+  const breakEvenPrice = solveBreakEvenPrice();
+  const maxCostFactor = solveMaxCostFactor();
+  const maxLandFactor = solveMaxLandFactor();
+  const breakEvenRows = [
+    { name: '售价安全垫', threshold: factorText(breakEvenPrice, '最低售价 '), buffer: breakEvenPrice === null ? '无法测算' : `可下降 ${pct(1 - breakEvenPrice)}` },
+    { name: '成本安全垫', threshold: factorText(maxCostFactor, '最高成本 '), buffer: maxCostFactor === null ? '无法测算' : `可上升 ${pct(maxCostFactor - 1)}` },
+    { name: '土地安全垫', threshold: factorText(maxLandFactor, '最高土地 '), buffer: maxLandFactor === null ? '无法测算' : `可上升 ${pct(maxLandFactor - 1)}` }
+  ];
   const sensitivityRows = [
     ['售价下降5%', '售价 -5%', simulate(0.95, 1, 1)],
     ['成本上升5%', '成本 +5%', simulate(1, 1.05, 1)],
@@ -87,6 +134,7 @@ export default async function ProjectOperatingReport({ params }: { params: { id:
   const conclusionItems = [
     tax.netProfit >= 0 ? `项目整体测算为盈利，税后净利 ${fmt(tax.netProfit)} 元，销售净利率 ${pct(netMargin)}。` : `项目整体测算为亏损，税后净利 ${fmt(tax.netProfit)} 元，需重点复核售价、土地成本和建安成本。`,
     netMargin >= 0.08 ? '净利率具备一定安全垫，可继续深化方案和成本精细化测算。' : netMargin >= 0 ? '净利率偏薄，建议优先复核售价、车位收入、建安单方和营销费用。' : '当前利润为负，建议暂缓定案，先做敏感性测算和成本压降方案。',
+    `盈亏平衡测算：${breakEvenRows.map((row) => `${row.name}：${row.buffer}`).join('；')}。`,
     `含税可售单方成本为 ${fmt(saleableUnitCost)} 元/㎡，税费占含税收入比例为 ${pct(taxBurden)}。`,
     dataWarnings.length ? '存在数据口径风险，报告结论需结合下方风险提示复核。' : '核心数据暂未发现明显缺口，可作为阶段性经营判断依据。'
   ];
@@ -95,13 +143,14 @@ export default async function ProjectOperatingReport({ params }: { params: { id:
     <div className="page-header no-print"><div><p className="eyebrow">项目经营测算报告</p><h1 className="title">{project.name}</h1><p className="subtitle">可直接浏览器打印或另存为 PDF。</p></div><div className="actions" style={{ marginTop: 0 }}><span className="btn btn-primary">打印：Ctrl/Cmd + P</span><Link href={`/projects/${project.id}/sensitivity`} className="btn">敏感性测算</Link><Link href={`/projects/${project.id}/dashboard-lite`} className="btn">经营总控</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
     <section className="card report-cover"><div className="eyebrow">源信达地产目标成本测算系统</div><h1 style={{ margin: '8px 0 4px', fontSize: 30 }}>{project.name}</h1><p className="meta">经营测算报告｜当前版本：{version?.name || '当前版本'}｜阶段：{version?.stage || '投拓阶段'}</p><div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}><div><span className="meta">城市/区域</span><div style={{ fontWeight: 900 }}>{project.city || '-'} / {project.district || '-'}</div></div><div><span className="meta">总建面</span><div style={{ fontWeight: 900 }}>{fmt(buildingArea)}㎡</div></div><div><span className="meta">可售面积</span><div style={{ fontWeight: 900 }}>{fmt(saleableArea)}㎡</div></div><div><span className="meta">经营结论</span><div style={{ fontWeight: 900, color: statusColor(tax.netProfit) }}>{statusText(tax.netProfit)}</div></div></div></section>
     <section className="card" style={{ marginTop: 16 }}><h2>一、经营结论与建议</h2><ol style={{ margin: 0, paddingLeft: 20 }}>{conclusionItems.map((item) => <li key={item} style={{ marginBottom: 8, lineHeight: 1.7 }}>{item}</li>)}</ol></section>
-    <section className="card" style={{ marginTop: 16 }}><h2>二、敏感性压力测试摘要</h2><p className="meta">摘要取关键情景，完整测算请进入“敏感性测算表”。</p><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse' }}><thead><tr>{['情景', '变化', '税后净利', '净利率', '较基准变化'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{sensitivityRows.map(([name, change, result]) => <tr key={name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{change}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 900, color: statusColor(result.netProfit) }}>{fmt(result.netProfit)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{pct(result.netMargin)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: statusColor(result.netProfit - baseSensitivity.netProfit), fontWeight: 800 }}>{fmt(result.netProfit - baseSensitivity.netProfit)}</td></tr>)}</tbody></table></div></section>
-    <section className="card" style={{ marginTop: 16 }}><h2>三、核心经营指标</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}><tbody>{summaryRows.map(([name, value, unit]) => <tr key={name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 900, color: String(name).includes('利润') || String(name).includes('净利') ? statusColor(Number(value)) : undefined }}>{unit === 'percent' ? pct(Number(value)) : fmt(value)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{unit === 'percent' ? '' : unit}</td></tr>)}</tbody></table></div></section>
-    <section className="card" style={{ marginTop: 16 }}><h2>四、成本结构摘要</h2><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>{costRows.map(([name, value]) => <div key={name} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}><div className="meta">{name}</div><div style={{ fontWeight: 900, fontSize: 18 }}>{fmt(value)}</div><div className="meta">占不含税成本 {pct(cost.taxExclusive ? Number(value) / cost.taxExclusive : 0)}</div></div>)}</div></section>
-    <section className="card" style={{ marginTop: 16 }}><h2>五、税费测算</h2><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>{taxRows.map(([name, value]) => <div key={name} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}><div className="meta">{name}</div><div style={{ fontWeight: 900, fontSize: 18 }}>{fmt(value)}</div></div>)}</div></section>
-    <section className="card" style={{ marginTop: 16 }}><h2>六、业态利润摘要</h2><p className="meta">摘要按收入占比快速分摊项目成本和税费；更精细口径以“业态经营利润测算表”为准。</p><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}><thead><tr>{['业态', '含税收入', '分摊成本', '分摊税费', '税后净利', '净利率'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{productRows.length ? productRows.map((row) => <tr key={row.name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{row.name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.revenueInclusive)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.allocatedCost)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.allocatedTax)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 900, color: statusColor(row.netProfit) }}>{fmt(row.netProfit)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{pct(row.revenueInclusive ? row.netProfit / row.revenueInclusive : 0)}</td></tr>) : <tr><td colSpan={6} style={{ padding: 12, color: 'var(--muted)' }}>暂无业态利润数据。</td></tr>}</tbody></table></div></section>
-    <section className="card" style={{ marginTop: 16 }}><h2>七、可售业态收入</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 960, borderCollapse: 'collapse' }}><thead><tr>{['业态', '建筑面积', '可售面积', '销售单价', '含税收入', '不含税收入'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{productRows.length ? productRows.map((row) => <tr key={row.name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{row.name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.buildingArea)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.saleableArea)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.salePrice)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.revenueInclusive)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.revenueExclusive)}</td></tr>) : <tr><td colSpan={6} style={{ padding: 12, color: 'var(--muted)' }}>暂无可售业态收入。</td></tr>}</tbody></table></div></section>
-    <section className="card" style={{ marginTop: 16 }}><h2>八、数据口径与风险提示</h2><div style={{ display: 'grid', gap: 8 }}>{dataWarnings.length ? dataWarnings.map((item) => <div key={item} style={{ border: '1px solid #ffd8a8', background: '#fff9db', borderRadius: 10, padding: 10 }}>{item}</div>) : <div style={{ border: '1px solid #b2f2bb', background: '#f0fff4', borderRadius: 10, padding: 10 }}>当前核心数据未发现明显缺口。</div>}</div><p className="meta" style={{ marginTop: 12 }}>本报告按当前启用版本、启用业态、末级成本及 Excel 导入四级科目统计；土增税与所得税为测算口径，后续可结合清算规则继续深化。</p></section>
+    <section className="card" style={{ marginTop: 16 }}><h2>二、盈亏平衡安全垫</h2><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>{breakEvenRows.map((row) => <div key={row.name} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}><div className="meta">{row.name}</div><div style={{ fontWeight: 900, fontSize: 18 }}>{row.buffer}</div><div className="meta">{row.threshold}</div></div>)}</div></section>
+    <section className="card" style={{ marginTop: 16 }}><h2>三、敏感性压力测试摘要</h2><p className="meta">摘要取关键情景，完整测算请进入“敏感性测算表”。</p><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse' }}><thead><tr>{['情景', '变化', '税后净利', '净利率', '较基准变化'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{sensitivityRows.map(([name, change, result]) => <tr key={name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{change}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 900, color: statusColor(result.netProfit) }}>{fmt(result.netProfit)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{pct(result.netMargin)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: statusColor(result.netProfit - baseSensitivity.netProfit), fontWeight: 800 }}>{fmt(result.netProfit - baseSensitivity.netProfit)}</td></tr>)}</tbody></table></div></section>
+    <section className="card" style={{ marginTop: 16 }}><h2>四、核心经营指标</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}><tbody>{summaryRows.map(([name, value, unit]) => <tr key={name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 900, color: String(name).includes('利润') || String(name).includes('净利') ? statusColor(Number(value)) : undefined }}>{unit === 'percent' ? pct(Number(value)) : fmt(value)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{unit === 'percent' ? '' : unit}</td></tr>)}</tbody></table></div></section>
+    <section className="card" style={{ marginTop: 16 }}><h2>五、成本结构摘要</h2><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>{costRows.map(([name, value]) => <div key={name} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}><div className="meta">{name}</div><div style={{ fontWeight: 900, fontSize: 18 }}>{fmt(value)}</div><div className="meta">占不含税成本 {pct(cost.taxExclusive ? Number(value) / cost.taxExclusive : 0)}</div></div>)}</div></section>
+    <section className="card" style={{ marginTop: 16 }}><h2>六、税费测算</h2><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>{taxRows.map(([name, value]) => <div key={name} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}><div className="meta">{name}</div><div style={{ fontWeight: 900, fontSize: 18 }}>{fmt(value)}</div></div>)}</div></section>
+    <section className="card" style={{ marginTop: 16 }}><h2>七、业态利润摘要</h2><p className="meta">摘要按收入占比快速分摊项目成本和税费；更精细口径以“业态经营利润测算表”为准。</p><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}><thead><tr>{['业态', '含税收入', '分摊成本', '分摊税费', '税后净利', '净利率'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{productRows.length ? productRows.map((row) => <tr key={row.name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{row.name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.revenueInclusive)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.allocatedCost)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.allocatedTax)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 900, color: statusColor(row.netProfit) }}>{fmt(row.netProfit)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{pct(row.revenueInclusive ? row.netProfit / row.revenueInclusive : 0)}</td></tr>) : <tr><td colSpan={6} style={{ padding: 12, color: 'var(--muted)' }}>暂无业态利润数据。</td></tr>}</tbody></table></div></section>
+    <section className="card" style={{ marginTop: 16 }}><h2>八、可售业态收入</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 960, borderCollapse: 'collapse' }}><thead><tr>{['业态', '建筑面积', '可售面积', '销售单价', '含税收入', '不含税收入'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{productRows.length ? productRows.map((row) => <tr key={row.name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{row.name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.buildingArea)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.saleableArea)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.salePrice)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.revenueInclusive)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.revenueExclusive)}</td></tr>) : <tr><td colSpan={6} style={{ padding: 12, color: 'var(--muted)' }}>暂无可售业态收入。</td></tr>}</tbody></table></div></section>
+    <section className="card" style={{ marginTop: 16 }}><h2>九、数据口径与风险提示</h2><div style={{ display: 'grid', gap: 8 }}>{dataWarnings.length ? dataWarnings.map((item) => <div key={item} style={{ border: '1px solid #ffd8a8', background: '#fff9db', borderRadius: 10, padding: 10 }}>{item}</div>) : <div style={{ border: '1px solid #b2f2bb', background: '#f0fff4', borderRadius: 10, padding: 10 }}>当前核心数据未发现明显缺口。</div>}</div><p className="meta" style={{ marginTop: 12 }}>本报告按当前启用版本、启用业态、末级成本及 Excel 导入四级科目统计；土增税与所得税为测算口径，后续可结合清算规则继续深化。</p></section>
     <style>{`@media print{.no-print, nav, header{display:none!important}.report-page{background:#fff!important}.card{break-inside:avoid;box-shadow:none!important}.container{max-width:100%!important}.page{padding:0!important}}`}</style>
   </div></main>;
 }
