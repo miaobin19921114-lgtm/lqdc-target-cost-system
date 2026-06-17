@@ -7,6 +7,35 @@ export const runtime = 'nodejs';
 
 type CostImportMode = 'update' | 'append' | 'clear';
 
+type CostParsedRow = {
+  sheet: string;
+  row: number;
+  code: string;
+  level1: string;
+  level2: string;
+  level3: string;
+  subject: string;
+  basis: string;
+  quantity: string;
+  unit: string;
+  price: string;
+  taxRate: string;
+  amount: string;
+};
+
+type PreparedCost = CostParsedRow & {
+  quantityValue: number;
+  taxInclusiveUnitPrice: number;
+  taxExclusiveUnitPrice: number;
+  taxRateValue: number;
+  taxInclusiveAmount: number;
+  taxExclusiveAmount: number;
+  taxAmount: number;
+  codeValue: string;
+  fullPath: string;
+  unitValue: string;
+};
+
 function baseUrl(request: Request) {
   const proto = request.headers.get('x-forwarded-proto') || 'https';
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
@@ -69,7 +98,12 @@ function firstUsefulRow(sheet: ExcelJS.Worksheet) {
 }
 
 function makePreview(workbook: ExcelJS.Workbook) {
-  const sheets = workbook.worksheets.slice(0, 12).map((sheet) => ({ name: sheet.name, rows: sheet.rowCount, columns: sheet.columnCount, sample: firstUsefulRow(sheet) }));
+  const sheets = workbook.worksheets.slice(0, 12).map((sheet) => ({
+    name: sheet.name,
+    rows: sheet.rowCount,
+    columns: sheet.columnCount,
+    sample: firstUsefulRow(sheet)
+  }));
   return Buffer.from(JSON.stringify(sheets), 'utf8').toString('base64url');
 }
 
@@ -118,6 +152,7 @@ async function importOverview(projectId: string, workbook: ExcelJS.Workbook) {
   const data: Record<string, string | number> = {};
   const sheets = workbook.worksheets.filter((sheet) => /概况|指标|经济|基础/i.test(sheet.name));
   const targetSheets = sheets.length ? sheets : workbook.worksheets.slice(0, 3);
+
   for (const sheet of targetSheets) {
     for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
       const values = rowValues(sheet.getRow(rowNumber));
@@ -140,6 +175,7 @@ async function importOverview(projectId: string, workbook: ExcelJS.Workbook) {
       });
     }
   }
+
   if (Object.keys(data).length > 0) await prisma.project.update({ where: { id: projectId }, data });
   return data;
 }
@@ -162,6 +198,7 @@ async function importProducts(versionId: string, workbook: ExcelJS.Workbook) {
   let count = 0;
   const sheets = workbook.worksheets.filter((sheet) => /业态|产品|概况|指标|面积/i.test(sheet.name));
   const targetSheets = sheets.length ? sheets : workbook.worksheets;
+
   for (const sheet of targetSheets) {
     const header = findProductHeader(sheet);
     if (!header) continue;
@@ -210,22 +247,6 @@ function findCostHeader(sheet: ExcelJS.Worksheet) {
   return null;
 }
 
-type CostParsedRow = {
-  sheet: string;
-  row: number;
-  code: string;
-  level1: string;
-  level2: string;
-  level3: string;
-  subject: string;
-  basis: string;
-  quantity: string;
-  unit: string;
-  price: string;
-  taxRate: string;
-  amount: string;
-};
-
 function parseCostRows(workbook: ExcelJS.Workbook, limit = 0) {
   const rows: CostParsedRow[] = [];
   const sheets = workbook.worksheets.filter((sheet) => /成本|明细|目标|土地|前期|土建|安装|设备|景观|装修|费用/i.test(sheet.name));
@@ -273,8 +294,79 @@ function parseCostRows(workbook: ExcelJS.Workbook, limit = 0) {
   return rows;
 }
 
+function prepareCost(row: CostParsedRow, versionId: string): PreparedCost | null {
+  const quantityRaw = toNumber(row.quantity);
+  const priceRaw = toNumber(row.price);
+  const amountRaw = toNumber(row.amount);
+  if (!row.subject || (!quantityRaw && !priceRaw && !amountRaw)) return null;
+
+  let quantityValue = quantityRaw;
+  let taxInclusiveUnitPrice = priceRaw;
+  let taxInclusiveAmount = amountRaw;
+  if (!taxInclusiveAmount && quantityValue && taxInclusiveUnitPrice) taxInclusiveAmount = round2(quantityValue * taxInclusiveUnitPrice);
+  if (!quantityValue && taxInclusiveAmount) quantityValue = 1;
+  if (!taxInclusiveUnitPrice && taxInclusiveAmount && quantityValue) taxInclusiveUnitPrice = round2(taxInclusiveAmount / quantityValue);
+  if (!taxInclusiveAmount) return null;
+
+  const taxRateValue = parseRate(row.taxRate, 0.09);
+  const taxExclusiveAmount = round2(taxInclusiveAmount / (1 + taxRateValue));
+  const taxAmount = round2(taxInclusiveAmount - taxExclusiveAmount);
+  const taxExclusiveUnitPrice = taxInclusiveUnitPrice ? round2(taxInclusiveUnitPrice / (1 + taxRateValue)) : 0;
+  return {
+    ...row,
+    quantityValue,
+    taxInclusiveUnitPrice,
+    taxExclusiveUnitPrice,
+    taxRateValue,
+    taxInclusiveAmount,
+    taxExclusiveAmount,
+    taxAmount,
+    codeValue: row.code || `IMP-${versionId.slice(-6)}-${row.sheet.slice(0, 8)}-${row.row}`,
+    fullPath: [row.level1, row.level2, row.level3, row.subject].filter(Boolean).join(' / '),
+    unitValue: row.unit || (quantityValue === 1 && amountRaw ? '项' : '')
+  };
+}
+
 function previewCosts(workbook: ExcelJS.Workbook) {
   return parseCostRows(workbook, 30);
+}
+
+async function checkCosts(versionId: string, workbook: ExcelJS.Workbook, importMode: CostImportMode) {
+  const rows = parseCostRows(workbook, 0);
+  let count = 0;
+  let matchedCount = 0;
+  let clearCount = 0;
+  let inclusiveTotal = 0;
+  let exclusiveTotal = 0;
+  let taxTotal = 0;
+
+  if (importMode === 'clear') {
+    clearCount = await prisma.costLine.count({ where: { projectVersionId: versionId, regionOrProductType: 'Excel导入' } });
+  }
+
+  for (const row of rows) {
+    const prepared = prepareCost(row, versionId);
+    if (!prepared) continue;
+    count += 1;
+    inclusiveTotal = round2(inclusiveTotal + prepared.taxInclusiveAmount);
+    exclusiveTotal = round2(exclusiveTotal + prepared.taxExclusiveAmount);
+    taxTotal = round2(taxTotal + prepared.taxAmount);
+
+    if (importMode !== 'append') {
+      const existing = await prisma.costLine.findFirst({
+        where: {
+          projectVersionId: versionId,
+          detailName: prepared.subject,
+          professionalGroup: prepared.sheet,
+          description: prepared.fullPath
+        },
+        select: { id: true }
+      });
+      if (existing) matchedCount += 1;
+    }
+  }
+
+  return { count, matchedCount, clearCount, inclusiveTotal, exclusiveTotal, taxTotal, importMode };
 }
 
 async function importCosts(versionId: string, workbook: ExcelJS.Workbook, importMode: CostImportMode, fileName: string) {
@@ -303,69 +395,70 @@ async function importCosts(versionId: string, workbook: ExcelJS.Workbook, import
   });
 
   for (const row of rows) {
-    const quantityRaw = toNumber(row.quantity);
-    const priceRaw = toNumber(row.price);
-    const amountRaw = toNumber(row.amount);
-    if (!row.subject || (!quantityRaw && !priceRaw && !amountRaw)) continue;
-
-    let quantity = quantityRaw;
-    let taxInclusiveUnitPrice = priceRaw;
-    let taxInclusiveAmount = amountRaw;
-    if (!taxInclusiveAmount && quantity && taxInclusiveUnitPrice) taxInclusiveAmount = round2(quantity * taxInclusiveUnitPrice);
-    if (!quantity && taxInclusiveAmount) quantity = 1;
-    if (!taxInclusiveUnitPrice && taxInclusiveAmount && quantity) taxInclusiveUnitPrice = round2(taxInclusiveAmount / quantity);
-    if (!taxInclusiveAmount) continue;
-
-    const taxRate = parseRate(row.taxRate, 0.09);
-    const taxExclusiveAmount = round2(taxInclusiveAmount / (1 + taxRate));
-    const taxAmount = round2(taxInclusiveAmount - taxExclusiveAmount);
-    const taxExclusiveUnitPrice = taxInclusiveUnitPrice ? round2(taxInclusiveUnitPrice / (1 + taxRate)) : 0;
-    const code = row.code || `IMP-${versionId.slice(-6)}-${row.sheet.slice(0, 8)}-${row.row}`;
-    const fullPath = [row.level1, row.level2, row.level3, row.subject].filter(Boolean).join(' / ');
+    const prepared = prepareCost(row, versionId);
+    if (!prepared) continue;
 
     const subject = await prisma.costSubject.upsert({
-      where: { code },
-      update: { name: row.subject, level: 4, fullPath, defaultUnit: row.unit || undefined, defaultTaxRate: taxRate, defaultMeasureBasis: row.basis || undefined, enabled: true },
-      create: { code, name: row.subject, level: 4, fullPath, defaultUnit: row.unit || undefined, defaultTaxRate: taxRate, defaultMeasureBasis: row.basis || undefined, enabled: true, sortOrder: row.row }
+      where: { code: prepared.codeValue },
+      update: {
+        name: prepared.subject,
+        level: 4,
+        fullPath: prepared.fullPath,
+        defaultUnit: prepared.unitValue || undefined,
+        defaultTaxRate: prepared.taxRateValue,
+        defaultMeasureBasis: prepared.basis || undefined,
+        enabled: true
+      },
+      create: {
+        code: prepared.codeValue,
+        name: prepared.subject,
+        level: 4,
+        fullPath: prepared.fullPath,
+        defaultUnit: prepared.unitValue || undefined,
+        defaultTaxRate: prepared.taxRateValue,
+        defaultMeasureBasis: prepared.basis || undefined,
+        enabled: true,
+        sortOrder: prepared.row
+      }
     });
 
     const data = {
       projectVersionId: versionId,
       costSubjectId: subject.id,
       importBatchId: batch.id,
-      detailName: row.subject,
+      detailName: prepared.subject,
       regionOrProductType: 'Excel导入',
-      professionalGroup: row.sheet,
-      measureBasis: row.basis,
-      quantity,
-      unit: row.unit || (quantity === 1 && amountRaw ? '项' : ''),
-      taxExclusiveUnitPrice,
-      taxInclusiveUnitPrice,
-      taxRate,
-      taxExclusiveAmount,
-      taxAmount,
-      taxInclusiveAmount,
+      professionalGroup: prepared.sheet,
+      measureBasis: prepared.basis,
+      quantity: prepared.quantityValue,
+      unit: prepared.unitValue,
+      taxExclusiveUnitPrice: prepared.taxExclusiveUnitPrice,
+      taxInclusiveUnitPrice: prepared.taxInclusiveUnitPrice,
+      taxRate: prepared.taxRateValue,
+      taxExclusiveAmount: prepared.taxExclusiveAmount,
+      taxAmount: prepared.taxAmount,
+      taxInclusiveAmount: prepared.taxInclusiveAmount,
       allocationMethod: '按可售面积占比',
       isDirectAssigned: false,
-      description: fullPath,
-      remark: `Excel正式导入：${row.sheet} 第${row.row}行｜批次：${batch.id}｜模式：${importMode}`,
-      sortOrder: row.row
+      description: prepared.fullPath,
+      remark: `Excel正式导入：${prepared.sheet} 第${prepared.row}行｜批次：${batch.id}｜模式：${importMode}`,
+      sortOrder: prepared.row
     };
 
     if (importMode === 'append') {
       await prisma.costLine.create({ data });
     } else {
       const existing = await prisma.costLine.findFirst({
-        where: { projectVersionId: versionId, detailName: row.subject, professionalGroup: row.sheet, description: fullPath }
+        where: { projectVersionId: versionId, detailName: prepared.subject, professionalGroup: prepared.sheet, description: prepared.fullPath }
       });
       if (existing) await prisma.costLine.update({ where: { id: existing.id }, data });
       else await prisma.costLine.create({ data });
     }
 
     count += 1;
-    inclusiveTotal = round2(inclusiveTotal + taxInclusiveAmount);
-    exclusiveTotal = round2(exclusiveTotal + taxExclusiveAmount);
-    taxTotal = round2(taxTotal + taxAmount);
+    inclusiveTotal = round2(inclusiveTotal + prepared.taxInclusiveAmount);
+    exclusiveTotal = round2(exclusiveTotal + prepared.taxExclusiveAmount);
+    taxTotal = round2(taxTotal + prepared.taxAmount);
   }
 
   await prisma.importBatch.update({
@@ -406,6 +499,22 @@ export async function POST(request: Request, { params }: { params: { id: string 
       const costs = previewCosts(workbook);
       const costPreview = Buffer.from(JSON.stringify(costs), 'utf8').toString('base64url');
       const query = new URLSearchParams({ costPreviewed: '1', file: file.name || 'import.xlsx', count: String(costs.length), preview, costPreview });
+      return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
+    }
+    if (mode === 'cost-check') {
+      const result = await checkCosts(version.id, workbook, costImportMode);
+      const query = new URLSearchParams({
+        costChecked: '1',
+        file: file.name || 'import.xlsx',
+        count: String(result.count),
+        matchedCount: String(result.matchedCount),
+        clearCount: String(result.clearCount),
+        inclusiveTotal: String(result.inclusiveTotal),
+        exclusiveTotal: String(result.exclusiveTotal),
+        taxTotal: String(result.taxTotal),
+        importMode: result.importMode,
+        preview
+      });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
     if (mode === 'cost-import') {
