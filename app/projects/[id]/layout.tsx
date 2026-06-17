@@ -8,6 +8,7 @@ export default async function ProjectLayout({ children, params }: { children: Re
   const project = await prisma.project.findUnique({ where: { id: params.id }, select: { id: true, name: true } });
 
   return <>
+    <style>{`.global-account-bar{display:none}`}</style>
     {project ? <ProjectRouteNav projectId={project.id} projectName={project.name} /> : null}
     {children}
   </>;
