@@ -36,6 +36,13 @@ type PreparedCost = CostParsedRow & {
   unitValue: string;
 };
 
+type CostImportError = {
+  sheet: string;
+  row: number | string;
+  reason: string;
+  sample: string;
+};
+
 function baseUrl(request: Request) {
   const proto = request.headers.get('x-forwarded-proto') || 'https';
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
@@ -105,6 +112,19 @@ function makePreview(workbook: ExcelJS.Workbook) {
     sample: firstUsefulRow(sheet)
   }));
   return Buffer.from(JSON.stringify(sheets), 'utf8').toString('base64url');
+}
+
+function encodeJson(value: unknown) {
+  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+}
+
+function sampleOf(values: unknown[]) {
+  return values.map(cellText).filter(Boolean).slice(0, 8).join('｜').slice(0, 160);
+}
+
+function costSheets(workbook: ExcelJS.Workbook) {
+  const sheets = workbook.worksheets.filter((sheet) => /成本|明细|目标|土地|前期|土建|安装|设备|景观|装修|费用/i.test(sheet.name));
+  return sheets.length ? sheets : workbook.worksheets;
 }
 
 const overviewRules: Array<{ keys: string[]; field: string; type: 'string' | 'number' | 'int' }> = [
@@ -249,8 +269,7 @@ function findCostHeader(sheet: ExcelJS.Worksheet) {
 
 function parseCostRows(workbook: ExcelJS.Workbook, limit = 0) {
   const rows: CostParsedRow[] = [];
-  const sheets = workbook.worksheets.filter((sheet) => /成本|明细|目标|土地|前期|土建|安装|设备|景观|装修|费用/i.test(sheet.name));
-  const targetSheets = sheets.length ? sheets : workbook.worksheets;
+  const targetSheets = costSheets(workbook);
   for (const sheet of targetSheets) {
     const header = findCostHeader(sheet);
     if (!header) continue;
@@ -325,6 +344,64 @@ function prepareCost(row: CostParsedRow, versionId: string): PreparedCost | null
     fullPath: [row.level1, row.level2, row.level3, row.subject].filter(Boolean).join(' / '),
     unitValue: row.unit || (quantityValue === 1 && amountRaw ? '项' : '')
   };
+}
+
+function collectCostErrors(workbook: ExcelJS.Workbook, versionId: string, max = 60) {
+  const errors: CostImportError[] = [];
+  const targetSheets = costSheets(workbook);
+  for (const sheet of targetSheets) {
+    const header = findCostHeader(sheet);
+    if (!header) {
+      const sample = firstUsefulRow(sheet).filter(Boolean).join('｜');
+      if (sample) errors.push({ sheet: sheet.name, row: '-', reason: '未识别到成本明细表头', sample });
+      if (errors.length >= max) return errors.slice(0, max);
+      continue;
+    }
+    const codeIndex = columnIndex(header.heads, [/编码/, /科目编码/]);
+    const l1Index = columnIndex(header.heads, [/一级/]);
+    const l2Index = columnIndex(header.heads, [/二级/]);
+    const l3Index = columnIndex(header.heads, [/三级/]);
+    const subjectIndex = columnIndex(header.heads, [/四级/, /明细项目/, /目标成本科目/, /成本科目/, /科目名称/, /费用名称/]);
+    const basisIndex = columnIndex(header.heads, [/测算依据/, /依据/]);
+    const qtyIndex = columnIndex(header.heads, [/工程量/, /数量/]);
+    const unitIndex = columnIndex(header.heads, [/单位/]);
+    const priceIndex = columnIndex(header.heads, [/含税单价/, /单价/]);
+    const rateIndex = columnIndex(header.heads, [/税率/]);
+    const amountIndex = columnIndex(header.heads, [/含税金额/, /金额/]);
+
+    for (let rowNumber = header.rowNumber + 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
+      const values = rowValues(sheet.getRow(rowNumber));
+      const sample = sampleOf(values);
+      if (!sample) continue;
+      const subject = subjectIndex >= 0 ? cellText(values[subjectIndex]) : '';
+      const level1 = l1Index >= 0 ? cellText(values[l1Index]) : '';
+      const level2 = l2Index >= 0 ? cellText(values[l2Index]) : '';
+      const level3 = l3Index >= 0 ? cellText(values[l3Index]) : '';
+      if (/合计|小计|备注|说明/.test(subject || sample)) continue;
+      if (!subject && !level1 && !level2 && !level3) {
+        errors.push({ sheet: sheet.name, row: rowNumber, reason: '缺少成本科目或层级科目', sample });
+      } else {
+        const row: CostParsedRow = {
+          sheet: sheet.name,
+          row: rowNumber,
+          code: codeIndex >= 0 ? cellText(values[codeIndex]) : '',
+          level1,
+          level2,
+          level3,
+          subject: subject || level3 || level2 || level1,
+          basis: basisIndex >= 0 ? cellText(values[basisIndex]) : '',
+          quantity: qtyIndex >= 0 ? cellText(values[qtyIndex]) : '',
+          unit: unitIndex >= 0 ? cellText(values[unitIndex]) : '',
+          price: priceIndex >= 0 ? cellText(values[priceIndex]) : '',
+          taxRate: rateIndex >= 0 ? cellText(values[rateIndex]) : '',
+          amount: amountIndex >= 0 ? cellText(values[amountIndex]) : ''
+        };
+        if (!prepareCost(row, versionId)) errors.push({ sheet: sheet.name, row: rowNumber, reason: '缺少工程量/单价/金额，或金额无法计算', sample });
+      }
+      if (errors.length >= max) return errors.slice(0, max);
+    }
+  }
+  return errors;
 }
 
 function previewCosts(workbook: ExcelJS.Workbook) {
@@ -497,12 +574,21 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
     if (mode === 'cost-preview') {
       const costs = previewCosts(workbook);
-      const costPreview = Buffer.from(JSON.stringify(costs), 'utf8').toString('base64url');
-      const query = new URLSearchParams({ costPreviewed: '1', file: file.name || 'import.xlsx', count: String(costs.length), preview, costPreview });
+      const costErrors = collectCostErrors(workbook, version.id);
+      const query = new URLSearchParams({
+        costPreviewed: '1',
+        file: file.name || 'import.xlsx',
+        count: String(costs.length),
+        preview,
+        costPreview: encodeJson(costs),
+        errorCount: String(costErrors.length),
+        errorReport: encodeJson(costErrors)
+      });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
     if (mode === 'cost-check') {
       const result = await checkCosts(version.id, workbook, costImportMode);
+      const costErrors = collectCostErrors(workbook, version.id);
       const query = new URLSearchParams({
         costChecked: '1',
         file: file.name || 'import.xlsx',
@@ -513,12 +599,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
         exclusiveTotal: String(result.exclusiveTotal),
         taxTotal: String(result.taxTotal),
         importMode: result.importMode,
+        errorCount: String(costErrors.length),
+        errorReport: encodeJson(costErrors),
         preview
       });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
     if (mode === 'cost-import') {
       const result = await importCosts(version.id, workbook, costImportMode, file.name || 'import.xlsx');
+      const costErrors = collectCostErrors(workbook, version.id);
       const query = new URLSearchParams({
         costsImported: '1',
         file: file.name || 'import.xlsx',
@@ -529,6 +618,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
         deletedCount: String(result.deletedCount),
         importMode: result.importMode,
         batchId: result.batchId,
+        errorCount: String(costErrors.length),
+        errorReport: encodeJson(costErrors),
         preview
       });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
