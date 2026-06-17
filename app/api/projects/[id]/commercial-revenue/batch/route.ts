@@ -19,28 +19,36 @@ function getBaseUrl(request: Request) {
 }
 
 function calcAmount(input: { mode: string; area: number; salePrice: number; monthlyRent: number; occupancyRate: number; years: number }) {
-  if (input.mode.includes('出租') || input.mode.includes('自持')) {
-    return input.area * input.monthlyRent * 12 * input.occupancyRate * input.years;
-  }
+  if (input.mode.includes('出租') || input.mode.includes('自持')) return input.area * input.monthlyRent * 12 * input.occupancyRate * input.years;
   return input.area * input.salePrice;
 }
 
-function buildRemark(input: { mode: string; area: number; salePrice: number; monthlyRent: number; occupancyRate: number; years: number; remark: string }) {
-  return `模式：${input.mode}；面积：${input.area}；销售单价：${input.salePrice}；月租金：${input.monthlyRent}；出租率：${input.occupancyRate}；测算年限：${input.years}；备注：${input.remark || '-'}`;
+function safeName(value: string) {
+  return value.replace(/[\\/]/g, '-').trim();
 }
 
-async function upsertCommercialRevenue(input: { projectVersionId: string; typeName: string; amount: number; taxRate: number; remark: string }) {
-  const productName = `商业收入-${input.typeName}`;
+function buildRemark(input: { parentProductId: string; parentName: string; subType: string; mode: string; area: number; salePrice: number; monthlyRent: number; occupancyRate: number; years: number; remark: string }) {
+  return `归属业态ID：${input.parentProductId}；归属业态：${input.parentName}；细分类型：${input.subType}；模式：${input.mode}；面积：${input.area}；销售单价：${input.salePrice}；月租金：${input.monthlyRent}；出租率：${input.occupancyRate}；测算年限：${input.years}；备注：${input.remark || '-'}`;
+}
+
+async function upsertCommercialRevenue(input: { projectVersionId: string; parentProductId: string; parentName: string; subType: string; amount: number; taxRate: number; remark: string }) {
+  const productName = `商业收入-${safeName(input.parentName)}-${safeName(input.subType)}`;
   const result = calculateRevenueLine(1, input.amount, input.taxRate);
   const existing = await prisma.productType.findFirst({ where: { projectVersionId: input.projectVersionId, name: productName } });
+  const productData = {
+    saleableArea: 1,
+    buildingArea: 0,
+    capacityArea: 0,
+    salePrice: input.amount,
+    isSaleable: true,
+    isActive: true,
+    participateAllocation: false,
+    allocationWeight: 0,
+    remark: input.remark
+  };
   const product = existing
-    ? await prisma.productType.update({
-        where: { id: existing.id },
-        data: { saleableArea: 1, buildingArea: 0, capacityArea: 0, salePrice: input.amount, isSaleable: true, isActive: true, participateAllocation: false, allocationWeight: 0, remark: input.remark }
-      })
-    : await prisma.productType.create({
-        data: { projectVersionId: input.projectVersionId, name: productName, saleableArea: 1, buildingArea: 0, capacityArea: 0, salePrice: input.amount, isSaleable: true, isActive: true, participateAllocation: false, allocationWeight: 0, remark: input.remark }
-      });
+    ? await prisma.productType.update({ where: { id: existing.id }, data: productData })
+    : await prisma.productType.create({ data: { projectVersionId: input.projectVersionId, name: productName, ...productData } });
 
   const data = {
     saleableArea: 1,
@@ -58,7 +66,7 @@ async function upsertCommercialRevenue(input: { projectVersionId: string; typeNa
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
-  const rowCount = Math.max(0, Math.min(20, Number(form.get('rowCount') || 0)));
+  const rowCount = Math.max(0, Math.min(80, Number(form.get('rowCount') || 0)));
   const back = `${getBaseUrl(request)}/projects/${params.id}/commercial-revenue`;
   const { version, locked } = await getEditableActiveVersion(params.id);
   if (!version) return NextResponse.redirect(`${back}?saved=0`, 303);
@@ -66,7 +74,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   let savedCount = 0;
   for (let index = 0; index < rowCount; index += 1) {
-    const typeName = clean(form, `type-${index}`);
+    const parentProductId = clean(form, `parentProductId-${index}`);
+    const parentName = clean(form, `parentName-${index}`);
+    const subType = clean(form, `subType-${index}`);
     const mode = clean(form, `mode-${index}`) || '出售';
     const area = toNumber(form, `area-${index}`);
     const salePrice = toNumber(form, `salePrice-${index}`);
@@ -75,17 +85,22 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const years = toNumber(form, `years-${index}`) || 1;
     const taxRate = toNumber(form, `taxRate-${index}`);
     const remark = clean(form, `remark-${index}`);
-    if (!typeName || area <= 0) continue;
+    if (!parentProductId || !parentName || !subType || area <= 0) continue;
+
+    const parent = await prisma.productType.findFirst({ where: { id: parentProductId, projectVersionId: version.id, isActive: true } });
+    if (!parent) continue;
 
     const amount = calcAmount({ mode, area, salePrice, monthlyRent, occupancyRate, years });
     if (amount <= 0) continue;
 
     await upsertCommercialRevenue({
       projectVersionId: version.id,
-      typeName,
+      parentProductId,
+      parentName,
+      subType,
       amount,
       taxRate,
-      remark: buildRemark({ mode, area, salePrice, monthlyRent, occupancyRate, years, remark })
+      remark: buildRemark({ parentProductId, parentName, subType, mode, area, salePrice, monthlyRent, occupancyRate, years, remark })
     });
     savedCount += 1;
   }
