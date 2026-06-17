@@ -7,7 +7,7 @@ export function AccountBar() {
   if (!userId) return null;
 
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 50, background: '#102a43', color: '#fff', borderBottom: '1px solid rgba(255,255,255,.12)' }}>
+    <div className="global-account-bar" style={{ position: 'sticky', top: 0, zIndex: 50, background: '#102a43', color: '#fff', borderBottom: '1px solid rgba(255,255,255,.12)' }}>
       <div style={{ maxWidth: 1500, margin: '0 auto', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <Link href="/projects" style={{ color: '#fff', fontWeight: 900, whiteSpace: 'nowrap' }}>地产成本智算平台</Link>
