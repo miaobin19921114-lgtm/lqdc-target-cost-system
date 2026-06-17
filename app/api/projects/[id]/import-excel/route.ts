@@ -5,6 +5,8 @@ import { getEditableActiveVersion } from '@/lib/project-version';
 
 export const runtime = 'nodejs';
 
+type CostImportMode = 'update' | 'append' | 'clear';
+
 function baseUrl(request: Request) {
   const proto = request.headers.get('x-forwarded-proto') || 'https';
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
@@ -35,6 +37,11 @@ function parseRate(value: unknown, fallback = 0.09) {
 
 function round2(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function normalizeImportMode(value: string): CostImportMode {
+  if (value === 'append' || value === 'clear') return value;
+  return 'update';
 }
 
 function rowTexts(row: ExcelJS.Row) {
@@ -270,12 +277,18 @@ function previewCosts(workbook: ExcelJS.Workbook) {
   return parseCostRows(workbook, 30);
 }
 
-async function importCosts(versionId: string, workbook: ExcelJS.Workbook) {
+async function importCosts(versionId: string, workbook: ExcelJS.Workbook, importMode: CostImportMode) {
   const rows = parseCostRows(workbook, 0);
   let count = 0;
   let inclusiveTotal = 0;
   let exclusiveTotal = 0;
   let taxTotal = 0;
+  let deletedCount = 0;
+
+  if (importMode === 'clear') {
+    const deleted = await prisma.costLine.deleteMany({ where: { projectVersionId: versionId, regionOrProductType: 'Excel导入' } });
+    deletedCount = deleted.count;
+  }
 
   for (const row of rows) {
     const quantityRaw = toNumber(row.quantity);
@@ -322,22 +335,26 @@ async function importCosts(versionId: string, workbook: ExcelJS.Workbook) {
       allocationMethod: '按可售面积占比',
       isDirectAssigned: false,
       description: fullPath,
-      remark: `Excel正式导入：${row.sheet} 第${row.row}行`,
+      remark: `Excel正式导入：${row.sheet} 第${row.row}行｜模式：${importMode}`,
       sortOrder: row.row
     };
 
-    const existing = await prisma.costLine.findFirst({
-      where: { projectVersionId: versionId, detailName: row.subject, professionalGroup: row.sheet, description: fullPath }
-    });
-    if (existing) await prisma.costLine.update({ where: { id: existing.id }, data });
-    else await prisma.costLine.create({ data });
+    if (importMode === 'append') {
+      await prisma.costLine.create({ data });
+    } else {
+      const existing = await prisma.costLine.findFirst({
+        where: { projectVersionId: versionId, detailName: row.subject, professionalGroup: row.sheet, description: fullPath }
+      });
+      if (existing) await prisma.costLine.update({ where: { id: existing.id }, data });
+      else await prisma.costLine.create({ data });
+    }
 
     count += 1;
     inclusiveTotal = round2(inclusiveTotal + taxInclusiveAmount);
     exclusiveTotal = round2(exclusiveTotal + taxExclusiveAmount);
     taxTotal = round2(taxTotal + taxAmount);
   }
-  return { count, inclusiveTotal, exclusiveTotal, taxTotal };
+  return { count, inclusiveTotal, exclusiveTotal, taxTotal, deletedCount, importMode };
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -347,6 +364,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (locked) return NextResponse.redirect(`${url}/projects/${params.id}/export?locked=1`, 303);
   const form = await request.formData();
   const mode = String(form.get('mode') || 'preview');
+  const costImportMode = normalizeImportMode(String(form.get('costImportMode') || 'update'));
   const file = form.get('file');
   if (!(file instanceof File) || !file.size) return NextResponse.redirect(`${url}/projects/${params.id}/export?missingFile=1`, 303);
   try {
@@ -372,7 +390,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
     if (mode === 'cost-import') {
-      const result = await importCosts(version.id, workbook);
+      const result = await importCosts(version.id, workbook, costImportMode);
       const query = new URLSearchParams({
         costsImported: '1',
         file: file.name || 'import.xlsx',
@@ -380,6 +398,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
         inclusiveTotal: String(result.inclusiveTotal),
         exclusiveTotal: String(result.exclusiveTotal),
         taxTotal: String(result.taxTotal),
+        deletedCount: String(result.deletedCount),
+        importMode: result.importMode,
         preview
       });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
