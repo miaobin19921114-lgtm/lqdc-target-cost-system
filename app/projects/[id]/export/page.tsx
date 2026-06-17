@@ -45,7 +45,7 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
           <div>
             <p className="eyebrow">Excel 导入导出</p>
             <h1 className="title">Excel 导入分步处理</h1>
-            <p className="subtitle">当前支持：预览结构、导入项目概况、导入业态指标、预览成本明细。成本明细预览不写数据库。</p>
+            <p className="subtitle">当前支持：预览结构、导入项目概况、导入业态指标、预览成本明细、正式导入成本明细。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${params.id}`} className="btn btn-primary">返回工作台</Link>
@@ -73,6 +73,11 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
             成本明细预览完成：识别 {searchParams.count || 0} 行。当前只是预览，没有写入成本明细。
           </div>
         ) : null}
+        {searchParams?.costsImported === '1' ? (
+          <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>
+            成本明细导入完成：写入或更新 {searchParams.count || 0} 行，已进入当前启用版本。
+          </div>
+        ) : null}
         {searchParams?.uploaded === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb' }}>文件已接收：{searchParams.file || '-'}</div> : null}
         {searchParams?.locked ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>当前版本已锁定，不能导入覆盖数据。请先到版本管理解锁，或复制新版本后导入。</div> : null}
         {searchParams?.missingFile ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>请选择需要导入的 Excel 文件。</div> : null}
@@ -80,14 +85,15 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
 
         <section className="card" style={{ marginBottom: 16 }}>
           <h2>上传 Excel</h2>
-          <p className="meta">同一个入口，选择不同按钮执行不同导入模式。成本明细目前只预览，不写入数据库。</p>
+          <p className="meta">同一个入口，选择不同按钮执行不同导入模式。建议先点“预览成本明细”，确认无误后再“正式导入成本明细”。</p>
           <form action={`/api/projects/${params.id}/import-excel`} method="post" encType="multipart/form-data" style={{ display: 'grid', gap: 12, marginTop: 12 }}>
             <input name="file" type="file" accept=".xlsx" required style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, background: '#fff' }} />
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button name="mode" value="preview" className="btn" style={{ width: 180 }}>只预览结构</button>
               <button name="mode" value="overview" className="btn" style={{ width: 180 }}>只导入项目概况</button>
               <button name="mode" value="products" className="btn" style={{ width: 180 }}>只导入业态指标</button>
-              <button name="mode" value="cost-preview" className="btn btn-primary" style={{ width: 180 }}>预览成本明细</button>
+              <button name="mode" value="cost-preview" className="btn" style={{ width: 180 }}>预览成本明细</button>
+              <button name="mode" value="cost-import" className="btn btn-primary" style={{ width: 190 }}>正式导入成本明细</button>
             </div>
           </form>
         </section>
@@ -95,7 +101,7 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
         {costPreview.length ? (
           <section className="card" style={{ marginBottom: 16 }}>
             <h2>成本明细预览</h2>
-            <p className="meta">最多展示前 30 行识别结果。确认字段识别正确后，下一步再开启正式导入。</p>
+            <p className="meta">最多展示前 30 行识别结果。确认字段识别正确后，再正式导入。</p>
             <div style={{ overflowX: 'auto', marginTop: 12 }}>
               <table style={{ width: '100%', minWidth: 1280, borderCollapse: 'collapse' }}>
                 <thead>
@@ -154,8 +160,8 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
           <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
             <div><b>项目概况：</b><span className="meta">项目名称、城市、区县、占地、红线、容积率、建面、车位、充电桩、景观、楼栋、单元等。</span></div>
             <div><b>业态指标：</b><span className="meta">业态名称、建筑面积、计容面积、可售面积、不可售面积、含税销售单价、备注。</span></div>
-            <div><b>成本预览：</b><span className="meta">成本编码、一级/二级/三级科目、明细科目、测算依据、工程量、单位、含税单价、税率、含税金额。</span></div>
-            <div><b>下一步：</b><span className="meta">确认成本预览准确后，再开启成本明细正式导入。</span></div>
+            <div><b>成本导入：</b><span className="meta">成本编码、一级/二级/三级科目、明细科目、测算依据、工程量、单位、含税单价、税率、含税金额。</span></div>
+            <div><b>去重规则：</b><span className="meta">同一版本、同一工作表、同一科目路径会更新已有行，避免重复堆叠。</span></div>
           </div>
         </section>
       </div>
