@@ -60,6 +60,7 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
             <p className="subtitle">当前支持：预览结构、导入项目概况、导入业态指标、预览成本明细、正式导入成本明细。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
+            <Link href={`/projects/${params.id}/import-batches`} className="btn">导入批次</Link>
             <Link href={`/projects/${params.id}`} className="btn btn-primary">返回工作台</Link>
             <a href={`/api/export?projectId=${params.id}`} className="btn">导出示例 Excel</a>
           </div>
@@ -88,7 +89,7 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
         {searchParams?.costsImported === '1' ? (
           <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>
             <div style={{ fontWeight: 900, marginBottom: 10 }}>成本明细导入完成：写入或更新 {searchParams.count || 0} 行，已进入当前启用版本。</div>
-            <div className="meta" style={{ marginBottom: 10 }}>导入模式：{modeText(searchParams.importMode)}；清空旧导入行：{searchParams.deletedCount || 0} 行。</div>
+            <div className="meta" style={{ marginBottom: 10 }}>导入模式：{modeText(searchParams.importMode)}；清空旧导入行：{searchParams.deletedCount || 0} 行；批次号：{searchParams.batchId || '-'}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
               <div><span className="meta">含税合计</span><div style={{ fontSize: 20, fontWeight: 900 }}>{money(searchParams.inclusiveTotal)} 元</div></div>
               <div><span className="meta">不含税合计</span><div style={{ fontSize: 20, fontWeight: 900 }}>{money(searchParams.exclusiveTotal)} 元</div></div>
@@ -97,6 +98,7 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
             <div className="actions" style={{ marginTop: 12 }}>
               <Link href={`/projects/${params.id}/costs-batch`} className="btn btn-primary">查看目标成本编制</Link>
               <Link href={`/projects/${params.id}/summary`} className="btn">查看目标成本汇总表</Link>
+              <Link href={`/projects/${params.id}/import-batches`} className="btn">查看/撤销导入批次</Link>
             </div>
           </div>
         ) : null}
@@ -191,7 +193,7 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
             <div><b>项目概况：</b><span className="meta">项目名称、城市、区县、占地、红线、容积率、建面、车位、充电桩、景观、楼栋、单元等。</span></div>
             <div><b>业态指标：</b><span className="meta">业态名称、建筑面积、计容面积、可售面积、不可售面积、含税销售单价、备注。</span></div>
             <div><b>成本导入：</b><span className="meta">成本编码、一级/二级/三级科目、明细科目、测算依据、工程量、单位、含税单价、税率、含税金额。</span></div>
-            <div><b>导入模式：</b><span className="meta">更新同名科目、追加导入、清空旧导入后重导。</span></div>
+            <div><b>导入批次：</b><span className="meta">每次正式导入都会记录批次，可在导入批次页查看和撤销。</span></div>
           </div>
         </section>
       </div>
