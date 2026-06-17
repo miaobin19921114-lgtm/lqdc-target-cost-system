@@ -11,8 +11,6 @@ export function AccountBar() {
       <div style={{ maxWidth: 1500, margin: '0 auto', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <Link href="/projects" style={{ color: '#fff', fontWeight: 900, whiteSpace: 'nowrap' }}>地产成本智算平台</Link>
-          <span style={{ opacity: .55 }}>｜</span>
-          <span style={{ opacity: .82, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>个人工作台</span>
         </div>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <Link href="/projects" style={navLink}>项目中心</Link>
