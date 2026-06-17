@@ -194,19 +194,20 @@ model Project {
 }
 
 model ProjectVersion {
-  id        String        @id @default(cuid())
-  projectId String
-  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name      String
-  stage     String?
-  status    String        @default("draft")
-  products  ProductType[]
-  costRules ProjectCostRule[]
-  costs     CostLine[]
-  revenues  RevenueLine[]
-  taxes     TaxParameter?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @default(now()) @updatedAt
+  id            String        @id @default(cuid())
+  projectId     String
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name          String
+  stage         String?
+  status        String        @default("draft")
+  products      ProductType[]
+  costRules     ProjectCostRule[]
+  costs         CostLine[]
+  revenues      RevenueLine[]
+  taxes         TaxParameter?
+  importBatches ImportBatch[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
 }
 
 model ProductType {
@@ -315,6 +316,8 @@ model CostLine {
   costSubject            CostSubject @relation(fields: [costSubjectId], references: [id])
   productTypeId          String?
   productType            ProductType? @relation(fields: [productTypeId], references: [id])
+  importBatchId          String?
+  importBatch            ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   detailName             String
   regionOrProductType    String?
   professionalGroup      String?
@@ -332,6 +335,30 @@ model CostLine {
   description            String?
   remark                 String?
   sortOrder              Int @default(0)
+
+  @@index([importBatchId])
+}
+
+model ImportBatch {
+  id                  String         @id @default(cuid())
+  projectVersionId    String
+  projectVersion      ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  fileName            String
+  importType          String         @default("cost")
+  importMode          String         @default("update")
+  rowCount            Int            @default(0)
+  deletedCount        Int            @default(0)
+  taxInclusiveTotal   Decimal        @default(0)
+  taxExclusiveTotal   Decimal        @default(0)
+  taxAmountTotal      Decimal        @default(0)
+  status              String         @default("active")
+  remark              String?
+  costLines           CostLine[]
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @default(now()) @updatedAt
+
+  @@index([projectVersionId])
+  @@index([projectVersionId, status])
 }
 
 model RevenueLine {
