@@ -64,8 +64,8 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
     <main style={{ minHeight: '100vh', background: '#eef3f8', color: '#102033' }}>
       <div style={{ minHeight: 52, background: '#12384b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '8px 18px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 6, background: '#0b7285', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>源</div>
-          <div><b>源信达地产目标成本测算系统</b><div style={{ fontSize: 11, opacity: .75 }}>项目测算中心</div></div>
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: '#0b7285', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>成</div>
+          <div><b>地产成本智算平台</b><div style={{ fontSize: 11, opacity: .75 }}>项目测算中心</div></div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Link href="/projects" className="btn" style={{ minHeight: 34, color: '#fff', background: 'transparent', borderColor: 'rgba(255,255,255,.35)' }}>返回项目中心</Link><Link href={`/projects/${project.id}/dashboard-lite`} className="btn" style={{ minHeight: 34, background: '#fff', color: '#12384b' }}>经营总控</Link><Link href={`/projects/${project.id}/decision`} className="btn" style={{ minHeight: 34, background: '#fff', color: '#12384b' }}>投决评审</Link></div>
       </div>
