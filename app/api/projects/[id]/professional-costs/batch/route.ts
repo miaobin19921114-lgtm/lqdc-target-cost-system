@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getEditableActiveVersion } from '@/lib/project-version';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -25,18 +26,16 @@ function taxRateFrom(inputValue: FormDataEntryValue | null, fallback = 0.09) {
   return num > 1 ? num / 100 : num;
 }
 
-function calc(quantity: number, taxInclusiveUnitPrice: number, taxRate: number) {
-  const taxInclusiveAmount = Math.round((quantity * taxInclusiveUnitPrice + Number.EPSILON) * 100) / 100;
-  const taxExclusiveAmount = Math.round((taxInclusiveAmount / (1 + taxRate) + Number.EPSILON) * 100) / 100;
-  const taxAmount = Math.round((taxInclusiveAmount - taxExclusiveAmount + Number.EPSILON) * 100) / 100;
-  const taxExclusiveUnitPrice = taxInclusiveUnitPrice ? Math.round((taxInclusiveUnitPrice / (1 + taxRate) + Number.EPSILON) * 100) / 100 : 0;
-  return { taxInclusiveAmount, taxExclusiveAmount, taxAmount, taxExclusiveUnitPrice };
+function round2(amount: number) {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
 }
 
-async function getOrCreateVersion(projectId: string) {
-  const existing = await prisma.projectVersion.findFirst({ where: { projectId }, orderBy: { createdAt: 'asc' } });
-  if (existing) return existing;
-  return prisma.projectVersion.create({ data: { projectId, name: '初始版本' } });
+function calc(quantity: number, taxInclusiveUnitPrice: number, taxRate: number) {
+  const taxInclusiveAmount = round2(quantity * taxInclusiveUnitPrice);
+  const taxExclusiveAmount = round2(taxInclusiveAmount / (1 + taxRate));
+  const taxAmount = round2(taxInclusiveAmount - taxExclusiveAmount);
+  const taxExclusiveUnitPrice = taxInclusiveUnitPrice ? round2(taxInclusiveUnitPrice / (1 + taxRate)) : 0;
+  return { taxInclusiveAmount, taxExclusiveAmount, taxAmount, taxExclusiveUnitPrice };
 }
 
 function matchesInactiveProductName(text: string | null | undefined, inactiveNames: Set<string>) {
@@ -50,7 +49,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const baseUrl = getBaseUrl(request);
   const professionalGroup = clean(form.get('professionalGroup')) || '专业明细';
   const returnPath = clean(form.get('returnPath')) || 'costs';
-  const version = await getOrCreateVersion(params.id);
+  const { version, locked } = await getEditableActiveVersion(params.id);
+  if (!version) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?saved=0`, 303);
+  if (locked) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?locked=1`, 303);
+
   const products = await prisma.productType.findMany({ where: { projectVersionId: version.id }, select: { name: true, isActive: true } });
   const inactiveProductNames = new Set(products.filter((item) => !item.isActive).map((item) => item.name));
   const rowIds = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
@@ -63,8 +65,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const unitInput = clean(form.get(`unit-${rowId}`));
     const taxRateInput = clean(form.get(`taxRate-${rowId}`));
     const costLineId = clean(form.get(`costLineId-${rowId}`));
+    const regionOrProductTypeInput = clean(form.get(`regionOrProductType-${rowId}`));
+    const measureBasisInput = clean(form.get(`measureBasis-${rowId}`));
+    const allocationMethodInput = clean(form.get(`allocationMethod-${rowId}`));
 
-    if (!quantity && !taxInclusiveUnitPrice && !remark && !costLineId) continue;
+    if (!quantity && !taxInclusiveUnitPrice && !remark && !costLineId && !regionOrProductTypeInput && !measureBasisInput && !allocationMethodInput) continue;
     const dict = await prisma.costDictionaryRow.findUnique({ where: { id: rowId } });
     if (!dict || !dict.detailSubject) continue;
     if (matchesInactiveProductName(dict.applicableProductType, inactiveProductNames)) continue;
@@ -105,9 +110,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       projectVersionId: version.id,
       costSubjectId: costSubject.id,
       detailName: dict.detailSubject,
-      regionOrProductType: dict.applicableProductType || '项目整体共用',
+      regionOrProductType: regionOrProductTypeInput || dict.applicableProductType || '项目整体共用',
       professionalGroup,
-      measureBasis: dict.measureBasis || '',
+      measureBasis: measureBasisInput || dict.measureBasis || '',
       quantity,
       unit: unitInput || dict.unit || '项',
       taxInclusiveUnitPrice,
@@ -116,7 +121,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       taxInclusiveAmount: amounts.taxInclusiveAmount,
       taxExclusiveAmount: amounts.taxExclusiveAmount,
       taxAmount: amounts.taxAmount,
-      allocationMethod: dict.targetAllocationMethod || '建筑面积分摊',
+      allocationMethod: allocationMethodInput || dict.targetAllocationMethod || '建筑面积分摊',
       description: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join(' / '),
       remark,
       sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || Date.now() % 1000000000
