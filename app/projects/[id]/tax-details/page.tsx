@@ -38,7 +38,7 @@ export default async function TaxDetailsPage({ params }: { params: { id: string 
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { costs: { include: { costSubject: true, productType: true } }, taxes: true, products: true, revenues: { include: { productType: true } } }
+    include: { costs: { include: { costSubject: true, productType: true } }, taxes: true, products: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true }
   });
 
   const taxParam = version?.taxes;
@@ -49,7 +49,7 @@ export default async function TaxDetailsPage({ params }: { params: { id: string 
   const dictRows = await prisma.costDictionaryRow.findMany({ where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } }, select: { costCode: true } });
   const leafCodes = new Set<string | null>(dictRows.map((row) => row.costCode).filter((code): code is string => Boolean(code)));
   const effective = effectiveCostRows(version?.costs || [], leafCodes);
-  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], vatRate });
+  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines: version?.commercialRevenueLines || [], otherRevenueLines: version?.otherRevenueLines || [], vatRate });
   const cost = costTotals(effective.effective);
   const tax = fullTaxSummary({
     revenueExclusive: revenue.taxExclusive,
@@ -124,8 +124,9 @@ export default async function TaxDetailsPage({ params }: { params: { id: string 
   });
 
   const rows = [
-    ['含税总收入', revenue.taxInclusive, '普通销售收入+车位收入+其他收入'],
-    ['其中：普通业态收入', revenue.ordinary.taxInclusive, '住宅、商业、配套等面积收入'],
+    ['含税总收入', revenue.taxInclusive, '销售收入+商业专项收入+车位收入+其他收入'],
+    ['其中：普通业态收入', revenue.ordinary.taxInclusive, '住宅、普通商业、配套等面积收入'],
+    ['其中：商业专项收入', revenue.commercial.taxInclusive, '商业细分、自持出租、租售混合等专项收入'],
     ['其中：车位收入', revenue.parking.taxInclusive, '车位个数×单个车位单价'],
     ['其中：其他收入', revenue.other.taxInclusive, '税收返还、产业奖励、财政补贴等政策性收益'],
     ['不含税总收入', revenue.taxExclusive, '按各收入行税率拆分后的不含税收入'],
@@ -140,7 +141,7 @@ export default async function TaxDetailsPage({ params }: { params: { id: string 
   ];
 
   return <main className="page"><div className="container" style={{ maxWidth: 1380 }}>
-    <div className="page-header"><div><p className="eyebrow">税金明细表</p><h1 className="title">{project.name}</h1><p className="subtitle">统一按收入总口径计算税费：普通销售收入、车位收入、其他政策性收入均纳入项目整体税费测算。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/land-vat`} className="btn btn-primary">土地增值税</Link><Link href={`/projects/${project.id}/other-revenue`} className="btn">其他收入</Link><Link href={`/projects/${project.id}/cost-allocation`} className="btn">成本分摊</Link><Link href={`/projects/${project.id}/summary`} className="btn">目标成本汇总</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">税金明细表</p><h1 className="title">{project.name}</h1><p className="subtitle">统一按收入总口径计算税费：销售收入、商业专项收入、车位收入、其他政策性收入均纳入项目整体税费测算。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/land-vat`} className="btn btn-primary">土地增值税</Link><Link href={`/projects/${project.id}/commercial-revenue`} className="btn">商业收入</Link><Link href={`/projects/${project.id}/other-revenue`} className="btn">其他收入</Link><Link href={`/projects/${project.id}/cost-allocation`} className="btn">成本分摊</Link><Link href={`/projects/${project.id}/summary`} className="btn">目标成本汇总</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
     {disabledProducts || effective.ignoredDisabled || effective.ignoredNonLeaf ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已排除停用业态 {disabledProducts} 个、停用业态成本行 {effective.ignoredDisabled} 行、非末级历史成本行 {effective.ignoredNonLeaf} 行。</div> : null}
     {effective.importedLeafRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb', background: '#f0fff4' }}>已计入 {effective.importedLeafRows} 条 Excel 导入/临时四级成本科目。</div> : null}
     <div className="summary-strip"><div className="stat"><div className="stat-label">含税总收入</div><div className="stat-value">{fmt(revenue.taxInclusive)}</div></div><div className="stat"><div className="stat-label">应缴增值税</div><div className="stat-value">{fmt(tax.payableVat)}</div></div><div className="stat"><div className="stat-label">土增税</div><div className="stat-value">{fmt(tax.landVat.landVat)}</div></div><div className="stat"><div className="stat-label">税费合计</div><div className="stat-value">{fmt(tax.totalTax)}</div></div></div>
