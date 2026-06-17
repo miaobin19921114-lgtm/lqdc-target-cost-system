@@ -56,15 +56,17 @@ function blankRevenue() {
   return { taxInclusive: 0, taxExclusive: 0, outputVat: 0 };
 }
 
-function addRevenue(target: { taxInclusive: number; taxExclusive: number; outputVat: number }, row: { taxInclusiveRevenue: number; taxExclusiveRevenue: number; taxAmount: number }) {
-  target.taxInclusive += row.taxInclusiveRevenue;
-  target.taxExclusive += row.taxExclusiveRevenue;
-  target.outputVat += row.taxAmount;
+function addRevenue(target: { taxInclusive: number; taxExclusive: number; outputVat: number }, row: { taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown }) {
+  target.taxInclusive += n(row.taxInclusiveRevenue);
+  target.taxExclusive += n(row.taxExclusiveRevenue);
+  target.outputVat += n(row.taxAmount);
 }
 
 export function revenueFromProjectData(input: {
   products: Array<{ id: string; name?: string | null; isActive?: boolean | null; isSaleable?: boolean | null; saleableArea: unknown; salePrice: unknown }>;
   revenues?: Array<{ productTypeId?: string | null; taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown; productType?: { name?: string | null } | null }>;
+  commercialRevenueLines?: Array<{ taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown }>;
+  otherRevenueLines?: Array<{ taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown }>;
   vatRate: number;
 }) {
   const ordinary = blankRevenue();
@@ -82,16 +84,24 @@ export function revenueFromProjectData(input: {
     .filter((item) => item.isActive && item.isSaleable && isParkingProductName(item.name) && !revenueProductIds.has(item.id))
     .forEach((item) => addRevenue(parking, calculateRevenueLine(n(item.saleableArea), n(item.salePrice), input.vatRate)));
 
-  (input.revenues || []).forEach((row) => {
-    const name = row.productType?.name || '';
-    const target = isParkingProductName(name) ? parking : isCommercialRevenueProductName(name) ? commercial : isOtherRevenueProductName(name) ? other : isChargingProductName(name) ? charging : null;
-    if (!target) return;
-    addRevenue(target, {
-      taxInclusiveRevenue: n(row.taxInclusiveRevenue),
-      taxExclusiveRevenue: n(row.taxExclusiveRevenue),
-      taxAmount: n(row.taxAmount)
+  (input.commercialRevenueLines || []).forEach((row) => addRevenue(commercial, row));
+  (input.otherRevenueLines || []).forEach((row) => addRevenue(other, row));
+
+  if (!(input.commercialRevenueLines || []).length || !(input.otherRevenueLines || []).length) {
+    (input.revenues || []).forEach((row) => {
+      const name = row.productType?.name || '';
+      const target = isParkingProductName(name) ? parking : isCommercialRevenueProductName(name) && !(input.commercialRevenueLines || []).length ? commercial : isOtherRevenueProductName(name) && !(input.otherRevenueLines || []).length ? other : isChargingProductName(name) ? charging : null;
+      if (!target) return;
+      addRevenue(target, row);
     });
-  });
+  } else {
+    (input.revenues || []).forEach((row) => {
+      const name = row.productType?.name || '';
+      const target = isParkingProductName(name) ? parking : isChargingProductName(name) ? charging : null;
+      if (!target) return;
+      addRevenue(target, row);
+    });
+  }
 
   const total = {
     taxInclusive: round2(ordinary.taxInclusive + commercial.taxInclusive + parking.taxInclusive + other.taxInclusive + charging.taxInclusive),
