@@ -32,6 +32,14 @@ function rowTexts(row: ExcelJS.Row) {
   return list.map((item) => item || '').slice(0, 12);
 }
 
+function rowValues(row: ExcelJS.Row) {
+  const list: unknown[] = [];
+  row.eachCell({ includeEmpty: true }, (cell, column) => {
+    list[column - 1] = cell.value;
+  });
+  return list;
+}
+
 function firstUsefulRow(sheet: ExcelJS.Worksheet) {
   for (let index = 1; index <= Math.min(sheet.rowCount, 20); index += 1) {
     const row = rowTexts(sheet.getRow(index));
@@ -98,11 +106,7 @@ async function importOverview(projectId: string, workbook: ExcelJS.Workbook) {
 
   for (const sheet of targetSheets) {
     for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
-      const row = sheet.getRow(rowNumber);
-      const values: unknown[] = [];
-      row.eachCell({ includeEmpty: true }, (cell, column) => {
-        values[column - 1] = cell.value;
-      });
+      const values = rowValues(sheet.getRow(rowNumber));
       values.forEach((value, index) => {
         const label = cellText(value).replace(/[:：]/g, '');
         if (!label) return;
@@ -123,10 +127,66 @@ async function importOverview(projectId: string, workbook: ExcelJS.Workbook) {
     }
   }
 
-  if (Object.keys(data).length > 0) {
-    await prisma.project.update({ where: { id: projectId }, data });
-  }
+  if (Object.keys(data).length > 0) await prisma.project.update({ where: { id: projectId }, data });
   return data;
+}
+
+function findHeader(sheet: ExcelJS.Worksheet) {
+  for (let rowNumber = 1; rowNumber <= Math.min(sheet.rowCount, 30); rowNumber += 1) {
+    const heads = rowValues(sheet.getRow(rowNumber)).map(cellText);
+    const hasName = heads.some((head) => /业态|产品|物业类型|类型/.test(head));
+    const hasArea = heads.some((head) => /建筑面积|建面|可售面积|计容/.test(head));
+    if (hasName && hasArea) return { rowNumber, heads };
+  }
+  return null;
+}
+
+function columnIndex(heads: string[], tests: RegExp[]) {
+  return heads.findIndex((head) => tests.some((test) => test.test(head)));
+}
+
+async function importProducts(versionId: string, workbook: ExcelJS.Workbook) {
+  let count = 0;
+  const sheets = workbook.worksheets.filter((sheet) => /业态|产品|概况|指标|面积/i.test(sheet.name));
+  const targetSheets = sheets.length ? sheets : workbook.worksheets;
+
+  for (const sheet of targetSheets) {
+    const header = findHeader(sheet);
+    if (!header) continue;
+    const nameIndex = columnIndex(header.heads, [/业态/, /产品/, /物业类型/, /^类型$/]);
+    const buildingIndex = columnIndex(header.heads, [/建筑面积/, /建面/]);
+    const capacityIndex = columnIndex(header.heads, [/计容/]);
+    const saleableIndex = columnIndex(header.heads, [/可售面积/, /可售/]);
+    const nonSaleableIndex = columnIndex(header.heads, [/不可售/]);
+    const priceIndex = columnIndex(header.heads, [/含税销售单价/, /销售单价/, /售价/]);
+    const remarkIndex = columnIndex(header.heads, [/备注/]);
+    if (nameIndex < 0) continue;
+
+    for (let rowNumber = header.rowNumber + 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
+      const values = rowValues(sheet.getRow(rowNumber));
+      const name = cellText(values[nameIndex]);
+      if (!name || /合计|小计|备注|说明/.test(name)) continue;
+      const data = {
+        buildingArea: buildingIndex >= 0 ? toNumber(values[buildingIndex]) : 0,
+        capacityArea: capacityIndex >= 0 ? toNumber(values[capacityIndex]) : 0,
+        saleableArea: saleableIndex >= 0 ? toNumber(values[saleableIndex]) : 0,
+        nonSaleableArea: nonSaleableIndex >= 0 ? toNumber(values[nonSaleableIndex]) : 0,
+        salePrice: priceIndex >= 0 ? toNumber(values[priceIndex]) : 0,
+        isSaleable: saleableIndex >= 0 ? toNumber(values[saleableIndex]) > 0 : true,
+        participateAllocation: true,
+        allocationWeight: 1,
+        isActive: true,
+        disabledAt: null,
+        remark: remarkIndex >= 0 ? cellText(values[remarkIndex]) || `Excel导入：${sheet.name} 第${rowNumber}行` : `Excel导入：${sheet.name} 第${rowNumber}行`
+      };
+      if (!data.buildingArea && !data.capacityArea && !data.saleableArea && !data.nonSaleableArea && !data.salePrice) continue;
+      const old = await prisma.productType.findFirst({ where: { projectVersionId: versionId, name } });
+      if (old) await prisma.productType.update({ where: { id: old.id }, data });
+      else await prisma.productType.create({ data: { projectVersionId: versionId, name, ...data } });
+      count += 1;
+    }
+  }
+  return count;
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -138,9 +198,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const form = await request.formData();
   const mode = String(form.get('mode') || 'preview');
   const file = form.get('file');
-  if (!(file instanceof File) || !file.size) {
-    return NextResponse.redirect(`${url}/projects/${params.id}/export?missingFile=1`, 303);
-  }
+  if (!(file instanceof File) || !file.size) return NextResponse.redirect(`${url}/projects/${params.id}/export?missingFile=1`, 303);
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -152,6 +210,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
       const data = await importOverview(params.id, workbook);
       const fields = Object.keys(data).join('、');
       const query = new URLSearchParams({ overviewImported: '1', file: file.name || 'import.xlsx', count: String(Object.keys(data).length), fields, preview });
+      return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
+    }
+
+    if (mode === 'products') {
+      const count = await importProducts(version.id, workbook);
+      const query = new URLSearchParams({ productsImported: '1', file: file.name || 'import.xlsx', count: String(count), preview });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
 
