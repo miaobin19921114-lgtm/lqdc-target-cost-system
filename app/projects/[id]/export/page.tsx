@@ -65,9 +65,10 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
           <div>
             <p className="eyebrow">Excel 导入导出</p>
             <h1 className="title">Excel 导入分步处理</h1>
-            <p className="subtitle">当前支持：预览结构、导入项目概况、导入业态指标、预览成本明细、导入前校验、错误行报告、正式导入成本明细。</p>
+            <p className="subtitle">当前支持：预览结构、导入项目概况、导入业态指标、预览成本明细、导入前校验、错误行报告、科目映射、正式导入成本明细。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
+            <Link href={`/projects/${params.id}/cost-mapping`} className="btn">科目映射</Link>
             <Link href={`/projects/${params.id}/import-batches`} className="btn">导入批次</Link>
             <Link href={`/projects/${params.id}`} className="btn btn-primary">返回工作台</Link>
             <a href={`/api/export?projectId=${params.id}`} className="btn">导出示例 Excel</a>
@@ -120,6 +121,7 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
             <div className="actions" style={{ marginTop: 12 }}>
               <Link href={`/projects/${params.id}/costs-batch`} className="btn btn-primary">查看目标成本编制</Link>
               <Link href={`/projects/${params.id}/summary`} className="btn">查看目标成本汇总表</Link>
+              <Link href={`/projects/${params.id}/cost-mapping`} className="btn">维护科目映射</Link>
               <Link href={`/projects/${params.id}/import-batches`} className="btn">查看/撤销导入批次</Link>
             </div>
           </div>
@@ -131,7 +133,7 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
 
         <section className="card" style={{ marginBottom: 16 }}>
           <h2>上传 Excel</h2>
-          <p className="meta">同一个入口，选择不同按钮执行不同导入模式。建议先点“导入前校验”，确认金额、覆盖行和错误行后再正式导入。</p>
+          <p className="meta">同一个入口，选择不同按钮执行不同导入模式。建议先点“导入前校验”，确认金额、覆盖行和错误行后再正式导入。科目归集不准时，先去“科目映射”维护。</p>
           <form action={`/api/projects/${params.id}/import-excel`} method="post" encType="multipart/form-data" style={{ display: 'grid', gap: 12, marginTop: 12 }}>
             <input name="file" type="file" accept=".xlsx" required style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, background: '#fff' }} />
             <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 12, background: '#f8fafc' }}>
@@ -240,7 +242,7 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
             <div><b>项目概况：</b><span className="meta">项目名称、城市、区县、占地、红线、容积率、建面、车位、充电桩、景观、楼栋、单元等。</span></div>
             <div><b>业态指标：</b><span className="meta">业态名称、建筑面积、计容面积、可售面积、不可售面积、含税销售单价、备注。</span></div>
             <div><b>成本导入：</b><span className="meta">成本编码、一级/二级/三级科目、明细科目、测算依据、工程量、单位、含税单价、税率、含税金额。</span></div>
-            <div><b>错误行报告：</b><span className="meta">显示表头识别失败、缺少科目、缺少金额等跳过原因。</span></div>
+            <div><b>科目映射：</b><span className="meta">Excel 科目可映射到系统标准成本科目，导入时优先按映射归集。</span></div>
           </div>
         </section>
       </div>
