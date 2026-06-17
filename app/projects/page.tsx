@@ -82,7 +82,8 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
             <p className="subtitle">先管理项目，再沉淀个人知识库和系统模板；项目测算、知识沉淀、模板复用分层管理。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
-            <Link href="/templates" className="btn">模板中心</Link>
+            <Link href="/knowledge" className="btn">个人知识库</Link>
+            <Link href="/templates" className="btn">系统模板</Link>
             <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
           </div>
         </div>
@@ -140,7 +141,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
               <h2 style={{ margin: 0 }}>成本 / 招采 / 合约知识库</h2>
               <p className="meta">这些是跨项目复用的个人资产，先落位，后续按模块接入上传、标签、检索、AI问答。</p>
             </div>
-            <span className="badge">待接入</span>
+            <div className="actions" style={{ marginTop: 0 }}><Link href="/knowledge" className="btn">进入知识库中心</Link><span className="badge">待接入</span></div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
             {knowledgeGroups.map((group) => <div key={group.title} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 14, background: '#f8fafc' }}>
