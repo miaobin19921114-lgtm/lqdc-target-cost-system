@@ -49,12 +49,7 @@ function firstUsefulRow(sheet: ExcelJS.Worksheet) {
 }
 
 function makePreview(workbook: ExcelJS.Workbook) {
-  const sheets = workbook.worksheets.slice(0, 12).map((sheet) => ({
-    name: sheet.name,
-    rows: sheet.rowCount,
-    columns: sheet.columnCount,
-    sample: firstUsefulRow(sheet)
-  }));
+  const sheets = workbook.worksheets.slice(0, 12).map((sheet) => ({ name: sheet.name, rows: sheet.rowCount, columns: sheet.columnCount, sample: firstUsefulRow(sheet) }));
   return Buffer.from(JSON.stringify(sheets), 'utf8').toString('base64url');
 }
 
@@ -103,7 +98,6 @@ async function importOverview(projectId: string, workbook: ExcelJS.Workbook) {
   const data: Record<string, string | number> = {};
   const sheets = workbook.worksheets.filter((sheet) => /概况|指标|经济|基础/i.test(sheet.name));
   const targetSheets = sheets.length ? sheets : workbook.worksheets.slice(0, 3);
-
   for (const sheet of targetSheets) {
     for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
       const values = rowValues(sheet.getRow(rowNumber));
@@ -126,12 +120,11 @@ async function importOverview(projectId: string, workbook: ExcelJS.Workbook) {
       });
     }
   }
-
   if (Object.keys(data).length > 0) await prisma.project.update({ where: { id: projectId }, data });
   return data;
 }
 
-function findHeader(sheet: ExcelJS.Worksheet) {
+function findProductHeader(sheet: ExcelJS.Worksheet) {
   for (let rowNumber = 1; rowNumber <= Math.min(sheet.rowCount, 30); rowNumber += 1) {
     const heads = rowValues(sheet.getRow(rowNumber)).map(cellText);
     const hasName = heads.some((head) => /业态|产品|物业类型|类型/.test(head));
@@ -149,9 +142,8 @@ async function importProducts(versionId: string, workbook: ExcelJS.Workbook) {
   let count = 0;
   const sheets = workbook.worksheets.filter((sheet) => /业态|产品|概况|指标|面积/i.test(sheet.name));
   const targetSheets = sheets.length ? sheets : workbook.worksheets;
-
   for (const sheet of targetSheets) {
-    const header = findHeader(sheet);
+    const header = findProductHeader(sheet);
     if (!header) continue;
     const nameIndex = columnIndex(header.heads, [/业态/, /产品/, /物业类型/, /^类型$/]);
     const buildingIndex = columnIndex(header.heads, [/建筑面积/, /建面/]);
@@ -161,7 +153,6 @@ async function importProducts(versionId: string, workbook: ExcelJS.Workbook) {
     const priceIndex = columnIndex(header.heads, [/含税销售单价/, /销售单价/, /售价/]);
     const remarkIndex = columnIndex(header.heads, [/备注/]);
     if (nameIndex < 0) continue;
-
     for (let rowNumber = header.rowNumber + 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
       const values = rowValues(sheet.getRow(rowNumber));
       const name = cellText(values[nameIndex]);
@@ -189,36 +180,93 @@ async function importProducts(versionId: string, workbook: ExcelJS.Workbook) {
   return count;
 }
 
+function findCostHeader(sheet: ExcelJS.Worksheet) {
+  for (let rowNumber = 1; rowNumber <= Math.min(sheet.rowCount, 40); rowNumber += 1) {
+    const heads = rowValues(sheet.getRow(rowNumber)).map(cellText);
+    const hasSubject = heads.some((head) => /科目|明细|项目名称|费用名称/.test(head));
+    const hasAmount = heads.some((head) => /工程量|数量|含税单价|金额|税率/.test(head));
+    if (hasSubject && hasAmount) return { rowNumber, heads };
+  }
+  return null;
+}
+
+function previewCosts(workbook: ExcelJS.Workbook) {
+  const rows: Array<Record<string, string | number>> = [];
+  const sheets = workbook.worksheets.filter((sheet) => /成本|明细|目标|土地|前期|土建|安装|设备|景观|装修|费用/i.test(sheet.name));
+  const targetSheets = sheets.length ? sheets : workbook.worksheets;
+  for (const sheet of targetSheets) {
+    const header = findCostHeader(sheet);
+    if (!header) continue;
+    const codeIndex = columnIndex(header.heads, [/编码/, /科目编码/]);
+    const l1Index = columnIndex(header.heads, [/一级/]);
+    const l2Index = columnIndex(header.heads, [/二级/]);
+    const l3Index = columnIndex(header.heads, [/三级/]);
+    const subjectIndex = columnIndex(header.heads, [/四级/, /明细项目/, /目标成本科目/, /成本科目/, /科目名称/, /费用名称/]);
+    const basisIndex = columnIndex(header.heads, [/测算依据/, /依据/]);
+    const qtyIndex = columnIndex(header.heads, [/工程量/, /数量/]);
+    const unitIndex = columnIndex(header.heads, [/单位/]);
+    const priceIndex = columnIndex(header.heads, [/含税单价/, /单价/]);
+    const rateIndex = columnIndex(header.heads, [/税率/]);
+    const amountIndex = columnIndex(header.heads, [/含税金额/, /金额/]);
+    for (let rowNumber = header.rowNumber + 1; rowNumber <= sheet.rowCount && rows.length < 30; rowNumber += 1) {
+      const values = rowValues(sheet.getRow(rowNumber));
+      const subject = subjectIndex >= 0 ? cellText(values[subjectIndex]) : '';
+      const level1 = l1Index >= 0 ? cellText(values[l1Index]) : '';
+      const level2 = l2Index >= 0 ? cellText(values[l2Index]) : '';
+      const level3 = l3Index >= 0 ? cellText(values[l3Index]) : '';
+      if (!subject && !level1 && !level2 && !level3) continue;
+      if (/合计|小计|备注|说明/.test(subject)) continue;
+      rows.push({
+        sheet: sheet.name,
+        row: rowNumber,
+        code: codeIndex >= 0 ? cellText(values[codeIndex]) : '',
+        level1,
+        level2,
+        level3,
+        subject: subject || level3 || level2 || level1,
+        basis: basisIndex >= 0 ? cellText(values[basisIndex]) : '',
+        quantity: qtyIndex >= 0 ? cellText(values[qtyIndex]) : '',
+        unit: unitIndex >= 0 ? cellText(values[unitIndex]) : '',
+        price: priceIndex >= 0 ? cellText(values[priceIndex]) : '',
+        taxRate: rateIndex >= 0 ? cellText(values[rateIndex]) : '',
+        amount: amountIndex >= 0 ? cellText(values[amountIndex]) : ''
+      });
+    }
+  }
+  return rows;
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const url = baseUrl(request);
   const { version, locked } = await getEditableActiveVersion(params.id);
   if (!version) return NextResponse.redirect(`${url}/projects/${params.id}/export?imported=0`, 303);
   if (locked) return NextResponse.redirect(`${url}/projects/${params.id}/export?locked=1`, 303);
-
   const form = await request.formData();
   const mode = String(form.get('mode') || 'preview');
   const file = form.get('file');
   if (!(file instanceof File) || !file.size) return NextResponse.redirect(`${url}/projects/${params.id}/export?missingFile=1`, 303);
-
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
     const preview = makePreview(workbook);
-
     if (mode === 'overview') {
       const data = await importOverview(params.id, workbook);
       const fields = Object.keys(data).join('、');
       const query = new URLSearchParams({ overviewImported: '1', file: file.name || 'import.xlsx', count: String(Object.keys(data).length), fields, preview });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
-
     if (mode === 'products') {
       const count = await importProducts(version.id, workbook);
       const query = new URLSearchParams({ productsImported: '1', file: file.name || 'import.xlsx', count: String(count), preview });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
-
+    if (mode === 'cost-preview') {
+      const costs = previewCosts(workbook);
+      const costPreview = Buffer.from(JSON.stringify(costs), 'utf8').toString('base64url');
+      const query = new URLSearchParams({ costPreviewed: '1', file: file.name || 'import.xlsx', count: String(costs.length), preview, costPreview });
+      return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
+    }
     const query = new URLSearchParams({ previewed: '1', file: file.name || 'import.xlsx', preview });
     return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
   } catch (error) {
