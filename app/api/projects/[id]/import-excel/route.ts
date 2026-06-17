@@ -273,6 +273,10 @@ function previewCosts(workbook: ExcelJS.Workbook) {
 async function importCosts(versionId: string, workbook: ExcelJS.Workbook) {
   const rows = parseCostRows(workbook, 0);
   let count = 0;
+  let inclusiveTotal = 0;
+  let exclusiveTotal = 0;
+  let taxTotal = 0;
+
   for (const row of rows) {
     const quantityRaw = toNumber(row.quantity);
     const priceRaw = toNumber(row.price);
@@ -327,9 +331,13 @@ async function importCosts(versionId: string, workbook: ExcelJS.Workbook) {
     });
     if (existing) await prisma.costLine.update({ where: { id: existing.id }, data });
     else await prisma.costLine.create({ data });
+
     count += 1;
+    inclusiveTotal = round2(inclusiveTotal + taxInclusiveAmount);
+    exclusiveTotal = round2(exclusiveTotal + taxExclusiveAmount);
+    taxTotal = round2(taxTotal + taxAmount);
   }
-  return count;
+  return { count, inclusiveTotal, exclusiveTotal, taxTotal };
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -364,8 +372,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
     if (mode === 'cost-import') {
-      const count = await importCosts(version.id, workbook);
-      const query = new URLSearchParams({ costsImported: '1', file: file.name || 'import.xlsx', count: String(count), preview });
+      const result = await importCosts(version.id, workbook);
+      const query = new URLSearchParams({
+        costsImported: '1',
+        file: file.name || 'import.xlsx',
+        count: String(result.count),
+        inclusiveTotal: String(result.inclusiveTotal),
+        exclusiveTotal: String(result.exclusiveTotal),
+        taxTotal: String(result.taxTotal),
+        preview
+      });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
     const query = new URLSearchParams({ previewed: '1', file: file.name || 'import.xlsx', preview });
