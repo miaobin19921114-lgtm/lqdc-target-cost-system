@@ -194,20 +194,23 @@ model Project {
 }
 
 model ProjectVersion {
-  id            String        @id @default(cuid())
-  projectId     String
-  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name          String
-  stage         String?
-  status        String        @default("draft")
-  products      ProductType[]
-  costRules     ProjectCostRule[]
-  costs         CostLine[]
-  revenues      RevenueLine[]
-  taxes         TaxParameter?
-  importBatches ImportBatch[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @default(now()) @updatedAt
+  id                      String        @id @default(cuid())
+  projectId               String
+  project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name                    String
+  stage                   String?
+  status                  String        @default("draft")
+  products                ProductType[]
+  costRules               ProjectCostRule[]
+  costs                   CostLine[]
+  revenues                RevenueLine[]
+  commercialRevenueLines  CommercialRevenueLine[]
+  otherRevenueLines       OtherRevenueLine[]
+  salesSchedulePlans      SalesSchedulePlan[]
+  taxes                   TaxParameter?
+  importBatches           ImportBatch[]
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @default(now()) @updatedAt
 }
 
 model ProductType {
@@ -228,6 +231,7 @@ model ProductType {
   disabledAt            DateTime?
   costs                 CostLine[]
   revenues              RevenueLine[]
+  commercialRevenueLines CommercialRevenueLine[]
   createdAt             DateTime @default(now())
   updatedAt             DateTime @default(now()) @updatedAt
 
@@ -374,6 +378,94 @@ model RevenueLine {
   taxExclusiveRevenue Decimal @default(0)
   taxAmount           Decimal @default(0)
   remark              String?
+}
+
+model CommercialRevenueLine {
+  id                  String         @id @default(cuid())
+  projectVersionId    String
+  projectVersion      ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  parentProductTypeId String
+  parentProductType   ProductType    @relation(fields: [parentProductTypeId], references: [id], onDelete: Cascade)
+  subType             String
+  mode                String         @default("出售")
+  area                Decimal        @default(0)
+  salePrice           Decimal        @default(0)
+  monthlyRent         Decimal        @default(0)
+  occupancyRate       Decimal        @default(0)
+  years               Decimal        @default(1)
+  taxRate             Decimal        @default(0.09)
+  taxInclusiveRevenue Decimal        @default(0)
+  taxExclusiveRevenue Decimal        @default(0)
+  taxAmount           Decimal        @default(0)
+  remark              String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @default(now()) @updatedAt
+
+  @@unique([projectVersionId, parentProductTypeId, subType])
+  @@index([projectVersionId])
+  @@index([parentProductTypeId])
+}
+
+model OtherRevenueLine {
+  id                  String         @id @default(cuid())
+  projectVersionId    String
+  projectVersion      ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  incomeType          String
+  amount              Decimal        @default(0)
+  taxRate             Decimal        @default(0)
+  taxInclusiveRevenue Decimal        @default(0)
+  taxExclusiveRevenue Decimal        @default(0)
+  taxAmount           Decimal        @default(0)
+  certainty           String?
+  cashDate            String?
+  condition           String?
+  policyBasis         String?
+  remark              String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @default(now()) @updatedAt
+
+  @@unique([projectVersionId, incomeType])
+  @@index([projectVersionId])
+}
+
+model SalesSchedulePlan {
+  id              String              @id @default(cuid())
+  projectVersionId String
+  projectVersion   ProjectVersion     @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  name            String              @default("默认去化计划")
+  months          Int                 @default(12)
+  downPaymentRate Decimal             @default(0.3)
+  mortgageRate    Decimal             @default(0.65)
+  tailRate        Decimal             @default(0.05)
+  mortgageDelay   Int                 @default(2)
+  tailDelay       Int                 @default(6)
+  remark          String?
+  lines           SalesScheduleLine[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @default(now()) @updatedAt
+
+  @@index([projectVersionId])
+}
+
+model SalesScheduleLine {
+  id                   String            @id @default(cuid())
+  planId               String
+  plan                 SalesSchedulePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  monthIndex           Int
+  sellThroughRate      Decimal           @default(0)
+  contractAmount       Decimal           @default(0)
+  downPayment          Decimal           @default(0)
+  mortgageCollection   Decimal           @default(0)
+  tailCollection       Decimal           @default(0)
+  totalCollection      Decimal           @default(0)
+  cumulativeContract   Decimal           @default(0)
+  cumulativeCollection Decimal           @default(0)
+  receivableBalance    Decimal           @default(0)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @default(now()) @updatedAt
+
+  @@unique([planId, monthIndex])
+  @@index([planId])
 }
 
 model TaxParameter {
