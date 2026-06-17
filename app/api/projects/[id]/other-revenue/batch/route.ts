@@ -18,35 +18,37 @@ function getBaseUrl(request: Request) {
   return host ? `${proto}://${host}` : new URL(request.url).origin;
 }
 
-function buildRemark(input: { cashDate: string; certainty: string; condition: string; remark: string }) {
-  return `兑现时间：${input.cashDate || '待定'}；确定性：${input.certainty || '待确认'}；兑现条件：${input.condition || '待补充'}；备注：${input.remark || '-'}`;
-}
-
-async function upsertOtherRevenue(input: { projectVersionId: string; typeName: string; amount: number; taxRate: number; remark: string }) {
-  const productName = `其他收入-${input.typeName}`;
+async function upsertOtherRevenue(input: { projectVersionId: string; incomeType: string; amount: number; taxRate: number; cashDate: string; certainty: string; condition: string; policyBasis: string; remark: string }) {
   const result = calculateRevenueLine(1, input.amount, input.taxRate);
-  const existing = await prisma.productType.findFirst({ where: { projectVersionId: input.projectVersionId, name: productName } });
-  const product = existing
-    ? await prisma.productType.update({
-        where: { id: existing.id },
-        data: { saleableArea: 1, buildingArea: 0, capacityArea: 0, salePrice: input.amount, isSaleable: true, isActive: true, participateAllocation: false, allocationWeight: 0, remark: input.remark }
-      })
-    : await prisma.productType.create({
-        data: { projectVersionId: input.projectVersionId, name: productName, saleableArea: 1, buildingArea: 0, capacityArea: 0, salePrice: input.amount, isSaleable: true, isActive: true, participateAllocation: false, allocationWeight: 0, remark: input.remark }
-      });
-
-  const data = {
-    saleableArea: 1,
-    salePrice: input.amount,
-    taxRate: input.taxRate,
-    taxInclusiveRevenue: result.taxInclusiveRevenue,
-    taxExclusiveRevenue: result.taxExclusiveRevenue,
-    taxAmount: result.taxAmount,
-    remark: `其他收入测算；${input.remark}`
-  };
-  const old = await prisma.revenueLine.findFirst({ where: { projectVersionId: input.projectVersionId, productTypeId: product.id } });
-  if (old) await prisma.revenueLine.update({ where: { id: old.id }, data });
-  else await prisma.revenueLine.create({ data: { projectVersionId: input.projectVersionId, productTypeId: product.id, ...data } });
+  await prisma.otherRevenueLine.upsert({
+    where: { projectVersionId_incomeType: { projectVersionId: input.projectVersionId, incomeType: input.incomeType } },
+    update: {
+      amount: input.amount,
+      taxRate: input.taxRate,
+      taxInclusiveRevenue: result.taxInclusiveRevenue,
+      taxExclusiveRevenue: result.taxExclusiveRevenue,
+      taxAmount: result.taxAmount,
+      certainty: input.certainty,
+      cashDate: input.cashDate,
+      condition: input.condition,
+      policyBasis: input.policyBasis,
+      remark: input.remark
+    },
+    create: {
+      projectVersionId: input.projectVersionId,
+      incomeType: input.incomeType,
+      amount: input.amount,
+      taxRate: input.taxRate,
+      taxInclusiveRevenue: result.taxInclusiveRevenue,
+      taxExclusiveRevenue: result.taxExclusiveRevenue,
+      taxAmount: result.taxAmount,
+      certainty: input.certainty,
+      cashDate: input.cashDate,
+      condition: input.condition,
+      policyBasis: input.policyBasis,
+      remark: input.remark
+    }
+  });
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -59,22 +61,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   let savedCount = 0;
   for (let index = 0; index < rowCount; index += 1) {
-    const typeName = clean(form, `type-${index}`);
+    const incomeType = clean(form, `type-${index}`);
     const amount = toNumber(form, `amount-${index}`);
     const taxRate = toNumber(form, `taxRate-${index}`);
     const cashDate = clean(form, `cashDate-${index}`);
     const certainty = clean(form, `certainty-${index}`);
     const condition = clean(form, `condition-${index}`);
+    const policyBasis = clean(form, `policyBasis-${index}`);
     const remark = clean(form, `remark-${index}`);
-    if (!typeName || amount <= 0) continue;
+    if (!incomeType || amount <= 0) continue;
 
-    await upsertOtherRevenue({
-      projectVersionId: version.id,
-      typeName,
-      amount,
-      taxRate,
-      remark: buildRemark({ cashDate, certainty, condition, remark })
-    });
+    await upsertOtherRevenue({ projectVersionId: version.id, incomeType, amount, taxRate, cashDate, certainty, condition, policyBasis, remark });
     savedCount += 1;
   }
 
