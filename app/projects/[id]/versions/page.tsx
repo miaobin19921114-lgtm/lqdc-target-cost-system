@@ -5,20 +5,9 @@ export const dynamic = 'force-dynamic';
 
 const stages = ['投拓阶段', '定位阶段', '方案阶段', '扩初阶段', '施工图阶段', '招采阶段', '动态成本阶段', '结算阶段'];
 
-function fmt(value: number) {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
-
-function statusText(status: string) {
-  if (status === 'locked') return '已锁定';
-  if (status === 'final') return '定稿';
-  return '草稿';
-}
-
-function statusStyle(status: string) {
-  if (status === 'locked' || status === 'final') return { color: '#c92a2a', bg: '#fff5f5', border: '#ffc9c9' };
-  return { color: '#2b8a3e', bg: '#f0fff4', border: '#b2f2bb' };
-}
+function fmt(value: number) { return value.toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+function statusText(status: string) { if (status === 'locked') return '已锁定'; if (status === 'final') return '定稿'; return '草稿'; }
+function statusStyle(status: string) { return status === 'locked' || status === 'final' ? { color: '#c92a2a', bg: '#fff5f5', border: '#ffc9c9' } : { color: '#2b8a3e', bg: '#f0fff4', border: '#b2f2bb' }; }
 
 export default async function ProjectVersionsPage({ params, searchParams }: { params: { id: string }; searchParams?: Record<string, string | undefined> }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
@@ -35,120 +24,26 @@ export default async function ProjectVersionsPage({ params, searchParams }: { pa
   const activeRevenue = activeVersion?.revenues.reduce((sum, row) => sum + Number(row.taxInclusiveRevenue || 0), 0) || 0;
   const lockedCount = versions.filter((item) => item.status === 'locked' || item.status === 'final').length;
 
-  return (
-    <main className="page" style={{ background: '#eef3f8' }}>
-      <div className="container" style={{ maxWidth: 1280 }}>
-        <div className="page-header">
-          <div>
-            <p className="eyebrow">项目基础</p>
-            <h1 className="title">版本管理</h1>
-            <p className="subtitle">测算版本控制中心：用于投拓、方案、施工图、招采、动态成本等阶段的复制、切换、锁定和对比。收入、成本、税费页面都读取当前版本。</p>
-          </div>
-          <div className="actions" style={{ marginTop: 0 }}>
-            <Link href={`/projects/${project.id}/version-compare`} className="btn btn-primary">版本对比</Link>
-            <Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link>
-            <Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link>
-          </div>
-        </div>
+  return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1280 }}>
+    <div className="page-header"><div><p className="eyebrow">项目基础</p><h1 className="title">测算版本控制中心</h1><p className="subtitle">按地产项目阶段管理测算版本：投拓版、定位版、方案版、施工图版、招采版、动态成本版。收入、成本、税费页面均读取当前版本。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/version-compare`} className="btn btn-primary">阶段版本对比分析</Link><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link></div></div>
 
-        {searchParams?.created ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>空白版本已创建，并已设为当前版本。</div> : null}
-        {searchParams?.cloned ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>版本已复制，并已设为当前版本。</div> : null}
-        {searchParams?.active ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>当前版本已切换。</div> : null}
-        {searchParams?.locked ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>版本已锁定，收入、业态、成本、税费等测算明细将禁止编辑。</div> : null}
-        {searchParams?.unlocked ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>版本已解锁，可继续编辑。</div> : null}
-        {searchParams?.deleted ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>版本已删除。</div> : null}
-        {searchParams?.cannotDelete ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>至少保留一个版本，不能删除最后一个版本。</div> : null}
-        {searchParams?.lockedDelete ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>锁定版本不能直接删除，请先解锁。</div> : null}
+    {searchParams?.created ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>空白版本已创建，并已设为当前版本。</div> : null}
+    {searchParams?.cloned ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>版本已复制，并已设为当前版本。</div> : null}
+    {searchParams?.active ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>当前版本已切换。</div> : null}
+    {searchParams?.locked ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>版本已锁定，收入、业态、成本、税费等测算明细将禁止编辑。</div> : null}
+    {searchParams?.unlocked ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>版本已解锁，可继续编辑。</div> : null}
+    {searchParams?.deleted ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>版本已删除。</div> : null}
+    {searchParams?.cannotDelete ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>至少保留一个版本，不能删除最后一个版本。</div> : null}
+    {searchParams?.lockedDelete ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>锁定版本不能直接删除，请先解锁。</div> : null}
 
-        <section className="card" style={{ marginBottom: 14 }}>
-          <div className="summary-strip">
-            <div className="stat"><div className="stat-label">当前版本</div><div className="stat-value" style={{ fontSize: 18 }}>{activeVersion?.name || '暂无'}</div></div>
-            <div className="stat"><div className="stat-label">当前阶段</div><div className="stat-value" style={{ fontSize: 18 }}>{activeVersion?.stage || '-'}</div></div>
-            <div className="stat"><div className="stat-label">版本数量</div><div className="stat-value">{versions.length}</div></div>
-            <div className="stat"><div className="stat-label">锁定/定稿</div><div className="stat-value">{lockedCount}</div></div>
-          </div>
-        </section>
+    <section className="card" style={{ marginBottom: 14 }}><div className="summary-strip"><div className="stat"><div className="stat-label">当前版本</div><div className="stat-value" style={{ fontSize: 18 }}>{activeVersion?.name || '暂无'}</div></div><div className="stat"><div className="stat-label">当前阶段</div><div className="stat-value" style={{ fontSize: 18 }}>{activeVersion?.stage || '-'}</div></div><div className="stat"><div className="stat-label">版本数量</div><div className="stat-value">{versions.length}</div></div><div className="stat"><div className="stat-label">锁定/定稿</div><div className="stat-value">{lockedCount}</div></div></div></section>
 
-        {activeVersion ? <section className="card" style={{ marginBottom: 14, borderColor: statusStyle(activeVersion.status).border, background: statusStyle(activeVersion.status).bg }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div>
-              <div className="meta">当前启用版本</div>
-              <h2 style={{ margin: '6px 0' }}>{activeVersion.stage || '未分阶段'}｜{activeVersion.name}</h2>
-              <p className="meta" style={{ margin: 0 }}>状态：<b style={{ color: statusStyle(activeVersion.status).color }}>{statusText(activeVersion.status)}</b>；业态 {activeVersion.products.length} 个；收入明细 {activeVersion.revenues.length} 行；成本明细 {activeVersion.costs.length} 行；税率参数 {activeVersion.taxes ? '已维护' : '未维护'}。</p>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(130px, 1fr))', gap: 8, minWidth: 290 }}>
-              <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 10 }}><div className="meta">含税收入</div><b>{fmt(activeRevenue)}</b></div>
-              <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 10 }}><div className="meta">含税成本</div><b>{fmt(activeCost)}</b></div>
-            </div>
-          </div>
-        </section> : null}
+    {activeVersion ? <section className="card" style={{ marginBottom: 14, borderColor: statusStyle(activeVersion.status).border, background: statusStyle(activeVersion.status).bg }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}><div><div className="meta">当前启用版本</div><h2 style={{ margin: '6px 0' }}>{activeVersion.stage || '未分阶段'}｜{activeVersion.name}</h2><p className="meta" style={{ margin: 0 }}>状态：<b style={{ color: statusStyle(activeVersion.status).color }}>{statusText(activeVersion.status)}</b>；业态 {activeVersion.products.length} 个；收入明细 {activeVersion.revenues.length} 行；成本明细 {activeVersion.costs.length} 行；税率参数 {activeVersion.taxes ? '已维护' : '未维护'}。</p></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(130px, 1fr))', gap: 8, minWidth: 290 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 10 }}><div className="meta">含税收入</div><b>{fmt(activeRevenue)}</b></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 10 }}><div className="meta">含税成本</div><b>{fmt(activeCost)}</b></div></div></div></section> : null}
 
-        <section className="card" style={{ marginBottom: 14 }}>
-          <h2>新增 / 复制版本</h2>
-          <p className="meta">建议从当前版本复制，保留业态、科目规则、税率和已有测算口径；是否复制成本明细可按阶段选择。</p>
-          <form action={`/api/projects/${project.id}/versions`} method="post" style={{ display: 'grid', gridTemplateColumns: '1.2fr 180px 1fr 150px 160px', gap: 10, alignItems: 'end' }}>
-            <input type="hidden" name="action" value="copy" />
-            <label>版本名称<input name="name" placeholder="如：投拓测算版、方案测算版" required /></label>
-            <label>阶段<select name="stage" defaultValue={activeVersion?.stage || '投拓阶段'}>{stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></label>
-            <label>复制来源<select name="sourceVersionId" defaultValue={activeId}><option value="">不复制，创建空白版本</option>{versions.map((version) => <option key={version.id} value={version.id}>{version.id === activeId ? '当前｜' : ''}{version.stage || '未分阶段'}｜{version.name}</option>)}</select></label>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', height: 38 }}><input name="copyCosts" type="checkbox" />复制成本明细</label>
-            <button className="btn btn-primary">创建并设为当前</button>
-          </form>
-        </section>
+    <section className="card" style={{ marginBottom: 14 }}><h2>新增 / 复制阶段版本</h2><p className="meta">建议从上一阶段版本复制，保留业态、科目规则、税率和已有测算口径；是否复制成本明细按阶段选择。</p><form action={`/api/projects/${project.id}/versions`} method="post" style={{ display: 'grid', gridTemplateColumns: '1.2fr 180px 1fr 150px 160px', gap: 10, alignItems: 'end' }}><input type="hidden" name="action" value="copy" /><label>版本名称<input name="name" placeholder="如：投拓测算版、方案测算版" required /></label><label>阶段<select name="stage" defaultValue={activeVersion?.stage || '投拓阶段'}>{stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></label><label>复制来源<select name="sourceVersionId" defaultValue={activeId}><option value="">不复制，创建空白版本</option>{versions.map((version) => <option key={version.id} value={version.id}>{version.id === activeId ? '当前｜' : ''}{version.stage || '未分阶段'}｜{version.name}</option>)}</select></label><label style={{ display: 'flex', gap: 8, alignItems: 'center', height: 38 }}><input name="copyCosts" type="checkbox" />复制成本明细</label><button className="btn btn-primary">创建并设为当前</button></form></section>
 
-        <section className="card" style={{ marginBottom: 14 }}>
-          <h2>版本操作原则</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 10 }}>
-            <div style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12 }}><b>投拓 / 定位</b><p className="meta">可以快速试算，多版本比较，允许频繁调整售价和成本。</p></div>
-            <div style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12 }}><b>方案 / 施工图</b><p className="meta">建议从上一阶段复制，保留历史口径，再逐步深化明细。</p></div>
-            <div style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12 }}><b>招采 / 动态</b><p className="meta">锁定基准版本后，以合同、变更、签证和结算形成动态成本。</p></div>
-            <div style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12 }}><b>锁定版本</b><p className="meta">锁定后禁止继续编辑明细，避免投决口径被误改。</p></div>
-          </div>
-        </section>
+    <section className="card" style={{ marginBottom: 14 }}><h2>地产版本管理原则</h2><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 10 }}><div style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12 }}><b>投拓 / 定位版</b><p className="meta">快速试算，重点验证地价、售价、容积率、建安和利润空间。</p></div><div style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12 }}><b>方案 / 施工图版</b><p className="meta">跟随设计深化，重点锁定面积、业态、工程量和目标成本。</p></div><div style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12 }}><b>招采 / 动态版</b><p className="meta">以合同、变更、签证、结算修正目标成本，形成动态成本控制。</p></div><div style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12 }}><b>锁定 / 定稿</b><p className="meta">投决会、目标成本审批、集团上会版本应锁定，防止口径被误改。</p></div></div></section>
 
-        <section className="card">
-          <h2>已有版本</h2>
-          <div style={{ overflowX: 'auto', marginTop: 12 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1240, fontSize: 13 }}>
-              <thead>
-                <tr>{['当前', '阶段', '版本名称', '状态', '业态', '收入明细', '科目规则', '成本明细', '含税收入', '含税成本', '税率', '操作'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #eef2f6', color: '#667085' }}>{head}</th>)}</tr>
-              </thead>
-              <tbody>
-                {versions.map((version) => {
-                  const cost = version.costs.reduce((sum, row) => sum + Number(row.taxInclusiveAmount || 0), 0);
-                  const revenue = version.revenues.reduce((sum, row) => sum + Number(row.taxInclusiveRevenue || 0), 0);
-                  const locked = version.status === 'locked' || version.status === 'final';
-                  const style = statusStyle(version.status);
-                  return (
-                    <tr key={version.id} style={{ background: version.id === activeId ? '#f0fbfc' : '#fff' }}>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{version.id === activeId ? '当前' : '-'}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 800 }}>{version.stage || '-'}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.name}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', color: style.color, fontWeight: 900 }}>{statusText(version.status)}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.products.length}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.revenues.length}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.costRules.length}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.costs.length}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(revenue)}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(cost)}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.taxes ? '已维护' : '未维护'}</td>
-                      <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {version.id !== activeId ? <form action={`/api/projects/${project.id}/versions`} method="post"><input type="hidden" name="action" value="set-active" /><input type="hidden" name="versionId" value={version.id} /><button className="btn btn-primary">设为当前</button></form> : null}
-                          <Link className="btn" href={`/projects/${project.id}/version-compare?baseId=${versions[0]?.id || version.id}&targetId=${version.id}`}>对比</Link>
-                          <form action={`/api/projects/${project.id}/versions`} method="post"><input type="hidden" name="action" value="copy" /><input type="hidden" name="sourceVersionId" value={version.id} /><input type="hidden" name="name" value={`${version.name}副本`} /><input type="hidden" name="stage" value={version.stage || ''} /><button className="btn">复制</button><label style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 12 }}><input name="copyCosts" type="checkbox" />含成本</label></form>
-                          <form action={`/api/projects/${project.id}/versions`} method="post"><input type="hidden" name="action" value={locked ? 'unlock' : 'lock'} /><input type="hidden" name="versionId" value={version.id} /><button className="btn" style={{ color: locked ? '#0b7285' : '#c92a2a' }}>{locked ? '解锁' : '锁定'}</button></form>
-                          <form action={`/api/projects/${project.id}/versions`} method="post"><input type="hidden" name="action" value="delete" /><input type="hidden" name="versionId" value={version.id} /><button className="btn" style={{ color: '#c92a2a' }}>删除</button></form>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    </main>
-  );
+    <section className="card"><h2>阶段版本列表</h2><div style={{ overflowX: 'auto', marginTop: 12 }}><table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1240, fontSize: 13 }}><thead><tr>{['当前', '阶段', '版本名称', '状态', '业态', '收入明细', '科目规则', '成本明细', '含税收入', '含税成本', '税率', '操作'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #eef2f6', color: '#667085' }}>{head}</th>)}</tr></thead><tbody>{versions.map((version) => { const cost = version.costs.reduce((sum, row) => sum + Number(row.taxInclusiveAmount || 0), 0); const revenue = version.revenues.reduce((sum, row) => sum + Number(row.taxInclusiveRevenue || 0), 0); const locked = version.status === 'locked' || version.status === 'final'; const style = statusStyle(version.status); return <tr key={version.id} style={{ background: version.id === activeId ? '#f0fbfc' : '#fff' }}><td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{version.id === activeId ? '当前' : '-'}</td><td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 800 }}>{version.stage || '-'}</td><td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.name}</td><td style={{ padding: 10, borderBottom: '1px solid #eef2f6', color: style.color, fontWeight: 900 }}>{statusText(version.status)}</td><td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.products.length}</td><td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.revenues.length}</td><td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.costRules.length}</td><td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.costs.length}</td><td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(revenue)}</td><td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(cost)}</td><td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{version.taxes ? '已维护' : '未维护'}</td><td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{version.id !== activeId ? <form action={`/api/projects/${project.id}/versions`} method="post"><input type="hidden" name="action" value="set-active" /><input type="hidden" name="versionId" value={version.id} /><button className="btn btn-primary">设为当前</button></form> : null}<Link className="btn" href={`/projects/${project.id}/version-compare?baseId=${versions[0]?.id || version.id}&targetId=${version.id}`}>阶段对比</Link><form action={`/api/projects/${project.id}/versions`} method="post"><input type="hidden" name="action" value="copy" /><input type="hidden" name="sourceVersionId" value={version.id} /><input type="hidden" name="name" value={`${version.name}副本`} /><input type="hidden" name="stage" value={version.stage || ''} /><button className="btn">复制</button><label style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 12 }}><input name="copyCosts" type="checkbox" />含成本</label></form><form action={`/api/projects/${project.id}/versions`} method="post"><input type="hidden" name="action" value={locked ? 'unlock' : 'lock'} /><input type="hidden" name="versionId" value={version.id} /><button className="btn" style={{ color: locked ? '#0b7285' : '#c92a2a' }}>{locked ? '解锁' : '锁定'}</button></form><form action={`/api/projects/${project.id}/versions`} method="post"><input type="hidden" name="action" value="delete" /><input type="hidden" name="versionId" value={version.id} /><button className="btn" style={{ color: '#c92a2a' }}>删除</button></form></div></td></tr>; })}</tbody></table></div></section>
+  </div></main>;
 }
