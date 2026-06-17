@@ -46,11 +46,16 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
     ['税务报告', 'tax-report']
   ] as const;
   const flow = [
-    ['1 项目概况', 'overview', '维护地块、指标、面积、车位等基础数据'],
-    ['2 收入测算', 'revenue', '维护可售面积、销售单价、含税收入'],
-    ['3 成本测算', 'costs-batch', '录入目标成本和各专业明细'],
-    ['4 税务分摊', 'tax-report', '检查增值税、土增税、所得税和分摊'],
-    ['5 投决报告', 'decision', '输出投决评级、经营报告和打印版报告']
+    ['1 项目概况', 'overview', '维护地块、指标、面积、车位等基础数据', 'done'],
+    ['2 收入测算', 'revenue', '维护可售面积、销售单价、含税收入', 'done'],
+    ['3 目标成本', 'costs-batch', '录入目标成本并归集到科目和业态', 'done'],
+    ['4 成本明细', 'building-details', '录入土建、安装、设备、精装、景观等专业明细', 'done'],
+    ['5 成本分摊', 'cost-allocation', '按受益对象、可售面积或建筑面积进行分摊', 'done'],
+    ['6 税费利润', 'tax-report', '检查增值税、土增税、所得税、业态利润', 'done'],
+    ['7 合约招采', '', '预留合约规划、招采计划、合同台账、付款计划', 'planned'],
+    ['8 动态成本', '', '预留变更签证、结算管理、动态成本跟踪和预警', 'planned'],
+    ['9 投决报告', 'decision', '输出投决评级、经营报告和打印版报告', 'done'],
+    ['10 模板沉淀', '/templates', '把项目规则沉淀为个人模板或系统模板', 'done']
   ] as const;
   const tools = [
     ['Excel导入导出', 'export'],
@@ -80,7 +85,7 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
           <StatusMessage searchParams={searchParams} />
           <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#0f4c5c', fontWeight: 900, fontSize: 12 }}>项目测算中心</div><h1 style={{ margin: '6px 0', fontSize: 24 }}>{project.name}</h1><div style={{ color: '#667085', fontSize: 14 }}>当前阶段：{version?.stage || '投拓阶段'}　版本：{version?.name || '初始版本'}　状态：草稿　启用业态：{activeProducts.length} 个　科目规则：{version?.costRules.length || 0} 条</div><div style={{ color: '#0b7285', fontSize: 13, marginTop: 6 }}>项目来源模板：{sourceTemplateLabel}</div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>{coreActions.map(([name, href]) => <Link key={name} href={`/projects/${project.id}/${href}`} className="btn btn-primary" style={{ minHeight: 34 }}>{name}</Link>)}</div></div>
           <div className="sys-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>{[['含税销售收入', revenue], ['含税目标成本', cost], ['建面单方', buildingArea ? cost / buildingArea : 0], ['可售单方', saleableArea ? cost / saleableArea : 0]].map(([label, value]) => <div key={String(label)} style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#667085', fontSize: 12 }}>{label}</div><div style={{ fontWeight: 900, fontSize: 18, marginTop: 6 }}>{fmt(Number(value))}</div></div>)}</div>
-          <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>测算主流程</b><div className="sys-flow" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginTop: 12 }}>{flow.map(([name, href, desc]) => <Link key={name} href={`/projects/${project.id}/${href}`} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#f8fafc' }}><b style={{ display: 'block' }}>{name}</b><div style={{ color: '#667085', fontSize: 12, marginTop: 8 }}>{desc}</div></Link>)}</div></div>
+          <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>项目全流程</b><p className="meta" style={{ margin: '6px 0 0' }}>覆盖从项目初始化、收入成本、税费利润，到合约招采、动态成本、投决报告和模板沉淀的完整链路。</p><div className="sys-flow" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))', gap: 10, marginTop: 12 }}>{flow.map(([name, href, desc, status]) => href ? <Link key={name} href={href.startsWith('/') ? href : `/projects/${project.id}/${href}`} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#f8fafc' }}><b style={{ display: 'block' }}>{name}</b><div style={{ color: '#667085', fontSize: 12, marginTop: 8 }}>{desc}</div></Link> : <div key={name} style={{ border: '1px solid #ffd8a8', borderRadius: 10, padding: 12, background: '#fff9db' }}><b style={{ display: 'block' }}>{name}</b><div style={{ color: '#8a6d00', fontSize: 12, marginTop: 8 }}>{desc}</div><div style={{ color: '#8a6d00', fontSize: 12, fontWeight: 900, marginTop: 8 }}>{status === 'planned' ? '待接入' : ''}</div></div>)}</div></div>
           <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>系统工具</b><div className="actions">{tools.map(([name, href]) => <Link key={name} href={href.startsWith('/') ? href : `/projects/${project.id}/${href}`} className="btn">{name}</Link>)}</div></div>
           <div style={{ background: '#fff', border: '1px solid #ffd8a8', borderRadius: 10, padding: 14 }}><b>已规划但待接入功能</b><p className="meta">这些功能先落位，后续按模块逐步开发，不再临时乱加入口。</p><div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{plannedItems.map((name) => <span key={name} style={{ border: '1px solid #ffd8a8', background: '#fff9db', borderRadius: 999, padding: '6px 10px', fontSize: 12, color: '#8a6d00' }}>{name}</span>)}</div></div>
         </section>
