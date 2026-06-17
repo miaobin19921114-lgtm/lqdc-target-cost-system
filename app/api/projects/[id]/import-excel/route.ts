@@ -346,6 +346,64 @@ function prepareCost(row: CostParsedRow, versionId: string): PreparedCost | null
   };
 }
 
+function costMappingCandidates(prepared: PreparedCost) {
+  return [prepared.code, prepared.subject, prepared.fullPath].filter((item): item is string => Boolean(item));
+}
+
+async function resolveCostSubject(projectId: string, prepared: PreparedCost) {
+  const candidates = costMappingCandidates(prepared);
+  const mapping = await prisma.costDictionaryRow.findFirst({
+    where: {
+      projectId,
+      sourceTable: 'Excel科目映射',
+      targetMappingCode: { not: null },
+      OR: [{ detailSubject: { in: candidates } }, { costCode: { in: candidates } }, { subjectDefinition: { in: candidates } }]
+    },
+    orderBy: { updatedAt: 'desc' }
+  });
+  const targetCode = mapping?.targetMappingCode?.trim();
+  if (targetCode) {
+    const mapped = await prisma.costSubject.findUnique({ where: { code: targetCode } });
+    if (mapped) return { subject: mapped, mapped: true };
+  }
+
+  if (prepared.code) {
+    const byCode = await prisma.costSubject.findUnique({ where: { code: prepared.code } });
+    if (byCode) return { subject: byCode, mapped: true };
+  }
+
+  const byName = await prisma.costSubject.findFirst({
+    where: { enabled: true, OR: [{ fullPath: prepared.fullPath }, { name: prepared.subject }] },
+    orderBy: { level: 'desc' }
+  });
+  if (byName) return { subject: byName, mapped: true };
+
+  const created = await prisma.costSubject.upsert({
+    where: { code: prepared.codeValue },
+    update: {
+      name: prepared.subject,
+      level: 4,
+      fullPath: prepared.fullPath,
+      defaultUnit: prepared.unitValue || undefined,
+      defaultTaxRate: prepared.taxRateValue,
+      defaultMeasureBasis: prepared.basis || undefined,
+      enabled: true
+    },
+    create: {
+      code: prepared.codeValue,
+      name: prepared.subject,
+      level: 4,
+      fullPath: prepared.fullPath,
+      defaultUnit: prepared.unitValue || undefined,
+      defaultTaxRate: prepared.taxRateValue,
+      defaultMeasureBasis: prepared.basis || undefined,
+      enabled: true,
+      sortOrder: prepared.row
+    }
+  });
+  return { subject: created, mapped: false };
+}
+
 function collectCostErrors(workbook: ExcelJS.Workbook, versionId: string, max = 60) {
   const errors: CostImportError[] = [];
   const targetSheets = costSheets(workbook);
@@ -431,12 +489,7 @@ async function checkCosts(versionId: string, workbook: ExcelJS.Workbook, importM
 
     if (importMode !== 'append') {
       const existing = await prisma.costLine.findFirst({
-        where: {
-          projectVersionId: versionId,
-          detailName: prepared.subject,
-          professionalGroup: prepared.sheet,
-          description: prepared.fullPath
-        },
+        where: { projectVersionId: versionId, detailName: prepared.subject, professionalGroup: prepared.sheet, description: prepared.fullPath },
         select: { id: true }
       });
       if (existing) matchedCount += 1;
@@ -446,7 +499,7 @@ async function checkCosts(versionId: string, workbook: ExcelJS.Workbook, importM
   return { count, matchedCount, clearCount, inclusiveTotal, exclusiveTotal, taxTotal, importMode };
 }
 
-async function importCosts(versionId: string, workbook: ExcelJS.Workbook, importMode: CostImportMode, fileName: string) {
+async function importCosts(projectId: string, versionId: string, workbook: ExcelJS.Workbook, importMode: CostImportMode, fileName: string) {
   const rows = parseCostRows(workbook, 0);
   let count = 0;
   let inclusiveTotal = 0;
@@ -460,50 +513,21 @@ async function importCosts(versionId: string, workbook: ExcelJS.Workbook, import
   }
 
   const batch = await prisma.importBatch.create({
-    data: {
-      projectVersionId: versionId,
-      fileName,
-      importType: 'cost',
-      importMode,
-      deletedCount,
-      status: 'active',
-      remark: '成本明细Excel正式导入'
-    }
+    data: { projectVersionId: versionId, fileName, importType: 'cost', importMode, deletedCount, status: 'active', remark: '成本明细Excel正式导入' }
   });
 
   for (const row of rows) {
     const prepared = prepareCost(row, versionId);
     if (!prepared) continue;
-
-    const subject = await prisma.costSubject.upsert({
-      where: { code: prepared.codeValue },
-      update: {
-        name: prepared.subject,
-        level: 4,
-        fullPath: prepared.fullPath,
-        defaultUnit: prepared.unitValue || undefined,
-        defaultTaxRate: prepared.taxRateValue,
-        defaultMeasureBasis: prepared.basis || undefined,
-        enabled: true
-      },
-      create: {
-        code: prepared.codeValue,
-        name: prepared.subject,
-        level: 4,
-        fullPath: prepared.fullPath,
-        defaultUnit: prepared.unitValue || undefined,
-        defaultTaxRate: prepared.taxRateValue,
-        defaultMeasureBasis: prepared.basis || undefined,
-        enabled: true,
-        sortOrder: prepared.row
-      }
-    });
+    const resolved = await resolveCostSubject(projectId, prepared);
+    const targetName = resolved.subject.name || prepared.subject;
+    const targetPath = resolved.subject.fullPath || prepared.fullPath;
 
     const data = {
       projectVersionId: versionId,
-      costSubjectId: subject.id,
+      costSubjectId: resolved.subject.id,
       importBatchId: batch.id,
-      detailName: prepared.subject,
+      detailName: targetName,
       regionOrProductType: 'Excel导入',
       professionalGroup: prepared.sheet,
       measureBasis: prepared.basis,
@@ -517,8 +541,8 @@ async function importCosts(versionId: string, workbook: ExcelJS.Workbook, import
       taxInclusiveAmount: prepared.taxInclusiveAmount,
       allocationMethod: '按可售面积占比',
       isDirectAssigned: false,
-      description: prepared.fullPath,
-      remark: `Excel正式导入：${prepared.sheet} 第${prepared.row}行｜批次：${batch.id}｜模式：${importMode}`,
+      description: targetPath,
+      remark: `Excel正式导入：${prepared.sheet} 第${prepared.row}行｜批次：${batch.id}｜模式：${importMode}｜原科目：${prepared.fullPath || prepared.subject}`,
       sortOrder: prepared.row
     };
 
@@ -526,7 +550,7 @@ async function importCosts(versionId: string, workbook: ExcelJS.Workbook, import
       await prisma.costLine.create({ data });
     } else {
       const existing = await prisma.costLine.findFirst({
-        where: { projectVersionId: versionId, detailName: prepared.subject, professionalGroup: prepared.sheet, description: prepared.fullPath }
+        where: { projectVersionId: versionId, detailName: targetName, professionalGroup: prepared.sheet, description: targetPath }
       });
       if (existing) await prisma.costLine.update({ where: { id: existing.id }, data });
       else await prisma.costLine.create({ data });
@@ -575,53 +599,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (mode === 'cost-preview') {
       const costs = previewCosts(workbook);
       const costErrors = collectCostErrors(workbook, version.id);
-      const query = new URLSearchParams({
-        costPreviewed: '1',
-        file: file.name || 'import.xlsx',
-        count: String(costs.length),
-        preview,
-        costPreview: encodeJson(costs),
-        errorCount: String(costErrors.length),
-        errorReport: encodeJson(costErrors)
-      });
+      const query = new URLSearchParams({ costPreviewed: '1', file: file.name || 'import.xlsx', count: String(costs.length), preview, costPreview: encodeJson(costs), errorCount: String(costErrors.length), errorReport: encodeJson(costErrors) });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
     if (mode === 'cost-check') {
       const result = await checkCosts(version.id, workbook, costImportMode);
       const costErrors = collectCostErrors(workbook, version.id);
-      const query = new URLSearchParams({
-        costChecked: '1',
-        file: file.name || 'import.xlsx',
-        count: String(result.count),
-        matchedCount: String(result.matchedCount),
-        clearCount: String(result.clearCount),
-        inclusiveTotal: String(result.inclusiveTotal),
-        exclusiveTotal: String(result.exclusiveTotal),
-        taxTotal: String(result.taxTotal),
-        importMode: result.importMode,
-        errorCount: String(costErrors.length),
-        errorReport: encodeJson(costErrors),
-        preview
-      });
+      const query = new URLSearchParams({ costChecked: '1', file: file.name || 'import.xlsx', count: String(result.count), matchedCount: String(result.matchedCount), clearCount: String(result.clearCount), inclusiveTotal: String(result.inclusiveTotal), exclusiveTotal: String(result.exclusiveTotal), taxTotal: String(result.taxTotal), importMode: result.importMode, errorCount: String(costErrors.length), errorReport: encodeJson(costErrors), preview });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
     if (mode === 'cost-import') {
-      const result = await importCosts(version.id, workbook, costImportMode, file.name || 'import.xlsx');
+      const result = await importCosts(params.id, version.id, workbook, costImportMode, file.name || 'import.xlsx');
       const costErrors = collectCostErrors(workbook, version.id);
-      const query = new URLSearchParams({
-        costsImported: '1',
-        file: file.name || 'import.xlsx',
-        count: String(result.count),
-        inclusiveTotal: String(result.inclusiveTotal),
-        exclusiveTotal: String(result.exclusiveTotal),
-        taxTotal: String(result.taxTotal),
-        deletedCount: String(result.deletedCount),
-        importMode: result.importMode,
-        batchId: result.batchId,
-        errorCount: String(costErrors.length),
-        errorReport: encodeJson(costErrors),
-        preview
-      });
+      const query = new URLSearchParams({ costsImported: '1', file: file.name || 'import.xlsx', count: String(result.count), inclusiveTotal: String(result.inclusiveTotal), exclusiveTotal: String(result.exclusiveTotal), taxTotal: String(result.taxTotal), deletedCount: String(result.deletedCount), importMode: result.importMode, batchId: result.batchId, errorCount: String(costErrors.length), errorReport: encodeJson(costErrors), preview });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
     const query = new URLSearchParams({ previewed: '1', file: file.name || 'import.xlsx', preview });
