@@ -41,8 +41,9 @@ function calc(quantity: number, taxInclusiveUnitPrice: number, taxRate: number) 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
   const { version, locked } = await getEditableActiveVersion(params.id);
-  if (!version) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/costs-batch?saved=0`, 303);
-  if (locked) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/costs-batch?locked=1`, 303);
+  const baseUrl = getBaseUrl(request);
+  if (!version) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/costs-batch?saved=0`, 303);
+  if (locked) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/costs-batch?locked=1`, 303);
 
   const rowIds = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
   let savedCount = 0;
@@ -54,8 +55,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const unitInput = clean(form.get(`unit-${dictionaryRowId}`));
     const taxRateInput = clean(form.get(`taxRate-${dictionaryRowId}`));
     const costLineId = clean(form.get(`costLineId-${dictionaryRowId}`));
+    const regionOrProductTypeInput = clean(form.get(`regionOrProductType-${dictionaryRowId}`));
+    const measureBasisInput = clean(form.get(`measureBasis-${dictionaryRowId}`));
+    const allocationMethodInput = clean(form.get(`allocationMethod-${dictionaryRowId}`));
 
-    if (!quantity && !taxInclusiveUnitPrice && !remark && !costLineId) continue;
+    if (!quantity && !taxInclusiveUnitPrice && !remark && !costLineId && !regionOrProductTypeInput && !measureBasisInput && !allocationMethodInput) continue;
 
     const dict = await prisma.costDictionaryRow.findUnique({ where: { id: dictionaryRowId } });
     if (!dict || !dict.detailSubject) continue;
@@ -95,9 +99,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       costSubjectId: costSubject.id,
       productTypeId: null,
       detailName: dict.detailSubject,
-      regionOrProductType: dict.applicableProductType || '项目整体共用',
+      regionOrProductType: regionOrProductTypeInput || dict.applicableProductType || '项目整体共用',
       professionalGroup: dict.sourceTable?.replace('表', '') || dict.secondSubject || '目标成本',
-      measureBasis: dict.measureBasis || '',
+      measureBasis: measureBasisInput || dict.measureBasis || '',
       quantity,
       unit: unitInput || dict.unit || '',
       taxRate,
@@ -106,7 +110,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       taxInclusiveAmount: amounts.taxInclusiveAmount,
       taxExclusiveAmount: amounts.taxExclusiveAmount,
       taxAmount: amounts.taxAmount,
-      allocationMethod: dict.targetAllocationMethod || '按可售面积占比',
+      allocationMethod: allocationMethodInput || dict.targetAllocationMethod || '按可售面积占比',
       isDirectAssigned: false,
       description: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join(' / '),
       remark
@@ -121,6 +125,5 @@ export async function POST(request: Request, { params }: { params: { id: string 
     savedCount += 1;
   }
 
-  const baseUrl = getBaseUrl(request);
   return NextResponse.redirect(`${baseUrl}/projects/${params.id}/costs-batch?saved=1&batch=${savedCount}`, 303);
 }
