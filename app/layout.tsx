@@ -5,8 +5,8 @@ import { AccountBar } from '@/components/AccountBar';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: '源信达地产目标成本测算系统',
-  description: '面向个人和小团队的地产项目目标成本测算、收入测算、税金测算和版本管理系统'
+  title: '地产成本智算平台',
+  description: '面向个人和小团队的地产成本、招采、合约知识库与项目测算工具'
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
