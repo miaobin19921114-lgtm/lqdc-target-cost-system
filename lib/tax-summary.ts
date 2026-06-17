@@ -36,6 +36,10 @@ export function isOtherRevenueProductName(name?: string | null) {
   return (name || '').startsWith('其他收入-');
 }
 
+export function isCommercialRevenueProductName(name?: string | null) {
+  return (name || '').startsWith('商业收入-');
+}
+
 export function revenueFromProducts(products: Array<{ isActive?: boolean | null; isSaleable?: boolean | null; saleableArea: unknown; salePrice: unknown }>, vatRate: number) {
   const rows = products
     .filter((item) => item.isActive && item.isSaleable)
@@ -64,12 +68,13 @@ export function revenueFromProjectData(input: {
   vatRate: number;
 }) {
   const ordinary = blankRevenue();
+  const commercial = blankRevenue();
   const parking = blankRevenue();
   const other = blankRevenue();
   const charging = blankRevenue();
 
   input.products
-    .filter((item) => item.isActive && item.isSaleable && !isParkingProductName(item.name) && !isChargingProductName(item.name) && !isOtherRevenueProductName(item.name))
+    .filter((item) => item.isActive && item.isSaleable && !isParkingProductName(item.name) && !isChargingProductName(item.name) && !isOtherRevenueProductName(item.name) && !isCommercialRevenueProductName(item.name))
     .forEach((item) => addRevenue(ordinary, calculateRevenueLine(n(item.saleableArea), n(item.salePrice), input.vatRate)));
 
   const revenueProductIds = new Set((input.revenues || []).map((row) => row.productTypeId).filter(Boolean));
@@ -79,7 +84,7 @@ export function revenueFromProjectData(input: {
 
   (input.revenues || []).forEach((row) => {
     const name = row.productType?.name || '';
-    const target = isParkingProductName(name) ? parking : isOtherRevenueProductName(name) ? other : isChargingProductName(name) ? charging : null;
+    const target = isParkingProductName(name) ? parking : isCommercialRevenueProductName(name) ? commercial : isOtherRevenueProductName(name) ? other : isChargingProductName(name) ? charging : null;
     if (!target) return;
     addRevenue(target, {
       taxInclusiveRevenue: n(row.taxInclusiveRevenue),
@@ -89,13 +94,14 @@ export function revenueFromProjectData(input: {
   });
 
   const total = {
-    taxInclusive: round2(ordinary.taxInclusive + parking.taxInclusive + other.taxInclusive + charging.taxInclusive),
-    taxExclusive: round2(ordinary.taxExclusive + parking.taxExclusive + other.taxExclusive + charging.taxExclusive),
-    outputVat: round2(ordinary.outputVat + parking.outputVat + other.outputVat + charging.outputVat)
+    taxInclusive: round2(ordinary.taxInclusive + commercial.taxInclusive + parking.taxInclusive + other.taxInclusive + charging.taxInclusive),
+    taxExclusive: round2(ordinary.taxExclusive + commercial.taxExclusive + parking.taxExclusive + other.taxExclusive + charging.taxExclusive),
+    outputVat: round2(ordinary.outputVat + commercial.outputVat + parking.outputVat + other.outputVat + charging.outputVat)
   };
 
   return {
     ordinary: { taxInclusive: round2(ordinary.taxInclusive), taxExclusive: round2(ordinary.taxExclusive), outputVat: round2(ordinary.outputVat) },
+    commercial: { taxInclusive: round2(commercial.taxInclusive), taxExclusive: round2(commercial.taxExclusive), outputVat: round2(commercial.outputVat) },
     parking: { taxInclusive: round2(parking.taxInclusive), taxExclusive: round2(parking.taxExclusive), outputVat: round2(parking.outputVat) },
     other: { taxInclusive: round2(other.taxInclusive), taxExclusive: round2(other.taxExclusive), outputVat: round2(other.outputVat) },
     charging: { taxInclusive: round2(charging.taxInclusive), taxExclusive: round2(charging.taxExclusive), outputVat: round2(charging.outputVat) },
