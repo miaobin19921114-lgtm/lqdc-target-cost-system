@@ -11,12 +11,12 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
       <div className="container">
         <div className="page-header">
           <div>
-            <p className="eyebrow">项目管理</p>
-            <h1 className="title">项目列表</h1>
-            <p className="subtitle">个人/小团队目标成本测算项目统一管理；项目可按投拓、方案、施工图、招采、动态成本等阶段沉淀版本。</p>
+            <p className="eyebrow">个人项目中心</p>
+            <h1 className="title">项目中心</h1>
+            <p className="subtitle">这里是个人层级的项目入口，用于新建、选择、管理项目；进入具体项目后再进入“项目测算中心”。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
-            <Link href="/templates" className="btn">后台模板中心</Link>
+            <Link href="/templates" className="btn">模板中心</Link>
             <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
           </div>
         </div>
@@ -28,7 +28,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
             <h2>还没有项目</h2>
             <p className="meta">先到模板中心确认默认模板，再新建项目并选择本项目需要的业态、科目和规则。</p>
             <div className="actions">
-              <Link href="/templates" className="btn">后台模板中心</Link>
+              <Link href="/templates" className="btn">模板中心</Link>
               <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
             </div>
           </section>
@@ -46,9 +46,9 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
                   <div className="stat"><div className="stat-label">版本数</div><div className="stat-value">{project.versions.length}</div></div>
                 </div>
                 <div className="actions">
-                  <Link href={`/projects/${project.id}`} className="btn btn-primary">进入工作台</Link>
+                  <Link href={`/projects/${project.id}`} className="btn btn-primary">进入项目测算中心</Link>
+                  <Link href={`/projects/${project.id}/dashboard-lite`} className="btn">经营总控</Link>
                   <Link href={`/projects/${project.id}/versions`} className="btn">版本管理</Link>
-                  <Link href={`/projects/${project.id}/export`} className="btn">Excel 导出</Link>
                   <form action={`/api/projects/${project.id}/delete`} method="post"><button className="btn" style={{ color: '#c92a2a' }}>删除项目</button></form>
                 </div>
               </article>;
