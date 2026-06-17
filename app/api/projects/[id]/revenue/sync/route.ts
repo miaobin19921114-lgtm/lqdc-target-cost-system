@@ -20,6 +20,10 @@ function isChargingProduct(name?: string | null) {
   return (name || '').includes('充电');
 }
 
+function isOtherRevenueProduct(name?: string | null) {
+  return (name || '').startsWith('其他收入-');
+}
+
 async function upsertRevenueLine(input: { projectVersionId: string; productTypeId: string; saleableArea: number; salePrice: number; taxRate: number }) {
   const result = calculateRevenueLine(input.saleableArea, input.salePrice, input.taxRate);
   const data = {
@@ -45,7 +49,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const tax = await prisma.taxParameter.findUnique({ where: { projectVersionId: version.id } });
   const taxRate = Number(tax?.vatRate || 0.09);
   const products = await prisma.productType.findMany({ where: { projectVersionId: version.id, isActive: true, isSaleable: true } });
-  const ordinaryProducts = products.filter((product) => !isParkingProduct(product.name) && !isChargingProduct(product.name));
+  const ordinaryProducts = products.filter((product) => !isParkingProduct(product.name) && !isChargingProduct(product.name) && !isOtherRevenueProduct(product.name));
 
   let count = 0;
   for (const product of ordinaryProducts) {
