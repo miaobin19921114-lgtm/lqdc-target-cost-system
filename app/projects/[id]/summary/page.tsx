@@ -37,7 +37,7 @@ function pct(value: number) {
 
 function subjectLevels(subject: { code: string; name: string; fullPath: string | null }) {
   const path = subject.fullPath || subject.name;
-  const parts = path.split(/\s*[>\/\\｜|]+\s*/).filter(Boolean);
+  const parts = path.split(/\s*[>/\\｜|]+\s*/).filter(Boolean);
   const level1 = parts[0] || `${subject.code.slice(0, 1)} ${subject.name}`;
   const level2 = parts[1] || subject.name;
   return { level1, level2 };
@@ -109,8 +109,9 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
     select: { costCode: true }
   });
   const leafCodes = new Set(leafDictionaryRows.map((row) => row.costCode).filter(Boolean));
-  const costs = leafCodes.size > 0 ? activeCosts.filter((row) => leafCodes.has(row.costSubject.code)) : activeCosts;
+  const costs = leafCodes.size > 0 ? activeCosts.filter((row) => row.costSubject.level >= 4 || leafCodes.has(row.costSubject.code)) : activeCosts;
   const ignoredNonLeafCostRows = activeCosts.length - costs.length;
+  const importedLeafRows = activeCosts.filter((row) => row.costSubject.level >= 4 && !leafCodes.has(row.costSubject.code)).length;
 
   const revenueRows = activeProducts
     .filter((item) => item.isSaleable)
@@ -185,7 +186,7 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
           <div>
             <p className="eyebrow">目标成本汇总表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">当前汇总基于当前启用版本，只统计启用业态和末级成本行；充电桩作为车位/设备指标，不作为业态。</p>
+            <p className="subtitle">当前汇总基于当前启用版本，统计启用业态和末级成本行；Excel 导入的四级科目会计入汇总；充电桩作为车位/设备指标，不作为业态。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/revenue`} className="btn">收入明细</Link>
@@ -197,7 +198,8 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
 
         {disabledProductCount > 0 ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>本项目当前版本有 {disabledProductCount} 个停用业态，已从销售收入和目标成本汇总中排除。</div> : null}
         {ignoredDisabledCostRows > 0 ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已排除 {ignoredDisabledCostRows} 条停用业态关联成本行，当前汇总只统计启用业态成本。</div> : null}
-        {ignoredNonLeafCostRows > 0 ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已发现并排除 {ignoredNonLeafCostRows} 条非末级历史成本行，当前汇总只统计末级科目，避免重复计算。</div> : null}
+        {ignoredNonLeafCostRows > 0 ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已发现并排除 {ignoredNonLeafCostRows} 条非末级历史成本行；Excel 导入四级科目和词典末级科目均会计入汇总。</div> : null}
+        {importedLeafRows > 0 ? <div className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb', background: '#f0fff4' }}>已计入 {importedLeafRows} 条 Excel 导入/临时四级成本科目，建议后续通过“成本科目映射”归集到标准科目。</div> : null}
 
         <div className="summary-strip">
           <div className="stat"><div className="stat-label">含税销售收入</div><div className="stat-value">{fmt(revenueInclusive)}元</div></div>
