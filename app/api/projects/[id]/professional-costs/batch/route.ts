@@ -10,6 +10,14 @@ function getBaseUrl(request: Request) {
   return host ? `${proto}://${host}` : new URL(request.url).origin;
 }
 
+function entryKey(rowId: string, field: string) {
+  return `${field}-${rowId}`;
+}
+
+function dictionaryIdFromEntry(entryId: string) {
+  return entryId.split('__')[0] || entryId;
+}
+
 function numberFrom(form: FormData, name: string) {
   const raw = clean(form.get(name));
   if (!raw) return 0;
@@ -26,10 +34,7 @@ function taxRateFrom(inputValue: FormDataEntryValue | null, fallback = 0.09) {
   return num > 1 ? num / 100 : num;
 }
 
-function round2(amount: number) {
-  return Math.round((amount + Number.EPSILON) * 100) / 100;
-}
-
+function round2(amount: number) { return Math.round((amount + Number.EPSILON) * 100) / 100; }
 function calc(quantity: number, taxInclusiveUnitPrice: number, taxRate: number) {
   const taxInclusiveAmount = round2(quantity * taxInclusiveUnitPrice);
   const taxExclusiveAmount = round2(taxInclusiveAmount / (1 + taxRate));
@@ -55,24 +60,25 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const products = await prisma.productType.findMany({ where: { projectVersionId: version.id }, select: { name: true, isActive: true } });
   const inactiveProductNames = new Set(products.filter((item) => !item.isActive).map((item) => item.name));
-  const rowIds = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
+  const rowEntries = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
   let savedCount = 0;
 
-  for (const rowId of rowIds) {
-    const quantity = numberFrom(form, `quantity-${rowId}`);
-    const taxInclusiveUnitPrice = numberFrom(form, `taxInclusiveUnitPrice-${rowId}`);
-    const remark = clean(form.get(`remark-${rowId}`));
-    const unitInput = clean(form.get(`unit-${rowId}`));
-    const taxRateInput = clean(form.get(`taxRate-${rowId}`));
-    const costLineId = clean(form.get(`costLineId-${rowId}`));
-    const regionOrProductTypeInput = clean(form.get(`regionOrProductType-${rowId}`));
-    const measureBasisInput = clean(form.get(`measureBasis-${rowId}`));
-    const allocationMethodInput = clean(form.get(`allocationMethod-${rowId}`));
+  for (const rowEntryId of rowEntries) {
+    const rowId = dictionaryIdFromEntry(rowEntryId);
+    const quantity = numberFrom(form, entryKey(rowEntryId, 'quantity'));
+    const taxInclusiveUnitPrice = numberFrom(form, entryKey(rowEntryId, 'taxInclusiveUnitPrice'));
+    const remark = clean(form.get(entryKey(rowEntryId, 'remark')));
+    const unitInput = clean(form.get(entryKey(rowEntryId, 'unit')));
+    const taxRateInput = clean(form.get(entryKey(rowEntryId, 'taxRate')));
+    const costLineId = clean(form.get(entryKey(rowEntryId, 'costLineId')));
+    const regionOrProductTypeInput = clean(form.get(entryKey(rowEntryId, 'regionOrProductType')));
+    const measureBasisInput = clean(form.get(entryKey(rowEntryId, 'measureBasis')));
+    const allocationMethodInput = clean(form.get(entryKey(rowEntryId, 'allocationMethod')));
 
     if (!quantity && !taxInclusiveUnitPrice && !remark && !costLineId && !regionOrProductTypeInput && !measureBasisInput && !allocationMethodInput) continue;
     const dict = await prisma.costDictionaryRow.findUnique({ where: { id: rowId } });
     if (!dict || !dict.detailSubject) continue;
-    if (matchesInactiveProductName(dict.applicableProductType, inactiveProductNames)) continue;
+    if (matchesInactiveProductName(regionOrProductTypeInput || dict.applicableProductType, inactiveProductNames)) continue;
 
     const existingCostLine = costLineId ? await prisma.costLine.findFirst({ where: { id: costLineId, projectVersionId: version.id }, include: { productType: true } }) : null;
     if (existingCostLine?.productTypeId && !existingCostLine.productType?.isActive) continue;
@@ -82,26 +88,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const subjectName = dict.detailSubject;
     const costSubject = await prisma.costSubject.upsert({
       where: { code },
-      update: {
-        name: subjectName,
-        level: Number(dict.subjectLevel || 4) || 4,
-        fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'),
-        defaultUnit: dict.unit || undefined,
-        defaultMeasureBasis: dict.measureBasis || undefined,
-        defaultAllocationMethod: dict.targetAllocationMethod || undefined,
-        enabled: true
-      },
-      create: {
-        code,
-        name: subjectName,
-        level: Number(dict.subjectLevel || 4) || 4,
-        fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'),
-        defaultUnit: dict.unit || undefined,
-        defaultMeasureBasis: dict.measureBasis || undefined,
-        defaultAllocationMethod: dict.targetAllocationMethod || undefined,
-        sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || 300,
-        enabled: true
-      }
+      update: { name: subjectName, level: Number(dict.subjectLevel || 4) || 4, fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'), defaultUnit: dict.unit || undefined, defaultMeasureBasis: dict.measureBasis || undefined, defaultAllocationMethod: dict.targetAllocationMethod || undefined, enabled: true },
+      create: { code, name: subjectName, level: Number(dict.subjectLevel || 4) || 4, fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'), defaultUnit: dict.unit || undefined, defaultMeasureBasis: dict.measureBasis || undefined, defaultAllocationMethod: dict.targetAllocationMethod || undefined, sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || 300, enabled: true }
     });
 
     const taxRate = taxRateFrom(taxRateInput || dict.defaultTaxRate, 0.09);
