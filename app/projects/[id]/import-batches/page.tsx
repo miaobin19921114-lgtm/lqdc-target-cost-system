@@ -40,7 +40,7 @@ export default async function ImportBatchesPage({ params, searchParams }: { para
           <div>
             <p className="eyebrow">Excel 导入批次</p>
             <h1 className="title">{project?.name || '项目'} · 导入批次记录</h1>
-            <p className="subtitle">查看当前启用版本的成本导入记录，可撤销某一次 Excel 成本导入。</p>
+            <p className="subtitle">查看当前启用版本的成本导入记录，可进入详情核对成本行，也可撤销某一次导入。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${params.id}/export`} className="btn btn-primary">返回 Excel 导入</Link>
@@ -62,7 +62,7 @@ export default async function ImportBatchesPage({ params, searchParams }: { para
         <section className="card">
           <h2>导入批次列表</h2>
           <div style={{ overflowX: 'auto', marginTop: 12 }}>
-            <table style={{ width: '100%', minWidth: 1080, borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', minWidth: 1160, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>{['时间', '文件', '模式', '状态', '导入行数', '当前关联行', '含税合计', '不含税合计', '税额', '操作'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr>
               </thead>
@@ -70,7 +70,9 @@ export default async function ImportBatchesPage({ params, searchParams }: { para
                 {batches.map((batch) => (
                   <tr key={batch.id}>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{batch.createdAt.toLocaleString('zh-CN')}</td>
-                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{batch.fileName}</td>
+                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>
+                      <Link href={`/projects/${params.id}/import-batches/${batch.id}`}>{batch.fileName}</Link>
+                    </td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{modeText(batch.importMode)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{statusText(batch.status)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{batch.rowCount}</td>
@@ -79,11 +81,14 @@ export default async function ImportBatchesPage({ params, searchParams }: { para
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{money(batch.taxExclusiveTotal)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{money(batch.taxAmountTotal)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>
-                      {batch.status === 'active' && !locked ? (
-                        <form action={`/api/projects/${params.id}/import-batches/${batch.id}/undo`} method="post">
-                          <button className="btn" style={{ borderColor: '#ffc9c9' }}>撤销此批次</button>
-                        </form>
-                      ) : <span className="meta">不可撤销</span>}
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <Link href={`/projects/${params.id}/import-batches/${batch.id}`} className="btn">详情</Link>
+                        {batch.status === 'active' && !locked ? (
+                          <form action={`/api/projects/${params.id}/import-batches/${batch.id}/undo`} method="post">
+                            <button className="btn" style={{ borderColor: '#ffc9c9' }}>撤销</button>
+                          </form>
+                        ) : <span className="meta">不可撤销</span>}
+                      </div>
                     </td>
                   </tr>
                 ))}
