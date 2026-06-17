@@ -23,6 +23,19 @@ export function effectiveCostRows<T extends { productTypeId?: string | null; pro
   };
 }
 
+export function isParkingProductName(name?: string | null) {
+  const value = name || '';
+  return value.includes('车位') || value.includes('人防');
+}
+
+export function isChargingProductName(name?: string | null) {
+  return (name || '').includes('充电');
+}
+
+export function isOtherRevenueProductName(name?: string | null) {
+  return (name || '').startsWith('其他收入-');
+}
+
 export function revenueFromProducts(products: Array<{ isActive?: boolean | null; isSaleable?: boolean | null; saleableArea: unknown; salePrice: unknown }>, vatRate: number) {
   const rows = products
     .filter((item) => item.isActive && item.isSaleable)
@@ -32,6 +45,62 @@ export function revenueFromProducts(products: Array<{ isActive?: boolean | null;
     taxInclusive: round2(rows.reduce((sum, row) => sum + row.taxInclusiveRevenue, 0)),
     taxExclusive: round2(rows.reduce((sum, row) => sum + row.taxExclusiveRevenue, 0)),
     outputVat: round2(rows.reduce((sum, row) => sum + row.taxAmount, 0))
+  };
+}
+
+function blankRevenue() {
+  return { taxInclusive: 0, taxExclusive: 0, outputVat: 0 };
+}
+
+function addRevenue(target: { taxInclusive: number; taxExclusive: number; outputVat: number }, row: { taxInclusiveRevenue: number; taxExclusiveRevenue: number; taxAmount: number }) {
+  target.taxInclusive += row.taxInclusiveRevenue;
+  target.taxExclusive += row.taxExclusiveRevenue;
+  target.outputVat += row.taxAmount;
+}
+
+export function revenueFromProjectData(input: {
+  products: Array<{ id: string; name?: string | null; isActive?: boolean | null; isSaleable?: boolean | null; saleableArea: unknown; salePrice: unknown }>;
+  revenues?: Array<{ productTypeId?: string | null; taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown; productType?: { name?: string | null } | null }>;
+  vatRate: number;
+}) {
+  const ordinary = blankRevenue();
+  const parking = blankRevenue();
+  const other = blankRevenue();
+  const charging = blankRevenue();
+
+  input.products
+    .filter((item) => item.isActive && item.isSaleable && !isParkingProductName(item.name) && !isChargingProductName(item.name) && !isOtherRevenueProductName(item.name))
+    .forEach((item) => addRevenue(ordinary, calculateRevenueLine(n(item.saleableArea), n(item.salePrice), input.vatRate)));
+
+  const revenueProductIds = new Set((input.revenues || []).map((row) => row.productTypeId).filter(Boolean));
+  input.products
+    .filter((item) => item.isActive && item.isSaleable && isParkingProductName(item.name) && !revenueProductIds.has(item.id))
+    .forEach((item) => addRevenue(parking, calculateRevenueLine(n(item.saleableArea), n(item.salePrice), input.vatRate)));
+
+  (input.revenues || []).forEach((row) => {
+    const name = row.productType?.name || '';
+    const target = isParkingProductName(name) ? parking : isOtherRevenueProductName(name) ? other : isChargingProductName(name) ? charging : null;
+    if (!target) return;
+    addRevenue(target, {
+      taxInclusiveRevenue: n(row.taxInclusiveRevenue),
+      taxExclusiveRevenue: n(row.taxExclusiveRevenue),
+      taxAmount: n(row.taxAmount)
+    });
+  });
+
+  const total = {
+    taxInclusive: round2(ordinary.taxInclusive + parking.taxInclusive + other.taxInclusive + charging.taxInclusive),
+    taxExclusive: round2(ordinary.taxExclusive + parking.taxExclusive + other.taxExclusive + charging.taxExclusive),
+    outputVat: round2(ordinary.outputVat + parking.outputVat + other.outputVat + charging.outputVat)
+  };
+
+  return {
+    ordinary: { taxInclusive: round2(ordinary.taxInclusive), taxExclusive: round2(ordinary.taxExclusive), outputVat: round2(ordinary.outputVat) },
+    parking: { taxInclusive: round2(parking.taxInclusive), taxExclusive: round2(parking.taxExclusive), outputVat: round2(parking.outputVat) },
+    other: { taxInclusive: round2(other.taxInclusive), taxExclusive: round2(other.taxExclusive), outputVat: round2(other.outputVat) },
+    charging: { taxInclusive: round2(charging.taxInclusive), taxExclusive: round2(charging.taxExclusive), outputVat: round2(charging.outputVat) },
+    ...total,
+    rows: input.revenues || []
   };
 }
 
