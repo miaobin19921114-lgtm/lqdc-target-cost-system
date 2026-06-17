@@ -40,6 +40,7 @@ export default async function CostMappingPage({ params, searchParams }: { params
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${params.id}/export`} className="btn btn-primary">返回 Excel 导入</Link>
+            <Link href={`/projects/${params.id}/check`} className="btn">系统自检</Link>
             <Link href="/templates" className="btn">模板中心</Link>
             <Link href={`/projects/${params.id}`} className="btn">项目测算中心</Link>
           </div>
