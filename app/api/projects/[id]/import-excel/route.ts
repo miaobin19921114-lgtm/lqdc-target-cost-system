@@ -277,7 +277,7 @@ function previewCosts(workbook: ExcelJS.Workbook) {
   return parseCostRows(workbook, 30);
 }
 
-async function importCosts(versionId: string, workbook: ExcelJS.Workbook, importMode: CostImportMode) {
+async function importCosts(versionId: string, workbook: ExcelJS.Workbook, importMode: CostImportMode, fileName: string) {
   const rows = parseCostRows(workbook, 0);
   let count = 0;
   let inclusiveTotal = 0;
@@ -289,6 +289,18 @@ async function importCosts(versionId: string, workbook: ExcelJS.Workbook, import
     const deleted = await prisma.costLine.deleteMany({ where: { projectVersionId: versionId, regionOrProductType: 'Excel导入' } });
     deletedCount = deleted.count;
   }
+
+  const batch = await prisma.importBatch.create({
+    data: {
+      projectVersionId: versionId,
+      fileName,
+      importType: 'cost',
+      importMode,
+      deletedCount,
+      status: 'active',
+      remark: '成本明细Excel正式导入'
+    }
+  });
 
   for (const row of rows) {
     const quantityRaw = toNumber(row.quantity);
@@ -320,6 +332,7 @@ async function importCosts(versionId: string, workbook: ExcelJS.Workbook, import
     const data = {
       projectVersionId: versionId,
       costSubjectId: subject.id,
+      importBatchId: batch.id,
       detailName: row.subject,
       regionOrProductType: 'Excel导入',
       professionalGroup: row.sheet,
@@ -335,7 +348,7 @@ async function importCosts(versionId: string, workbook: ExcelJS.Workbook, import
       allocationMethod: '按可售面积占比',
       isDirectAssigned: false,
       description: fullPath,
-      remark: `Excel正式导入：${row.sheet} 第${row.row}行｜模式：${importMode}`,
+      remark: `Excel正式导入：${row.sheet} 第${row.row}行｜批次：${batch.id}｜模式：${importMode}`,
       sortOrder: row.row
     };
 
@@ -354,7 +367,13 @@ async function importCosts(versionId: string, workbook: ExcelJS.Workbook, import
     exclusiveTotal = round2(exclusiveTotal + taxExclusiveAmount);
     taxTotal = round2(taxTotal + taxAmount);
   }
-  return { count, inclusiveTotal, exclusiveTotal, taxTotal, deletedCount, importMode };
+
+  await prisma.importBatch.update({
+    where: { id: batch.id },
+    data: { rowCount: count, taxInclusiveTotal: inclusiveTotal, taxExclusiveTotal: exclusiveTotal, taxAmountTotal: taxTotal }
+  });
+
+  return { count, inclusiveTotal, exclusiveTotal, taxTotal, deletedCount, importMode, batchId: batch.id };
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -390,7 +409,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
     if (mode === 'cost-import') {
-      const result = await importCosts(version.id, workbook, costImportMode);
+      const result = await importCosts(version.id, workbook, costImportMode, file.name || 'import.xlsx');
       const query = new URLSearchParams({
         costsImported: '1',
         file: file.name || 'import.xlsx',
@@ -400,6 +419,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         taxTotal: String(result.taxTotal),
         deletedCount: String(result.deletedCount),
         importMode: result.importMode,
+        batchId: result.batchId,
         preview
       });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
