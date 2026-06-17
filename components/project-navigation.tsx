@@ -9,7 +9,7 @@ export const projectNavGroups = [
       ['版本管理', 'versions', 'done'],
       ['业态维护', 'product-maintenance', 'done'],
       ['车位配置', 'parking', 'done'],
-      ['指标校验中心', '', 'planned']
+      ['指标校验中心', 'indicator-check', 'done']
     ]
   },
   {
