@@ -40,6 +40,8 @@ export const projectNavGroups = [
       ['精装修明细', 'fitout-details'],
       ['室外管网', 'outdoor-pipe-details'],
       ['景观工程', 'landscape-details'],
+      ['道路总平', 'road-details'],
+      ['围墙出入口', 'wall-gate-details'],
       ['销售费用', 'sales-expense-details'],
       ['管理费用', 'admin-expense-details'],
       ['财务费用', 'finance-expense-details']
@@ -54,6 +56,7 @@ export const projectNavGroups = [
       ['成本分摊', 'cost-allocation'],
       ['业态利润', 'profit-analysis'],
       ['敏感性测算', 'sensitivity'],
+      ['敏感性报告', 'sensitivity-report'],
       ['汇总校验', 'summary-check']
     ]
   },
@@ -69,6 +72,10 @@ export const projectNavGroups = [
     ]
   }
 ] as const;
+
+export const projectNavLabelMap = Object.fromEntries(
+  projectNavGroups.flatMap((group) => group.items.map(([name, href]) => [href, name]))
+) as Record<string, string>;
 
 export function ProjectTopNav({ projectId, projectName, current }: { projectId: string; projectName: string; current: string }) {
   return <div className="no-print" style={{ maxWidth: 1280, margin: '0 auto 14px', display: 'grid', gap: 10 }}>
