@@ -50,10 +50,23 @@ export const projectNavGroups = [
       ['围墙出入口', 'wall-gate-details', 'done'],
       ['销售费用', 'sales-expense-details', 'done'],
       ['管理费用', 'admin-expense-details', 'done'],
-      ['财务费用', 'finance-expense-details', 'done'],
+      ['财务费用', 'finance-expense-details', 'done']
+    ]
+  },
+  {
+    title: '合约招采',
+    items: [
+      ['合约规划', '', 'planned'],
+      ['招采计划', '', 'planned'],
+      ['招标比价', '', 'planned'],
+      ['定标记录', '', 'planned'],
+      ['合同台账', '', 'planned'],
       ['总包合同对比', '', 'planned'],
-      ['动态成本跟踪', '', 'planned'],
+      ['合同变更', '', 'planned'],
+      ['签证变更', '', 'planned'],
+      ['结算管理', '', 'planned'],
       ['付款计划', '', 'planned'],
+      ['动态成本跟踪', '', 'planned'],
       ['招采成本对比', '', 'planned']
     ]
   },
