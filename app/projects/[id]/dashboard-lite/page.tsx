@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
-import { costTotals, effectiveCostRows, fullTaxSummary, isChargingProductName, isOtherRevenueProductName, isParkingProductName, n, revenueFromProjectData } from '@/lib/tax-summary';
+import { costTotals, effectiveCostRows, fullTaxSummary, isChargingProductName, isCommercialRevenueProductName, isOtherRevenueProductName, isParkingProductName, n, revenueFromProjectData } from '@/lib/tax-summary';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +41,7 @@ export default async function DashboardLite({ params }: { params: { id: string }
   const grossMargin = revenue.taxInclusive ? grossProfit / revenue.taxInclusive : 0;
   const netMargin = revenue.taxInclusive ? tax.netProfit / revenue.taxInclusive : 0;
   const activeProducts = (version?.products || []).filter((item) => item.isActive);
-  const ordinarySaleableProducts = activeProducts.filter((item) => item.isSaleable && !isParkingProductName(item.name) && !isChargingProductName(item.name) && !isOtherRevenueProductName(item.name));
+  const ordinarySaleableProducts = activeProducts.filter((item) => item.isSaleable && !isParkingProductName(item.name) && !isChargingProductName(item.name) && !isOtherRevenueProductName(item.name) && !isCommercialRevenueProductName(item.name));
   const noRevenueProducts = ordinarySaleableProducts.filter((item) => !n(item.salePrice) || !n(item.saleableArea));
   const activeBatches = version?.importBatches || [];
 
@@ -88,7 +88,8 @@ export default async function DashboardLite({ params }: { params: { id: string }
   ] as const;
 
   const incomeStructure = [
-    ['普通业态收入', revenue.ordinary.taxInclusive, '住宅、商业、配套等面积收入', 'revenue'],
+    ['销售收入', revenue.ordinary.taxInclusive, '住宅、普通商业、配套等面积收入', 'revenue'],
+    ['商业专项收入', revenue.commercial.taxInclusive, '分层商业、自持出租、租售混合', 'commercial-revenue'],
     ['车位收入', revenue.parking.taxInclusive, '车位个数×单个车位单价', 'parking-revenue'],
     ['其他收入', revenue.other.taxInclusive, '税收返还、产业奖励、财政补贴等', 'other-revenue']
   ] as const;
@@ -103,11 +104,12 @@ export default async function DashboardLite({ params }: { params: { id: string }
   const checks = [
     { name: '投决评级', ok: decision.level !== '暂缓推进', text: `${decision.level}：${decision.reason}`, href: 'decision' },
     { name: '项目基础指标', ok: buildingArea > 0 && saleableArea > 0, text: buildingArea && saleableArea ? '总建面和可售面积已维护' : '总建面或可售面积缺失', href: 'indicator-check' },
-    { name: '普通业态销售单价', ok: noRevenueProducts.length === 0, text: noRevenueProducts.length ? `${noRevenueProducts.length} 个普通可售业态缺面积或单价` : '普通可售业态面积/单价完整', href: 'revenue' },
+    { name: '销售收入单价', ok: noRevenueProducts.length === 0, text: noRevenueProducts.length ? `${noRevenueProducts.length} 个普通可售业态缺面积或单价` : '普通销售业态面积/单价完整', href: 'revenue' },
+    { name: '商业专项收入', ok: true, text: revenue.commercial.taxInclusive ? `商业专项收入 ${fmt(revenue.commercial.taxInclusive)} 元，已纳入总收入` : '无复杂商业专项收入或尚未维护', href: 'commercial-revenue' },
     { name: '车位收入', ok: revenue.parking.taxInclusive > 0 || !n(project.parkingCount), text: revenue.parking.taxInclusive ? `车位收入 ${fmt(revenue.parking.taxInclusive)} 元` : '有车位时建议维护车位收入', href: 'parking-revenue' },
     { name: '其他收入', ok: true, text: revenue.other.taxInclusive ? `其他收入 ${fmt(revenue.other.taxInclusive)} 元，已纳入总收入` : '无其他收入或尚未维护', href: 'other-revenue' },
     { name: '成本明细', ok: effective.effective.length > 0, text: `有效末级成本 ${effective.effective.length} 行`, href: 'costs-batch' },
-    { name: '敏感性测算', ok: lossCells === 0, text: `售价×成本矩阵亏损格子 ${lossCells}/${matrixCells.length}`, href: 'sensitivity-report' },
+    { name: '敏感性测算', ok: lossCells === 0, text: `收入×成本矩阵亏损格子 ${lossCells}/${matrixCells.length}`, href: 'sensitivity-report' },
     { name: 'Excel临时科目', ok: effective.importedLeafRows === 0, text: effective.importedLeafRows ? `${effective.importedLeafRows} 条临时四级科目，建议映射` : '无临时四级科目或已映射', href: 'cost-mapping' },
     { name: '经营利润', ok: tax.netProfit >= 0, text: `税后净利 ${fmt(tax.netProfit)}，净利率 ${pct(netMargin)}`, href: 'profit-analysis' }
   ];
@@ -132,7 +134,7 @@ export default async function DashboardLite({ params }: { params: { id: string }
 
     <section className="card" style={{ marginBottom: 18 }}><h2>八、数据完整性检查</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 920, borderCollapse: 'collapse' }}><thead><tr>{['检查项', '状态', '说明', '入口'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{checks.map((row) => <tr key={row.name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{row.name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: row.ok ? '#2f9e44' : '#f08c00', fontWeight: 900 }}>{row.ok ? '正常' : '需关注'}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row.text}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><Link className="btn" href={`/projects/${project.id}/${row.href}`}>进入</Link></td></tr>)}</tbody></table></div></section>
 
-    <section className="card" style={{ marginBottom: 18 }}><h2>九、下一步动作入口</h2>{issueChecks.length ? <p className="meta">当前优先处理 {issueChecks.length} 个关注项：{issueChecks.map((item) => item.name).join('、')}。</p> : <p className="meta">当前关键检查项正常，可进入投决报告或打印经营报告。</p>}<div className="actions"><Link href={`/projects/${project.id}/indicator-check`} className="btn">指标校验中心</Link><Link href={`/projects/${project.id}/revenue`} className="btn">收入明细</Link><Link href={`/projects/${project.id}/other-revenue`} className="btn">其他收入</Link><Link href={`/projects/${project.id}/costs-batch`} className="btn">目标成本</Link><Link href={`/projects/${project.id}/tax-report`} className="btn">税务报告</Link><Link href={`/projects/${project.id}/decision`} className="btn btn-primary">投决评审</Link></div></section>
+    <section className="card" style={{ marginBottom: 18 }}><h2>九、下一步动作入口</h2>{issueChecks.length ? <p className="meta">当前优先处理 {issueChecks.length} 个关注项：{issueChecks.map((item) => item.name).join('、')}。</p> : <p className="meta">当前关键检查项正常，可进入投决报告或打印经营报告。</p>}<div className="actions"><Link href={`/projects/${project.id}/indicator-check`} className="btn">指标校验中心</Link><Link href={`/projects/${project.id}/revenue-summary`} className="btn">收入汇总</Link><Link href={`/projects/${project.id}/commercial-revenue`} className="btn">商业收入</Link><Link href={`/projects/${project.id}/costs-batch`} className="btn">目标成本</Link><Link href={`/projects/${project.id}/tax-report`} className="btn">税务报告</Link><Link href={`/projects/${project.id}/decision`} className="btn btn-primary">投决评审</Link></div></section>
 
     <section className="card"><h2>最近导入批次</h2>{activeBatches.length ? <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse' }}><thead><tr>{['文件', '模式', '行数', '含税合计', '状态'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{activeBatches.map((batch) => <tr key={batch.id}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}><Link href={`/projects/${project.id}/import-batches/${batch.id}`}>{batch.fileName}</Link></td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{batch.importMode}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{batch.rowCount}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(batch.taxInclusiveTotal)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{batch.status}</td></tr>)}</tbody></table></div> : <p className="meta">暂无导入批次。</p>}<div className="actions"><Link href={`/projects/${project.id}/export`} className="btn">Excel导入导出</Link><Link href={`/projects/${project.id}/import-batches`} className="btn">导入批次</Link><Link href={`/projects/${project.id}/cost-mapping`} className="btn">科目映射</Link></div></section>
   </div></main>;
