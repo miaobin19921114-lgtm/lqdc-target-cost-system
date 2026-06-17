@@ -4,77 +4,94 @@ export const projectNavGroups = [
   {
     title: '项目总览',
     items: [
-      ['经营总控', 'dashboard-lite'],
-      ['项目概况', 'overview'],
-      ['版本管理', 'versions'],
-      ['业态维护', 'product-maintenance'],
-      ['车位配置', 'parking']
+      ['经营总控', 'dashboard-lite', 'done'],
+      ['项目概况', 'overview', 'done'],
+      ['版本管理', 'versions', 'done'],
+      ['业态维护', 'product-maintenance', 'done'],
+      ['车位配置', 'parking', 'done'],
+      ['指标校验中心', '', 'planned']
     ]
   },
   {
     title: '投决与报告',
     items: [
-      ['投决评审', 'decision'],
-      ['经营报告', 'report'],
-      ['打印版经营报告', 'report-print'],
-      ['敏感性报告', 'sensitivity-report'],
-      ['税务报告', 'tax-report']
+      ['投决评审', 'decision', 'done'],
+      ['经营报告', 'report', 'done'],
+      ['打印版经营报告', 'report-print', 'done'],
+      ['敏感性报告', 'sensitivity-report', 'done'],
+      ['税务报告', 'tax-report', 'done'],
+      ['老板汇报版', '', 'planned'],
+      ['PDF/Word导出', '', 'planned']
     ]
   },
   {
     title: '收入测算',
     items: [
-      ['收入明细', 'revenue']
+      ['收入明细', 'revenue', 'done'],
+      ['车位收入测算', '', 'planned'],
+      ['商业收入测算', '', 'planned'],
+      ['去化节奏测算', '', 'planned']
     ]
   },
   {
     title: '成本测算',
     items: [
-      ['目标成本编制', 'costs-batch'],
-      ['目标成本汇总', 'summary'],
-      ['土地费', 'land'],
-      ['前期费', 'pre-costs'],
-      ['土建明细', 'building-details'],
-      ['安装明细', 'installation-details'],
-      ['设备明细', 'equipment-details'],
-      ['精装修明细', 'fitout-details'],
-      ['室外管网', 'outdoor-pipe-details'],
-      ['景观工程', 'landscape-details'],
-      ['道路总平', 'road-details'],
-      ['围墙出入口', 'wall-gate-details'],
-      ['销售费用', 'sales-expense-details'],
-      ['管理费用', 'admin-expense-details'],
-      ['财务费用', 'finance-expense-details']
+      ['目标成本编制', 'costs-batch', 'done'],
+      ['目标成本汇总', 'summary', 'done'],
+      ['土地费', 'land', 'done'],
+      ['前期费', 'pre-costs', 'done'],
+      ['土建明细', 'building-details', 'done'],
+      ['安装明细', 'installation-details', 'done'],
+      ['设备明细', 'equipment-details', 'done'],
+      ['精装修明细', 'fitout-details', 'done'],
+      ['室外管网', 'outdoor-pipe-details', 'done'],
+      ['景观工程', 'landscape-details', 'done'],
+      ['道路总平', 'road-details', 'done'],
+      ['围墙出入口', 'wall-gate-details', 'done'],
+      ['销售费用', 'sales-expense-details', 'done'],
+      ['管理费用', 'admin-expense-details', 'done'],
+      ['财务费用', 'finance-expense-details', 'done'],
+      ['总包合同对比', '', 'planned'],
+      ['动态成本跟踪', '', 'planned'],
+      ['付款计划', '', 'planned'],
+      ['招采成本对比', '', 'planned']
     ]
   },
   {
     title: '税务测算',
     items: [
-      ['税金明细', 'tax-details'],
-      ['土地增值税', 'land-vat'],
-      ['税务报告', 'tax-report'],
-      ['成本分摊', 'cost-allocation'],
-      ['业态利润', 'profit-analysis'],
-      ['敏感性测算', 'sensitivity'],
-      ['敏感性报告', 'sensitivity-report'],
-      ['汇总校验', 'summary-check']
+      ['税金明细', 'tax-details', 'done'],
+      ['土地增值税', 'land-vat', 'done'],
+      ['税务报告', 'tax-report', 'done'],
+      ['成本分摊', 'cost-allocation', 'done'],
+      ['业态利润', 'profit-analysis', 'done'],
+      ['敏感性测算', 'sensitivity', 'done'],
+      ['敏感性报告', 'sensitivity-report', 'done'],
+      ['汇总校验', 'summary-check', 'done'],
+      ['所得税成本对象', '', 'planned'],
+      ['土增税清算模拟', '', 'planned'],
+      ['税费风险清单', '', 'planned']
     ]
   },
   {
     title: '导入与配置',
     items: [
-      ['Excel导入导出', 'export'],
-      ['导入批次', 'import-batches'],
-      ['成本科目词典', 'cost-dictionary'],
-      ['成本科目映射', 'cost-mapping'],
-      ['产品库', 'product-library'],
-      ['系统校验', 'check']
+      ['Excel导入导出', 'export', 'done'],
+      ['导入批次', 'import-batches', 'done'],
+      ['成本科目词典', 'cost-dictionary', 'done'],
+      ['成本科目映射', 'cost-mapping', 'done'],
+      ['产品库', 'product-library', 'done'],
+      ['系统校验', 'check', 'done'],
+      ['模板中心', '/templates', 'done'],
+      ['统一数据导入中心', '', 'planned'],
+      ['下拉字典维护', '', 'planned'],
+      ['AI测算助手', '', 'planned']
     ]
   }
 ] as const;
 
 export const projectNavLabelMap = Object.fromEntries(
-  projectNavGroups.flatMap((group) => group.items.map(([name, href]) => [href, name]))
+  projectNavGroups.flatMap((group) => group.items.filter(([, href]) => href).map(([name, href]) => [href, name]))
 ) as Record<string, string>;
 
 export function ProjectTopNav({ projectId, projectName, current }: { projectId: string; projectName: string; current: string }) {
