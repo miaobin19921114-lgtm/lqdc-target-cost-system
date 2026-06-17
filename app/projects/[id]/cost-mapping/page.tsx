@@ -30,17 +30,18 @@ export default async function CostMappingPage({ params, searchParams }: { params
     : [];
 
   return (
-    <main className="page">
+    <main className="page" style={{ background: '#eef3f8' }}>
       <div className="container" style={{ maxWidth: 1180 }}>
         <div className="page-header">
           <div>
-            <p className="eyebrow">成本科目映射</p>
-            <h1 className="title">{project?.name || '项目'} · Excel 科目映射</h1>
-            <p className="subtitle">把 Excel 里的科目名称绑定到系统标准成本科目。下次导入会优先按这里的映射归集。</p>
+            <p className="eyebrow">导入与配置</p>
+            <h1 className="title">{project?.name || '项目'} · 导入科目映射</h1>
+            <p className="subtitle">把外部 Excel 里的科目名称、科目路径或科目编码，映射到系统标准成本科目。标准成本科目本身在模板中心维护。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${params.id}/export`} className="btn btn-primary">返回 Excel 导入</Link>
-            <Link href={`/projects/${params.id}`} className="btn">返回工作台</Link>
+            <Link href="/templates" className="btn">模板中心</Link>
+            <Link href={`/projects/${params.id}`} className="btn">项目测算中心</Link>
           </div>
         </div>
 
@@ -48,6 +49,11 @@ export default async function CostMappingPage({ params, searchParams }: { params
         {searchParams?.deleted === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>映射已删除。</div> : null}
         {searchParams?.missing === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>请填写 Excel 科目，并选择系统标准科目。</div> : null}
         {searchParams?.targetMissing === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffc9c9' }}>未找到选择的系统标准科目。</div> : null}
+
+        <section className="card" style={{ marginBottom: 16, borderColor: '#c5eef3', background: '#f8fbff' }}>
+          <b>导入科目映射的作用</b>
+          <p className="meta" style={{ margin: '6px 0 0' }}>它只解决 Excel 叫法不统一的问题，不在这里新增标准成本科目。标准成本科目、科目层级、默认测算依据和税率，统一放在模板中心。</p>
+        </section>
 
         <section className="card" style={{ marginBottom: 16 }}>
           <h2>新增 / 更新映射</h2>
@@ -57,9 +63,9 @@ export default async function CostMappingPage({ params, searchParams }: { params
               <input name="sourceText" placeholder="例如：主体建安 / 主体结构 / 土建工程费" style={{ width: '100%', border: '1px solid var(--border)', borderRadius: 10, padding: 10 }} />
             </label>
             <label>
-              <div className="meta">映射到系统标准科目</div>
+              <div className="meta">映射到系统标准成本科目</div>
               <select name="targetCode" style={{ width: '100%', border: '1px solid var(--border)', borderRadius: 10, padding: 10 }}>
-                <option value="">请选择标准科目</option>
+                <option value="">请选择标准成本科目</option>
                 {subjects.map((subject) => (
                   <option key={subject.code} value={subject.code}>{subject.code}｜{subject.fullPath || subject.name}</option>
                 ))}
@@ -67,7 +73,7 @@ export default async function CostMappingPage({ params, searchParams }: { params
             </label>
             <label>
               <div className="meta">备注</div>
-              <input name="remark" placeholder="可选" style={{ width: '100%', border: '1px solid var(--border)', borderRadius: 10, padding: 10 }} />
+              <input name="remark" placeholder="可选，如：来自某版目标成本表、供应商清单或历史Excel" style={{ width: '100%', border: '1px solid var(--border)', borderRadius: 10, padding: 10 }} />
             </label>
             <div><button className="btn btn-primary">保存映射</button></div>
           </form>
@@ -95,7 +101,7 @@ export default async function CostMappingPage({ params, searchParams }: { params
                     </td>
                   </tr>
                 ))}
-                {!mappings.length ? <tr><td colSpan={4} style={{ padding: 18, color: 'var(--muted)' }}>暂无映射。</td></tr> : null}
+                {!mappings.length ? <tr><td colSpan={4} style={{ padding: 18, color: 'var(--muted)' }}>暂无映射。第一次导入可先使用系统科目，导入后再补充常用映射。</td></tr> : null}
               </tbody>
             </table>
           </div>
