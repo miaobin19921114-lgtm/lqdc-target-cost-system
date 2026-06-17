@@ -81,7 +81,7 @@ export default async function ProjectOperatingReport({ params }: { params: { id:
   ] as const;
 
   return <main className="page report-page"><div className="container" style={{ maxWidth: 1180 }}>
-    <div className="page-header no-print"><div><p className="eyebrow">项目经营测算报告</p><h1 className="title">{project.name}</h1><p className="subtitle">可直接浏览器打印或另存为 PDF。</p></div><div className="actions" style={{ marginTop: 0 }}><button className="btn btn-primary" onClick={undefined as any}>浏览器打印：Ctrl/Cmd + P</button><Link href={`/projects/${project.id}/dashboard-lite`} className="btn">经营总控</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+    <div className="page-header no-print"><div><p className="eyebrow">项目经营测算报告</p><h1 className="title">{project.name}</h1><p className="subtitle">可直接浏览器打印或另存为 PDF。</p></div><div className="actions" style={{ marginTop: 0 }}><span className="btn btn-primary">打印：Ctrl/Cmd + P</span><Link href={`/projects/${project.id}/dashboard-lite`} className="btn">经营总控</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
 
     <section className="card report-cover">
       <div className="eyebrow">源信达地产目标成本测算系统</div>
