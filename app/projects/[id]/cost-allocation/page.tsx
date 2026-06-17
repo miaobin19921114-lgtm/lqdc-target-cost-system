@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { effectiveCostRows, n } from '@/lib/tax-summary';
+import { getCostSettings } from '@/lib/cost-product-settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,12 +21,11 @@ function includes(text: string | null | undefined, words: string[]) {
 
 function allocationBase(product: any, method: string | null | undefined) {
   const weight = n(product.allocationWeight || 1) || 1;
-  const name = product.name || '';
   const methodText = method || '';
   if (includes(methodText, ['建筑面积', '建面'])) return n(product.buildingArea) * weight;
   if (includes(methodText, ['计容'])) return n(product.capacityArea) * weight;
   if (includes(methodText, ['不可售'])) return n(product.nonSaleableArea) * weight;
-  if (includes(methodText, ['车位', '地库', '地下车位']) || includes(name, ['车位', '地库', '地下'])) return (n(product.saleableArea) || n(product.buildingArea)) * weight;
+  if (includes(methodText, ['车位', '地库', '地下车位']) || includes(product.name, ['车位', '地库', '地下'])) return (n(product.saleableArea) || n(product.buildingArea)) * weight;
   if (includes(methodText, ['销售收入', '收入'])) return n(product.saleableArea) * n(product.salePrice) * weight;
   return (n(product.saleableArea) || n(product.buildingArea) || n(product.capacityArea)) * weight;
 }
@@ -36,9 +36,35 @@ function allocationMethodName(method: string | null | undefined) {
 
 function taxObjectName(product: any) {
   if (!product.isSaleable) return '不可售/配套成本对象';
-  if (includes(product.name, ['车位', '车库', '地下'])) return '车位成本对象';
+  if (includes(product.name, ['车位', '车库', '地库'])) return '车位成本对象';
   if (includes(product.name, ['商业', '底商', '商铺'])) return '商业成本对象';
   return '住宅/可售成本对象';
+}
+
+function productCostGroupName(product: any) {
+  const setting = getCostSettings(product);
+  return setting.standalone ? product.name : setting.groupName;
+}
+
+function regionMatchesProduct(region: string, product: any) {
+  const productName = product.name || '';
+  const costGroup = productCostGroupName(product);
+  if (!region || region.includes('全项目') || region.includes('项目整体') || region.includes('Excel导入')) return true;
+  if (region === productName || region === costGroup) return true;
+  if (region.includes(productName) || productName.includes(region)) return true;
+  if (region.includes(costGroup) || costGroup.includes(region)) return true;
+  if (region.includes('主楼地下室') && productName.includes('主楼地下室')) return true;
+  if (region.includes('非主楼地下室') && (productName.includes('非主楼') || productName.includes('纯地库') || costGroup.includes('非主楼地下室'))) return true;
+  if (region.includes('人防地下室') && (productName.includes('人防') || costGroup.includes('人防地下室'))) return true;
+  if (region.includes('地下') && productName.includes('地下') && !region.includes('非主楼') && !region.includes('主楼')) return true;
+  return false;
+}
+
+function rowAttributionType(cost: any, poolSize: number, hasDirectProduct: boolean) {
+  if (hasDirectProduct) return '直接归属业态';
+  const region = cost.regionOrProductType || '';
+  if (region && !includes(region, ['全项目', '项目整体', 'Excel导入']) && poolSize > 0) return '成本归属分组';
+  return '共同分摊';
 }
 
 export default async function CostAllocationPage({ params }: { params: { id: string } }) {
@@ -58,7 +84,7 @@ export default async function CostAllocationPage({ params }: { params: { id: str
     where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } },
     select: { costCode: true }
   });
-  const leafCodes = new Set(dictRows.map((row) => row.costCode).filter(Boolean));
+  const leafCodes = new Set<string>(dictRows.map((row) => row.costCode).filter((code): code is string => Boolean(code)));
   const allProducts = version?.products || [];
   const disabledProductCount = allProducts.filter((item) => !item.isActive).length;
   const products = allProducts.filter((item) => item.isActive && item.participateAllocation);
@@ -70,41 +96,48 @@ export default async function CostAllocationPage({ params }: { params: { id: str
   const totalExclusiveCost = costs.reduce((sum, row) => sum + n(row.taxExclusiveAmount), 0);
   const totalTax = costs.reduce((sum, row) => sum + n(row.taxAmount), 0);
 
-  const productTotals = new Map<string, { product: any; inclusive: number; exclusive: number; tax: number; directInclusive: number; sharedInclusive: number; buildingArea: number; saleableArea: number }>();
+  const productTotals = new Map<string, { product: any; costGroup: string; inclusive: number; exclusive: number; tax: number; directInclusive: number; groupInclusive: number; sharedInclusive: number; buildingArea: number; saleableArea: number }>();
   products.forEach((product) => productTotals.set(product.id, {
     product,
+    costGroup: productCostGroupName(product),
     inclusive: 0,
     exclusive: 0,
     tax: 0,
     directInclusive: 0,
+    groupInclusive: 0,
     sharedInclusive: 0,
     buildingArea: n(product.buildingArea),
     saleableArea: n(product.saleableArea)
   }));
 
-  const rows: Array<{ code: string; subject: string; detail: string; method: string; type: string; inclusive: number; exclusive: number; tax: number; allocations: Record<string, { inclusive: number; exclusive: number; tax: number }> }> = [];
+  const rows: Array<{ code: string; subject: string; detail: string; region: string; method: string; type: string; inclusive: number; exclusive: number; tax: number; allocations: Record<string, { inclusive: number; exclusive: number; tax: number }> }> = [];
   let directRows = 0;
+  let groupRows = 0;
   let sharedRows = 0;
+  let fallbackRows = 0;
 
   costs.forEach((cost) => {
     const method = allocationMethodName(cost.allocationMethod);
     const directProduct = cost.productTypeId ? products.find((product) => product.id === cost.productTypeId) : null;
+    const region = cost.regionOrProductType || '项目整体共用';
     let pool: any[] = [];
-    let type = '共同分摊';
 
     if (directProduct) {
       pool = [directProduct];
-      type = '直接归属';
-      directRows += 1;
     } else {
-      const matched = products.filter((product) => {
-        const region = cost.regionOrProductType || '';
-        if (!region || region.includes('全项目') || region.includes('项目整体') || region.includes('Excel导入')) return true;
-        return region.includes(product.name) || product.name.includes(region) || (region.includes('地下') && product.name.includes('地下')) || (region.includes('车位') && product.name.includes('车位'));
-      });
-      pool = matched.length ? matched : (saleableProducts.length ? saleableProducts : products);
-      sharedRows += 1;
+      const matched = products.filter((product) => regionMatchesProduct(region, product));
+      if (matched.length && !includes(region, ['全项目', '项目整体', 'Excel导入'])) {
+        pool = matched;
+      } else {
+        pool = saleableProducts.length ? saleableProducts : products;
+        if (!matched.length && !includes(region, ['全项目', '项目整体', 'Excel导入'])) fallbackRows += 1;
+      }
     }
+
+    const type = rowAttributionType(cost, pool.length, Boolean(directProduct));
+    if (type === '直接归属业态') directRows += 1;
+    else if (type === '成本归属分组') groupRows += 1;
+    else sharedRows += 1;
 
     const bases = pool.map((product) => ({ product, base: allocationBase(product, method) }));
     const totalBase = bases.reduce((sum, item) => sum + item.base, 0) || pool.length || 1;
@@ -122,7 +155,8 @@ export default async function CostAllocationPage({ params }: { params: { id: str
         item.inclusive += value.inclusive;
         item.exclusive += value.exclusive;
         item.tax += value.tax;
-        if (type === '直接归属') item.directInclusive += value.inclusive;
+        if (type === '直接归属业态') item.directInclusive += value.inclusive;
+        else if (type === '成本归属分组') item.groupInclusive += value.inclusive;
         else item.sharedInclusive += value.inclusive;
       }
     });
@@ -131,6 +165,7 @@ export default async function CostAllocationPage({ params }: { params: { id: str
       code: cost.costSubject.code,
       subject: cost.description || cost.costSubject.fullPath || cost.costSubject.name,
       detail: cost.detailName,
+      region,
       method,
       type,
       inclusive,
@@ -142,31 +177,34 @@ export default async function CostAllocationPage({ params }: { params: { id: str
 
   const allocatedInclusive = Array.from(productTotals.values()).reduce((sum, item) => sum + item.inclusive, 0);
   const diff = totalInclusiveCost - allocatedInclusive;
+  const costGroupCount = new Set(Array.from(productTotals.values()).map((item) => item.costGroup)).size;
 
   return (
     <main className="page">
-      <div className="container" style={{ maxWidth: 1500 }}>
+      <div className="container" style={{ maxWidth: 1520 }}>
         <div className="page-header">
           <div>
             <p className="eyebrow">成本分摊测算表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">与目标成本汇总表、税金明细表同口径：只统计启用业态、末级成本行和 Excel 导入四级科目；按直接归属或共同分摊形成计税成本对象。</p>
+            <p className="subtitle">按“启用业态 + 成本测算归属设置”分摊：收入业态不一定等于工程成本对象，地下车位、储藏室、物业社区用房等按业态维护中的归属规则处理。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
-            <Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">目标成本编制</Link>
+            <Link href={`/projects/${project.id}/product-maintenance`} className="btn btn-primary">业态维护</Link>
+            <Link href={`/projects/${project.id}/costs-batch`} className="btn">目标成本编制</Link>
             <Link href={`/projects/${project.id}/land-vat`} className="btn">土地增值税</Link>
             <Link href={`/projects/${project.id}/tax-details`} className="btn">税金明细</Link>
-            <Link href={`/projects/${project.id}/product-maintenance`} className="btn">业态维护</Link>
             <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
           </div>
         </div>
 
         {disabledProductCount || effective.ignoredDisabled || effective.ignoredNonLeaf ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已排除停用业态 {disabledProductCount} 个、停用业态成本行 {effective.ignoredDisabled} 行、非末级历史成本行 {effective.ignoredNonLeaf} 行。</div> : null}
-        {effective.importedLeafRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb', background: '#f0fff4' }}>已计入 {effective.importedLeafRows} 条 Excel 导入/临时四级成本科目，建议通过“成本科目映射”归入标准科目。</div> : null}
+        {effective.importedLeafRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb', background: '#f0fff4' }}>已计入 {effective.importedLeafRows} 条 Excel 导入/临时四级成本科目，建议通过“导入科目映射”归入标准科目。</div> : null}
+        {fallbackRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>有 {fallbackRows} 行成本未匹配到明确成本归属分组，已暂按共同成本分摊。建议回到业态维护或专业明细页检查“成本归属/区域”。</div> : null}
         {Math.abs(diff) > 1 ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffc9c9', background: '#fff5f5' }}>分摊差异 {fmt(diff)} 元，请检查是否没有参与分摊的启用业态或分摊基数为 0。</div> : null}
 
         <div className="summary-strip">
           <div className="stat"><div className="stat-label">参与分摊业态</div><div className="stat-value">{products.length}/{activeProducts.length}</div></div>
+          <div className="stat"><div className="stat-label">成本归属分组</div><div className="stat-value">{costGroupCount}</div></div>
           <div className="stat"><div className="stat-label">有效成本行</div><div className="stat-value">{costs.length}</div></div>
           <div className="stat"><div className="stat-label">含税/不含税成本</div><div className="stat-value">{fmt(totalInclusiveCost)} / {fmt(totalExclusiveCost)}</div></div>
           <div className="stat"><div className="stat-label">分摊差异</div><div className="stat-value">{fmt(diff)}</div></div>
@@ -175,12 +213,13 @@ export default async function CostAllocationPage({ params }: { params: { id: str
         <section className="card" style={{ marginBottom: 18 }}>
           <h2>业态计税成本对象</h2>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 1180, borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead><tr>{['业态', '成本对象', '建筑面积', '可售面积', '含税分摊成本', '不含税分摊成本', '进项税额', '直接归属', '共同分摊', '建面单方', '可售单方', '占比'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead>
+            <table style={{ width: '100%', minWidth: 1280, borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead><tr>{['业态', '成本归属组', '成本对象', '建筑面积', '可售面积', '含税分摊成本', '不含税分摊成本', '进项税额', '直接归属', '归属组分摊', '共同分摊', '建面单方', '可售单方', '占比'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead>
               <tbody>
-                {Array.from(productTotals.values()).map(({ product, inclusive, exclusive, tax, directInclusive, sharedInclusive, buildingArea, saleableArea }) => (
+                {Array.from(productTotals.values()).map(({ product, costGroup, inclusive, exclusive, tax, directInclusive, groupInclusive, sharedInclusive, buildingArea, saleableArea }) => (
                   <tr key={product.id}>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 700 }}>{product.name}</td>
+                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{costGroup}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{taxObjectName(product)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(buildingArea)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(saleableArea)}</td>
@@ -188,6 +227,7 @@ export default async function CostAllocationPage({ params }: { params: { id: str
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(exclusive)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(tax)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(directInclusive)}</td>
+                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(groupInclusive)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(sharedInclusive)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(buildingArea ? inclusive / buildingArea : 0)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(saleableArea ? inclusive / saleableArea : 0)}</td>
@@ -203,7 +243,9 @@ export default async function CostAllocationPage({ params }: { params: { id: str
           <h2>分摊口径统计</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
             <div><span className="meta">直接归属成本行</span><div style={{ fontSize: 22, fontWeight: 900 }}>{directRows}</div></div>
+            <div><span className="meta">成本归属组成本行</span><div style={{ fontSize: 22, fontWeight: 900 }}>{groupRows}</div></div>
             <div><span className="meta">共同分摊成本行</span><div style={{ fontSize: 22, fontWeight: 900 }}>{sharedRows}</div></div>
+            <div><span className="meta">未匹配暂分摊行</span><div style={{ fontSize: 22, fontWeight: 900 }}>{fallbackRows}</div></div>
             <div><span className="meta">进项税额</span><div style={{ fontSize: 22, fontWeight: 900 }}>{fmt(totalTax)}</div></div>
             <div><span className="meta">用于所得税成本</span><div style={{ fontSize: 22, fontWeight: 900 }}>{fmt(totalExclusiveCost)}</div></div>
           </div>
@@ -212,19 +254,20 @@ export default async function CostAllocationPage({ params }: { params: { id: str
         <section className="card">
           <h2>成本行分摊明细</h2>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', minWidth: Math.max(1320, 760 + products.length * 150), borderCollapse: 'collapse', fontSize: 12 }}>
+            <table style={{ width: '100%', minWidth: Math.max(1480, 900 + products.length * 150), borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr>
-                  {['编码', '科目路径', '明细', '归属类型', '分摊方式', '含税金额', '不含税金额', '税额'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 9, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}
+                  {['编码', '科目路径', '明细', '成本归属/区域', '归属类型', '分摊方式', '含税金额', '不含税金额', '税额'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 9, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}
                   {products.map((product) => <th key={product.id} style={{ textAlign: 'right', padding: 9, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{product.name}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 ? <tr><td colSpan={8 + products.length} style={{ padding: 12, color: 'var(--muted)' }}>暂无成本明细，先录入目标成本或各专业明细。</td></tr> : rows.map((row, index) => (
+                {rows.length === 0 ? <tr><td colSpan={9 + products.length} style={{ padding: 12, color: 'var(--muted)' }}>暂无成本明细，先录入目标成本或各专业明细。</td></tr> : rows.map((row, index) => (
                   <tr key={`${row.code}-${index}`}>
                     <td style={{ padding: 9, borderBottom: '1px solid var(--border)' }}>{row.code}</td>
                     <td style={{ padding: 9, borderBottom: '1px solid var(--border)' }}>{row.subject}</td>
                     <td style={{ padding: 9, borderBottom: '1px solid var(--border)', fontWeight: 700 }}>{row.detail}</td>
+                    <td style={{ padding: 9, borderBottom: '1px solid var(--border)' }}>{row.region}</td>
                     <td style={{ padding: 9, borderBottom: '1px solid var(--border)' }}>{row.type}</td>
                     <td style={{ padding: 9, borderBottom: '1px solid var(--border)' }}>{row.method}</td>
                     <td style={{ padding: 9, borderBottom: '1px solid var(--border)' }}>{fmt(row.inclusive)}</td>
