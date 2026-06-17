@@ -16,6 +16,7 @@ export function AccountBar() {
         </div>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <Link href="/projects" style={navLink}>项目中心</Link>
+          <Link href="/knowledge" style={navLink}>个人知识库</Link>
           <Link href="/templates" style={navLink}>系统模板</Link>
           <Link href="/account" style={navLink}>个人账户</Link>
           <form action="/api/auth/logout" method="post" style={{ margin: 0 }}>
