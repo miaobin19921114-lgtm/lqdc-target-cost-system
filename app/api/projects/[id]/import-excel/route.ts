@@ -24,6 +24,19 @@ function toNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function parseRate(value: unknown, fallback = 0.09) {
+  const raw = cellText(value);
+  if (!raw) return fallback;
+  const parsed = Number(raw.replace(/[,，%]/g, '').trim());
+  if (!Number.isFinite(parsed)) return fallback;
+  if (raw.includes('%')) return parsed / 100;
+  return parsed > 1 ? parsed / 100 : parsed;
+}
+
+function round2(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 function rowTexts(row: ExcelJS.Row) {
   const list: string[] = [];
   row.eachCell({ includeEmpty: true }, (cell, column) => {
@@ -190,8 +203,24 @@ function findCostHeader(sheet: ExcelJS.Worksheet) {
   return null;
 }
 
-function previewCosts(workbook: ExcelJS.Workbook) {
-  const rows: Array<Record<string, string | number>> = [];
+type CostParsedRow = {
+  sheet: string;
+  row: number;
+  code: string;
+  level1: string;
+  level2: string;
+  level3: string;
+  subject: string;
+  basis: string;
+  quantity: string;
+  unit: string;
+  price: string;
+  taxRate: string;
+  amount: string;
+};
+
+function parseCostRows(workbook: ExcelJS.Workbook, limit = 0) {
+  const rows: CostParsedRow[] = [];
   const sheets = workbook.worksheets.filter((sheet) => /成本|明细|目标|土地|前期|土建|安装|设备|景观|装修|费用/i.test(sheet.name));
   const targetSheets = sheets.length ? sheets : workbook.worksheets;
   for (const sheet of targetSheets) {
@@ -208,7 +237,7 @@ function previewCosts(workbook: ExcelJS.Workbook) {
     const priceIndex = columnIndex(header.heads, [/含税单价/, /单价/]);
     const rateIndex = columnIndex(header.heads, [/税率/]);
     const amountIndex = columnIndex(header.heads, [/含税金额/, /金额/]);
-    for (let rowNumber = header.rowNumber + 1; rowNumber <= sheet.rowCount && rows.length < 30; rowNumber += 1) {
+    for (let rowNumber = header.rowNumber + 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
       const values = rowValues(sheet.getRow(rowNumber));
       const subject = subjectIndex >= 0 ? cellText(values[subjectIndex]) : '';
       const level1 = l1Index >= 0 ? cellText(values[l1Index]) : '';
@@ -231,9 +260,76 @@ function previewCosts(workbook: ExcelJS.Workbook) {
         taxRate: rateIndex >= 0 ? cellText(values[rateIndex]) : '',
         amount: amountIndex >= 0 ? cellText(values[amountIndex]) : ''
       });
+      if (limit > 0 && rows.length >= limit) return rows;
     }
   }
   return rows;
+}
+
+function previewCosts(workbook: ExcelJS.Workbook) {
+  return parseCostRows(workbook, 30);
+}
+
+async function importCosts(versionId: string, workbook: ExcelJS.Workbook) {
+  const rows = parseCostRows(workbook, 0);
+  let count = 0;
+  for (const row of rows) {
+    const quantityRaw = toNumber(row.quantity);
+    const priceRaw = toNumber(row.price);
+    const amountRaw = toNumber(row.amount);
+    if (!row.subject || (!quantityRaw && !priceRaw && !amountRaw)) continue;
+
+    let quantity = quantityRaw;
+    let taxInclusiveUnitPrice = priceRaw;
+    let taxInclusiveAmount = amountRaw;
+    if (!taxInclusiveAmount && quantity && taxInclusiveUnitPrice) taxInclusiveAmount = round2(quantity * taxInclusiveUnitPrice);
+    if (!quantity && taxInclusiveAmount) quantity = 1;
+    if (!taxInclusiveUnitPrice && taxInclusiveAmount && quantity) taxInclusiveUnitPrice = round2(taxInclusiveAmount / quantity);
+    if (!taxInclusiveAmount) continue;
+
+    const taxRate = parseRate(row.taxRate, 0.09);
+    const taxExclusiveAmount = round2(taxInclusiveAmount / (1 + taxRate));
+    const taxAmount = round2(taxInclusiveAmount - taxExclusiveAmount);
+    const taxExclusiveUnitPrice = taxInclusiveUnitPrice ? round2(taxInclusiveUnitPrice / (1 + taxRate)) : 0;
+    const code = row.code || `IMP-${versionId.slice(-6)}-${row.sheet.slice(0, 8)}-${row.row}`;
+    const fullPath = [row.level1, row.level2, row.level3, row.subject].filter(Boolean).join(' / ');
+
+    const subject = await prisma.costSubject.upsert({
+      where: { code },
+      update: { name: row.subject, level: 4, fullPath, defaultUnit: row.unit || undefined, defaultTaxRate: taxRate, defaultMeasureBasis: row.basis || undefined, enabled: true },
+      create: { code, name: row.subject, level: 4, fullPath, defaultUnit: row.unit || undefined, defaultTaxRate: taxRate, defaultMeasureBasis: row.basis || undefined, enabled: true, sortOrder: row.row }
+    });
+
+    const data = {
+      projectVersionId: versionId,
+      costSubjectId: subject.id,
+      detailName: row.subject,
+      regionOrProductType: 'Excel导入',
+      professionalGroup: row.sheet,
+      measureBasis: row.basis,
+      quantity,
+      unit: row.unit || (quantity === 1 && amountRaw ? '项' : ''),
+      taxExclusiveUnitPrice,
+      taxInclusiveUnitPrice,
+      taxRate,
+      taxExclusiveAmount,
+      taxAmount,
+      taxInclusiveAmount,
+      allocationMethod: '按可售面积占比',
+      isDirectAssigned: false,
+      description: fullPath,
+      remark: `Excel正式导入：${row.sheet} 第${row.row}行`,
+      sortOrder: row.row
+    };
+
+    const existing = await prisma.costLine.findFirst({
+      where: { projectVersionId: versionId, detailName: row.subject, professionalGroup: row.sheet, description: fullPath }
+    });
+    if (existing) await prisma.costLine.update({ where: { id: existing.id }, data });
+    else await prisma.costLine.create({ data });
+    count += 1;
+  }
+  return count;
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -265,6 +361,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
       const costs = previewCosts(workbook);
       const costPreview = Buffer.from(JSON.stringify(costs), 'utf8').toString('base64url');
       const query = new URLSearchParams({ costPreviewed: '1', file: file.name || 'import.xlsx', count: String(costs.length), preview, costPreview });
+      return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
+    }
+    if (mode === 'cost-import') {
+      const count = await importCosts(version.id, workbook);
+      const query = new URLSearchParams({ costsImported: '1', file: file.name || 'import.xlsx', count: String(count), preview });
       return NextResponse.redirect(`${url}/projects/${params.id}/export?${query.toString()}`, 303);
     }
     const query = new URLSearchParams({ previewed: '1', file: file.name || 'import.xlsx', preview });
