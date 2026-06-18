@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { getV57CostDictionaryRows } from '@/data/cost-dictionary-v57';
+import { projectNavGroups } from '@/components/project-navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,15 @@ function matchesInactiveProductName(text: string | null | undefined, inactiveNam
   const value = String(text || '').trim();
   if (!value) return false;
   return Array.from(inactiveNames).some((name) => value === name || value === `业态-${name}` || value === `区域-${name}`);
+}
+
+function landRowName(row: { detailSubject?: string | null; measureBasis?: string | null }) {
+  return `${row.detailSubject || ''}${row.measureBasis || ''}`;
+}
+
+function isRateBasedLandFee(row: { detailSubject?: string | null; measureBasis?: string | null }) {
+  const name = landRowName(row);
+  return ['契税', '土地交易服务费', '土地评估费', '土地咨询', '居间服务费'].some((key) => name.includes(key));
 }
 
 async function ensureDictionary(projectId: string) {
@@ -92,90 +102,102 @@ export default async function LandCostPage({ params, searchParams }: { params: {
   const saleableArea = Number(project.saleableArea || 0);
 
   return (
-    <main className="page">
-      <div className="container" style={{ maxWidth: 1600 }}>
-        <div className="page-header">
-          <div>
-            <p className="eyebrow">土地费用明细表</p>
-            <h1 className="title">{project.name}</h1>
-            <p className="subtitle">土地费已改为科目树结构，上级科目只汇总，末级科目录入亩数、万元/亩、税率、备注。停用业态关联数据不参与本页合计。</p>
+    <main className="page" style={{ padding: 0 }}>
+      <div data-detail-shell data-side-collapsed="true" className="detail-shell" style={{ maxWidth: 1840, margin: '0 auto', padding: 12, display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr)', gap: 12 }}>
+        <aside className="detail-side-nav" style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', alignSelf: 'start', position: 'sticky', top: 12, maxHeight: 'calc(100vh - 24px)', overflowY: 'auto' }}>
+          <div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc' }}><div className="meta">当前项目</div><b>{project.name}</b><div className="meta">土地费用明细表</div></div>
+          <div style={{ padding: 8 }}>{projectNavGroups.map((group) => <div key={group.title} style={{ marginBottom: 8 }}><div style={{ padding: '8px 8px 5px', fontSize: 12, fontWeight: 900, color: '#667085' }}>{group.title}</div>{group.items.map(([name, href, status]) => {
+            const active = href === 'land';
+            const target = href ? (href.startsWith('/') ? href : `/projects/${project.id}/${href}`) : '';
+            return href ? <Link key={`${group.title}-${name}`} href={target} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', padding: '8px 10px', borderRadius: 8, fontSize: 13, background: active ? '#e6fcf5' : undefined, color: active ? '#087f5b' : '#102033', fontWeight: active ? 900 : 500 }}><span>{name}</span><span>{active ? '●' : '›'}</span></Link> : <div key={`${group.title}-${name}`} style={{ padding: '8px 10px', borderRadius: 8, fontSize: 13, color: '#98a2b3', background: status === 'planned' ? '#f8fafc' : undefined }}>{name}</div>;
+          })}</div>)}</div>
+        </aside>
+
+        <div className="container" style={{ maxWidth: 'none', width: '100%', padding: 0 }}>
+          <div className="page-header">
+            <div>
+              <p className="eyebrow">土地费用明细表</p>
+              <h1 className="title">{project.name}</h1>
+              <p className="subtitle">土地费已改为科目树结构。土地价款按面积×单价；契税、交易服务费、评估费、居间费默认按土地价款/成交价×费率，且契税不叠加其他费用。</p>
+            </div>
+            <div className="actions" style={{ marginTop: 0 }}>
+              <Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总表</Link>
+              <Link href={`/projects/${project.id}/costs-batch`} className="btn">目标成本编制</Link>
+              <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
+            </div>
           </div>
-          <div className="actions" style={{ marginTop: 0 }}>
-            <Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总表</Link>
-            <Link href={`/projects/${project.id}/costs-batch`} className="btn">目标成本编制</Link>
-            <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
+
+          {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb' }}>土地费用已保存。{searchParams?.batch ? `本次处理 ${searchParams.batch} 行。` : ''}</div> : null}
+          {hiddenDictionaryRows || hiddenCostRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已隐藏停用业态相关科目 {hiddenDictionaryRows} 行、成本行 {hiddenCostRows} 行。</div> : null}
+
+          <div className="summary-strip">
+            <div className="stat"><div className="stat-label">土地费合计</div><div className="stat-value">{fmt(total)}元</div></div>
+            <div className="stat"><div className="stat-label">建面单方</div><div className="stat-value">{fmt(single(total, buildingArea))}</div></div>
+            <div className="stat"><div className="stat-label">可售单方</div><div className="stat-value">{fmt(single(total, saleableArea))}</div></div>
+            <div className="stat"><div className="stat-label">已填 / 末级行</div><div className="stat-value">{activeCosts.length} / {leafRows.length}</div></div>
           </div>
+
+          <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div><b>土地费用明细｜科目树填报</b><div className="meta">土地价款填面积和万元/单位；费率类科目填计费基数和费率，如契税率 3 填 3 或 3%。</div></div>
+              <button form="land-cost-batch" className="btn btn-primary">整表批量保存</button>
+            </div>
+            <form id="land-cost-batch" action={`/api/projects/${project.id}/land/batch`} method="post" />
+            <div style={{ maxHeight: '72vh', overflow: 'auto', padding: 12 }}>
+              {levelOneRows.length === 0 ? <p className="meta">暂无土地费用科目。</p> : levelOneRows.map((level1) => (
+                <details key={level1.name} open style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 10, overflow: 'hidden', background: '#fff' }}>
+                  <summary style={{ cursor: 'pointer', padding: 12, background: '#e9f7f8', display: 'grid', gridTemplateColumns: '1fr 130px 140px 130px 130px', gap: 10, alignItems: 'center', fontWeight: 900 }}>
+                    <span>一级｜{level1.name}</span><span>已填 {level1.filled}/{level1.rows}</span><span style={{ textAlign: 'right' }}>{fmt(level1.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level1.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level1.amount, saleableArea))}</span>
+                  </summary>
+                  <div style={{ padding: 10 }}>
+                    {Array.from(level1.children.values()).map((level2) => (
+                      <details key={level2.name} open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
+                        <summary style={{ cursor: 'pointer', padding: 10, background: '#f8fafc', display: 'grid', gridTemplateColumns: '1fr 120px 140px 130px 130px', gap: 10, alignItems: 'center', fontWeight: 800 }}>
+                          <span>二级｜{level2.name}</span><span>已填 {level2.filled}/{level2.rows}</span><span style={{ textAlign: 'right' }}>{fmt(level2.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level2.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level2.amount, saleableArea))}</span>
+                        </summary>
+                        <div style={{ padding: 8 }}>
+                          {Array.from(level2.children.values()).map((level3) => (
+                            <details key={level3.name} open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
+                              <summary style={{ cursor: 'pointer', padding: 10, background: '#fcfdff', display: 'grid', gridTemplateColumns: '1fr 120px 140px 130px 130px', gap: 10, alignItems: 'center' }}>
+                                <b>三级｜{level3.name}</b><span>已填 {level3.filled}/{level3.rows}</span><span style={{ textAlign: 'right', fontWeight: 800 }}>{fmt(level3.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level3.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level3.amount, saleableArea))}</span>
+                              </summary>
+                              <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1420, borderCollapse: 'collapse', fontSize: 12 }}>
+                                <thead><tr style={{ background: '#fff' }}>{['编码', '末级科目', '区域/地块', '测算依据', '土地面积/计费基数', '单位', '单价或费率', '税率', '含税金额', '建面单方', '可售单方', '分摊方式', '备注', '状态'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#475467' }}>{head}</th>)}</tr></thead>
+                                <tbody>{level3.leaves.map((row, index) => {
+                                  const saved = row.costCode ? costByCode.get(row.costCode) : null;
+                                  const amount = Number(saved?.taxInclusiveAmount || 0);
+                                  const quantity = Number(saved?.quantity || 0);
+                                  const rateBased = isRateBasedLandFee(row);
+                                  const priceValue = rateBased ? Number(saved?.taxInclusiveUnitPrice || 0) : Number(saved?.taxInclusiveUnitPrice || 0) / 10000;
+                                  return <tr key={row.id} style={{ background: amount > 0 ? '#f8fff9' : index % 2 ? '#fff' : '#fcfdff' }}>
+                                    <td style={{ ...cell, fontWeight: 900, color: '#0f4c5c' }}>{row.costCode}</td>
+                                    <td style={{ ...cell, fontWeight: 800 }}>{row.detailSubject}</td>
+                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`regionOrProductType-${row.id}`} defaultValue={saved?.regionOrProductType || '项目整体'} style={{ ...input, minWidth: 110 }} /></td>
+                                    <td style={cell}>{saved?.measureBasis || row.measureBasis || (rateBased ? '土地价款/成交价×费率' : '土地面积/固定金额')}</td>
+                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" type="hidden" name="dictionaryRowId" value={row.id} />{saved ? <input form="land-cost-batch" type="hidden" name={`costLineId-${row.id}`} value={saved.id} /> : null}<input form="land-cost-batch" name={`quantity-${row.id}`} type="number" step="0.01" defaultValue={quantity || ''} placeholder={rateBased ? '土地价款/成交价（万元）' : '亩数/工程量'} style={input} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`unit-${row.id}`} defaultValue={saved?.unit || (rateBased ? '万元基数' : row.unit || '亩')} style={{ ...input, minWidth: 70 }} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`priceWanPerUnit-${row.id}`} type="number" step="0.01" defaultValue={priceValue || ''} placeholder={rateBased ? '费率，如3或3%' : '万元/单位'} style={input} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`taxRate-${row.id}`} defaultValue={saved ? `${Number(saved.taxRate || 0) * 100}%` : row.defaultTaxRate || '0%'} style={{ ...input, minWidth: 68 }} /></td>
+                                    <td style={{ ...cell, textAlign: 'right', fontWeight: 900 }}>{fmt(amount)}</td>
+                                    <td style={{ ...cell, textAlign: 'right' }}>{fmt(single(amount, buildingArea))}</td>
+                                    <td style={{ ...cell, textAlign: 'right' }}>{fmt(single(amount, saleableArea))}</td>
+                                    <td style={cell}>{saved?.allocationMethod || row.targetAllocationMethod || '按可售面积占比'}</td>
+                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`remark-${row.id}`} defaultValue={saved?.remark || ''} placeholder="备注" style={{ ...input, minWidth: 130 }} /></td>
+                                    <td style={{ ...cell, color: amount > 0 ? '#2f9e44' : '#98a2b3', fontWeight: 800 }}>{amount > 0 ? '已填' : '未填'}</td>
+                                  </tr>;
+                                })}</tbody>
+                              </table></div>
+                            </details>
+                          ))}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </section>
         </div>
-
-        {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb' }}>土地费用已保存。{searchParams?.batch ? `本次处理 ${searchParams.batch} 行。` : ''}</div> : null}
-        {hiddenDictionaryRows || hiddenCostRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已隐藏停用业态相关科目 {hiddenDictionaryRows} 行、成本行 {hiddenCostRows} 行。</div> : null}
-
-        <div className="summary-strip">
-          <div className="stat"><div className="stat-label">土地费合计</div><div className="stat-value">{fmt(total)}元</div></div>
-          <div className="stat"><div className="stat-label">建面单方</div><div className="stat-value">{fmt(single(total, buildingArea))}</div></div>
-          <div className="stat"><div className="stat-label">可售单方</div><div className="stat-value">{fmt(single(total, saleableArea))}</div></div>
-          <div className="stat"><div className="stat-label">已填 / 末级行</div><div className="stat-value">{activeCosts.length} / {leafRows.length}</div></div>
-        </div>
-
-        <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <div><b>土地费用明细｜科目树填报</b><div className="meta">土地面积按亩填，土地单价按万元/亩填；保存后自动汇入目标成本测算表和汇总表。</div></div>
-            <button form="land-cost-batch" className="btn btn-primary">整表批量保存</button>
-          </div>
-          <form id="land-cost-batch" action={`/api/projects/${project.id}/land/batch`} method="post" />
-          <div style={{ maxHeight: '72vh', overflow: 'auto', padding: 12 }}>
-            {levelOneRows.length === 0 ? <p className="meta">暂无土地费用科目。</p> : levelOneRows.map((level1) => (
-              <details key={level1.name} open style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 10, overflow: 'hidden', background: '#fff' }}>
-                <summary style={{ cursor: 'pointer', padding: 12, background: '#e9f7f8', display: 'grid', gridTemplateColumns: '1fr 130px 140px 130px 130px', gap: 10, alignItems: 'center', fontWeight: 900 }}>
-                  <span>一级｜{level1.name}</span><span>已填 {level1.filled}/{level1.rows}</span><span style={{ textAlign: 'right' }}>{fmt(level1.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level1.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level1.amount, saleableArea))}</span>
-                </summary>
-                <div style={{ padding: 10 }}>
-                  {Array.from(level1.children.values()).map((level2) => (
-                    <details key={level2.name} open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
-                      <summary style={{ cursor: 'pointer', padding: 10, background: '#f8fafc', display: 'grid', gridTemplateColumns: '1fr 120px 140px 130px 130px', gap: 10, alignItems: 'center', fontWeight: 800 }}>
-                        <span>二级｜{level2.name}</span><span>已填 {level2.filled}/{level2.rows}</span><span style={{ textAlign: 'right' }}>{fmt(level2.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level2.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level2.amount, saleableArea))}</span>
-                      </summary>
-                      <div style={{ padding: 8 }}>
-                        {Array.from(level2.children.values()).map((level3) => (
-                          <details key={level3.name} open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
-                            <summary style={{ cursor: 'pointer', padding: 10, background: '#fcfdff', display: 'grid', gridTemplateColumns: '1fr 120px 140px 130px 130px', gap: 10, alignItems: 'center' }}>
-                              <b>三级｜{level3.name}</b><span>已填 {level3.filled}/{level3.rows}</span><span style={{ textAlign: 'right', fontWeight: 800 }}>{fmt(level3.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level3.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level3.amount, saleableArea))}</span>
-                            </summary>
-                            <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1350, borderCollapse: 'collapse', fontSize: 12 }}>
-                              <thead><tr style={{ background: '#fff' }}>{['编码', '末级科目', '区域/地块', '测算依据', '土地面积/工程量', '单位', '单价（万元/单位）', '税率', '含税金额', '建面单方', '可售单方', '分摊方式', '备注', '状态'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#475467' }}>{head}</th>)}</tr></thead>
-                              <tbody>{level3.leaves.map((row, index) => {
-                                const saved = row.costCode ? costByCode.get(row.costCode) : null;
-                                const amount = Number(saved?.taxInclusiveAmount || 0);
-                                const quantity = Number(saved?.quantity || 0);
-                                const priceWan = Number(saved?.taxInclusiveUnitPrice || 0) / 10000;
-                                return <tr key={row.id} style={{ background: amount > 0 ? '#f8fff9' : index % 2 ? '#fff' : '#fcfdff' }}>
-                                  <td style={{ ...cell, fontWeight: 900, color: '#0f4c5c' }}>{row.costCode}</td>
-                                  <td style={{ ...cell, fontWeight: 800 }}>{row.detailSubject}</td>
-                                  <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`regionOrProductType-${row.id}`} defaultValue={saved?.regionOrProductType || '项目整体'} style={{ ...input, minWidth: 110 }} /></td>
-                                  <td style={cell}>{saved?.measureBasis || row.measureBasis || '土地面积/固定金额'}</td>
-                                  <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" type="hidden" name="dictionaryRowId" value={row.id} />{saved ? <input form="land-cost-batch" type="hidden" name={`costLineId-${row.id}`} value={saved.id} /> : null}<input form="land-cost-batch" name={`quantity-${row.id}`} type="number" step="0.01" defaultValue={quantity || ''} placeholder="亩数/工程量" style={input} /></td>
-                                  <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`unit-${row.id}`} defaultValue={saved?.unit || row.unit || '亩'} style={{ ...input, minWidth: 70 }} /></td>
-                                  <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`priceWanPerUnit-${row.id}`} type="number" step="0.01" defaultValue={priceWan || ''} placeholder="万元/单位" style={input} /></td>
-                                  <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`taxRate-${row.id}`} defaultValue={row.defaultTaxRate || '0%'} style={{ ...input, minWidth: 68 }} /></td>
-                                  <td style={{ ...cell, textAlign: 'right', fontWeight: 900 }}>{fmt(amount)}</td>
-                                  <td style={{ ...cell, textAlign: 'right' }}>{fmt(single(amount, buildingArea))}</td>
-                                  <td style={{ ...cell, textAlign: 'right' }}>{fmt(single(amount, saleableArea))}</td>
-                                  <td style={cell}>{saved?.allocationMethod || row.targetAllocationMethod || '按可售面积占比'}</td>
-                                  <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`remark-${row.id}`} defaultValue={saved?.remark || ''} placeholder="备注" style={{ ...input, minWidth: 130 }} /></td>
-                                  <td style={{ ...cell, color: amount > 0 ? '#2f9e44' : '#98a2b3', fontWeight: 800 }}>{amount > 0 ? '已填' : '未填'}</td>
-                                </tr>;
-                              })}</tbody>
-                            </table></div>
-                          </details>
-                        ))}
-                      </div>
-                    </details>
-                  ))}
-                </div>
-              </details>
-            ))}
-          </div>
-        </section>
       </div>
     </main>
   );
