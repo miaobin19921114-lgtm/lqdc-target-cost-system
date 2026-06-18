@@ -16,6 +16,6 @@ export function ProfessionalDetailFoldControls({ scopeId }: { scopeId: string })
   return <button type="button" className="btn" onClick={toggleAll} style={{ minHeight: 34 }}>{collapsed ? '全部展开' : '全部折叠'}</button>;
 }
 
-export function GroupSaveButton({ formId, groupId }: { formId: string; groupId: string }) {
-  return <button type="submit" form={formId} name="saveGroupId" value={groupId} className="btn" onClick={(event) => event.stopPropagation()} style={{ minHeight: 30, padding: '4px 10px' }}>保存本组</button>;
+export function GroupSaveButton({ formId, groupId, label = '保存本组' }: { formId: string; groupId: string; label?: string }) {
+  return <button type="submit" form={formId} name="saveGroupId" value={groupId} className="btn" onClick={(event) => event.stopPropagation()} style={{ minHeight: 30, padding: '4px 10px' }}>{label}</button>;
 }
