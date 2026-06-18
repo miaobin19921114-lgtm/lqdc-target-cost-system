@@ -54,13 +54,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const baseUrl = getBaseUrl(request);
   const professionalGroup = clean(form.get('professionalGroup')) || '专业明细';
   const returnPath = clean(form.get('returnPath')) || 'costs';
+  const saveGroupId = clean(form.get('saveGroupId'));
   const { version, locked } = await getEditableActiveVersion(params.id);
   if (!version) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?saved=0`, 303);
   if (locked) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?locked=1`, 303);
 
   const products = await prisma.productType.findMany({ where: { projectVersionId: version.id }, select: { name: true, isActive: true } });
   const inactiveProductNames = new Set(products.filter((item) => !item.isActive).map((item) => item.name));
-  const rowEntries = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
+  const allRowEntries = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
+  const rowEntries = saveGroupId ? allRowEntries.filter((entryId) => entryId.includes(`__${saveGroupId}`)) : allRowEntries;
   let savedCount = 0;
 
   for (const rowEntryId of rowEntries) {
@@ -120,5 +122,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
     savedCount += 1;
   }
 
-  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?saved=1&batch=${savedCount}`, 303);
+  const query = saveGroupId ? `saved=1&groupSaved=1&batch=${savedCount}` : `saved=1&batch=${savedCount}`;
+  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?${query}`, 303);
 }
