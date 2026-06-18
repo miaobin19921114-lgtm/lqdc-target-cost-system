@@ -2,16 +2,17 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { costTotals, effectiveCostRows, fullTaxSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
+import { getCostSettings } from '@/lib/cost-product-settings';
 
 export const dynamic = 'force-dynamic';
 
 function fmt(input: unknown) { return n(input).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 function pct(input: unknown) { return `${(n(input) * 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`; }
+function hasAny(text: string | null | undefined, words: string[]) { const value = text || ''; return words.some((word) => value.includes(word)); }
 
 type Row = { name: string; status: '通过' | '提醒' | '需处理'; detail: string; href: string };
 function color(status: Row['status']) { return status === '通过' ? '#2f9e44' : status === '提醒' ? '#f08c00' : '#e03131'; }
 function diffStatus(diff: number, tolerance = 1): Row['status'] { return Math.abs(diff) <= tolerance ? '通过' : '需处理'; }
-function hasAny(text: string | null | undefined, words: string[]) { const value = text || ''; return words.some((word) => value.includes(word)); }
 
 const costModules = [
   { name: '土地费', href: 'land', words: ['土地', '地价', '契税', '交易', '评估'] },
@@ -29,6 +30,63 @@ const costModules = [
   { name: '财务费用', href: 'finance-expense-details', words: ['财务', '融资', '利息'] },
   { name: '税金', href: 'tax-details', words: ['税', '增值税', '所得税', '土地增值税'] }
 ];
+
+function allocationBase(product: any, method: string | null | undefined) {
+  const weight = n(product.allocationWeight || 1) || 1;
+  const methodText = method || '';
+  if (hasAny(methodText, ['建筑面积', '建面'])) return n(product.buildingArea) * weight;
+  if (hasAny(methodText, ['计容'])) return n(product.capacityArea) * weight;
+  if (hasAny(methodText, ['不可售'])) return n(product.nonSaleableArea) * weight;
+  if (hasAny(methodText, ['车位', '地库', '地下车位']) || hasAny(product.name, ['车位', '地库', '地下'])) return (n(product.saleableArea) || n(product.buildingArea)) * weight;
+  if (hasAny(methodText, ['销售收入', '收入'])) return n(product.saleableArea) * n(product.salePrice) * weight;
+  return (n(product.saleableArea) || n(product.buildingArea) || n(product.capacityArea)) * weight;
+}
+
+function productCostGroupName(product: any) {
+  const setting = getCostSettings(product);
+  return setting.standalone ? product.name : setting.groupName;
+}
+
+function regionMatchesProduct(region: string, product: any) {
+  const productName = product.name || '';
+  const costGroup = productCostGroupName(product);
+  if (!region || region.includes('全项目') || region.includes('项目整体') || region.includes('Excel导入')) return true;
+  if (region === productName || region === costGroup) return true;
+  if (region.includes(productName) || productName.includes(region)) return true;
+  if (region.includes(costGroup) || costGroup.includes(region)) return true;
+  if (region.includes('主楼地下室') && productName.includes('主楼地下室')) return true;
+  if (region.includes('非主楼地下室') && (productName.includes('非主楼') || productName.includes('纯地库') || costGroup.includes('非主楼地下室'))) return true;
+  if (region.includes('人防地下室') && (productName.includes('人防') || costGroup.includes('人防地下室'))) return true;
+  if (region.includes('地下') && productName.includes('地下') && !region.includes('非主楼') && !region.includes('主楼')) return true;
+  return false;
+}
+
+function methodName(method: string | null | undefined) { return method || '按可售面积占比'; }
+
+function allocationDiagnostics(costs: any[], products: any[]) {
+  const allocationProducts = products.filter((item) => item.isActive && item.participateAllocation);
+  const saleableProducts = allocationProducts.filter((item) => item.isSaleable);
+  let allocatedInclusive = 0;
+  let directRows = 0;
+  let groupRows = 0;
+  let sharedRows = 0;
+  let fallbackRows = 0;
+  costs.forEach((cost) => {
+    const directProduct = cost.productTypeId ? allocationProducts.find((product) => product.id === cost.productTypeId) : null;
+    const region = cost.regionOrProductType || '';
+    let pool: any[] = [];
+    if (directProduct) { pool = [directProduct]; directRows += 1; }
+    else {
+      const matched = allocationProducts.filter((product) => regionMatchesProduct(region, product));
+      if (matched.length && !hasAny(region, ['全项目', '项目整体', 'Excel导入'])) { pool = matched; groupRows += 1; }
+      else { pool = saleableProducts.length ? saleableProducts : allocationProducts; sharedRows += 1; if (!matched.length && !hasAny(region, ['全项目', '项目整体', 'Excel导入'])) fallbackRows += 1; }
+    }
+    const bases = pool.map((product) => ({ product, base: allocationBase(product, methodName(cost.allocationMethod)) }));
+    const totalBase = bases.reduce((sum, item) => sum + item.base, 0) || pool.length || 1;
+    bases.forEach(({ base }) => { allocatedInclusive += n(cost.taxInclusiveAmount) * (totalBase ? base / totalBase : 1 / pool.length); });
+  });
+  return { allocatedInclusive, allocationDiff: costs.reduce((sum, item) => sum + n(item.taxInclusiveAmount), 0) - allocatedInclusive, directRows, groupRows, sharedRows, fallbackRows, allocationProducts };
+}
 
 export default async function SummaryCheckPage({ params }: { params: { id: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
@@ -49,7 +107,7 @@ export default async function SummaryCheckPage({ params }: { params: { id: strin
   const surchargeRate = n(version?.taxes?.urbanMaintenanceRate || 0.07) + n(version?.taxes?.educationSurchargeRate || 0.03) + n(version?.taxes?.localEducationSurchargeRate || 0.02);
 
   const dictRows = await prisma.costDictionaryRow.findMany({ where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } }, select: { costCode: true } });
-  const dictCodes = new Set<string | null>(dictRows.map((item) => item.costCode).filter((code): code is string => Boolean(code)));
+  const dictCodes = new Set<string>(dictRows.map((item) => item.costCode).filter((code): code is string => Boolean(code)));
   const effective = effectiveCostRows(allCosts, dictCodes);
   const costs = effective.effective;
   const noPathCosts = costs.filter((item) => !item.costSubject.fullPath && !item.description);
@@ -62,19 +120,24 @@ export default async function SummaryCheckPage({ params }: { params: { id: strin
   const costFormulaDiff = cost.taxInclusive - cost.taxExclusive - cost.inputVat;
   const revenue = revenueFromProjectData({ products: allProducts, revenues: version?.revenues || [], commercialRevenueLines: version?.commercialRevenueLines || [], otherRevenueLines: version?.otherRevenueLines || [], vatRate });
   const tax = fullTaxSummary({ revenueExclusive: revenue.taxExclusive, outputVat: revenue.outputVat, inputVat: cost.inputVat, costExclusive: cost.taxExclusive, landCost: cost.landCost, devCost: cost.devCost, saleManageFinance: cost.saleManageFinance, surchargeRate, incomeTaxRate });
+  const allocation = allocationDiagnostics(costs, allProducts);
   const buildingArea = n(project.totalBuildingArea);
   const saleableArea = n(project.saleableArea);
 
   const moduleRows = costModules.map((module) => {
     const related = costs.filter((item) => hasAny(`${item.costSubject.fullPath || ''} ${item.costSubject.name} ${item.detailName} ${item.regionOrProductType || ''} ${item.professionalGroup || ''}`, module.words));
     const amount = related.reduce((sum, item) => sum + n(item.taxInclusiveAmount), 0);
-    const status: Row['status'] = related.length ? '通过' : module.name === '税金' ? '提醒' : '提醒';
+    const status: Row['status'] = related.length ? '通过' : '提醒';
     return { ...module, count: related.length, amount, status };
   });
   const emptyModuleCount = moduleRows.filter((item) => item.count === 0).length;
 
   const rows: Row[] = [
     { name: '目标成本是否已录入', status: costs.length ? '通过' : '需处理', detail: `有效成本行 ${costs.length} 行，含税成本 ${fmt(cost.taxInclusive)}`, href: 'costs-batch' },
+    { name: '成本分摊合计一致', status: diffStatus(allocation.allocationDiff), detail: `有效成本 ${fmt(cost.taxInclusive)}，分摊后合计 ${fmt(allocation.allocatedInclusive)}，差异 ${fmt(allocation.allocationDiff)}`, href: 'cost-allocation' },
+    { name: '成本归属分组匹配', status: allocation.fallbackRows ? '提醒' : '通过', detail: allocation.fallbackRows ? `${allocation.fallbackRows} 行成本未匹配明确归属组，已暂按共同分摊` : `直接 ${allocation.directRows} 行，归属组 ${allocation.groupRows} 行，共同 ${allocation.sharedRows} 行`, href: 'cost-allocation' },
+    { name: '收入完整口径联动', status: revenue.taxInclusive > 0 ? '通过' : '提醒', detail: `总收入 ${fmt(revenue.taxInclusive)}，销售 ${fmt(revenue.ordinary.taxInclusive)}，商业 ${fmt(revenue.commercial.taxInclusive)}，车位 ${fmt(revenue.parking.taxInclusive)}，其他 ${fmt(revenue.other.taxInclusive)}`, href: 'revenue-summary' },
+    { name: '税金/利润统一口径', status: revenue.taxInclusive && cost.taxInclusive ? '通过' : '提醒', detail: `应缴增值税 ${fmt(tax.payableVat)}，土增税 ${fmt(tax.landVat.landVat)}，所得税 ${fmt(tax.incomeTax)}，税后净利 ${fmt(tax.netProfit)}`, href: 'tax-details' },
     { name: '成本模块覆盖完整性', status: emptyModuleCount ? '提醒' : '通过', detail: emptyModuleCount ? `${emptyModuleCount} 个成本模块暂未识别到明细，建议逐项检查` : '主要成本模块均识别到明细行', href: 'summary' },
     { name: 'Excel导入科目计入汇总', status: effective.importedLeafRows ? '提醒' : '通过', detail: effective.importedLeafRows ? `已计入 ${effective.importedLeafRows} 条Excel导入/临时四级科目，建议做科目映射` : '无临时导入科目，或均已归入标准科目', href: 'cost-mapping' },
     { name: '非末级成本过滤', status: effective.ignoredNonLeaf ? '提醒' : '通过', detail: effective.ignoredNonLeaf ? `已排除 ${effective.ignoredNonLeaf} 条非末级历史成本行，避免重复计算` : '未发现需排除的非末级成本行', href: 'summary' },
@@ -84,16 +147,17 @@ export default async function SummaryCheckPage({ params }: { params: { id: strin
     { name: '工程量乘单价校验', status: qtyMismatch.length ? '提醒' : '通过', detail: qtyMismatch.length ? `${qtyMismatch.length} 行工程量×含税单价与含税金额不一致` : '工程量、单价、金额基本平衡', href: 'costs-batch' },
     { name: '负数成本检查', status: negativeCosts.length ? '提醒' : '通过', detail: negativeCosts.length ? `${negativeCosts.length} 行为负数，确认是否为冲减/返还` : '未发现负数成本行', href: 'costs-batch' },
     { name: '成本业态归属', status: missingProductCosts.length ? '需处理' : '通过', detail: missingProductCosts.length ? `${missingProductCosts.length} 行关联业态异常` : '成本行关联业态正常', href: 'cost-allocation' },
-    { name: '收入新口径联动', status: revenue.taxInclusive > 0 ? '通过' : '提醒', detail: `总收入 ${fmt(revenue.taxInclusive)}，销售 ${fmt(revenue.ordinary.taxInclusive)}，商业 ${fmt(revenue.commercial.taxInclusive)}，车位 ${fmt(revenue.parking.taxInclusive)}，其他 ${fmt(revenue.other.taxInclusive)}`, href: 'revenue-summary' },
-    { name: '利润公式口径', status: revenue.taxInclusive && cost.taxInclusive ? '通过' : '提醒', detail: `税前利润 ${fmt(tax.profitBeforeIncomeTax)}，所得税 ${fmt(tax.incomeTax)}，税后净利 ${fmt(tax.netProfit)}，净利率 ${pct(revenue.taxInclusive ? tax.netProfit / revenue.taxInclusive : 0)}`, href: 'summary' },
     { name: '单方指标口径', status: buildingArea && saleableArea ? '通过' : '需处理', detail: `建面 ${fmt(buildingArea)}㎡，可售 ${fmt(saleableArea)}㎡；建面单方 ${fmt(buildingArea ? cost.taxInclusive / buildingArea : 0)}，可售单方 ${fmt(saleableArea ? cost.taxInclusive / saleableArea : 0)}`, href: 'overview' },
     { name: '停用业态排除', status: disabledProducts || effective.ignoredDisabled ? '提醒' : '通过', detail: disabledProducts || effective.ignoredDisabled ? `已排除停用业态 ${disabledProducts} 个、成本行 ${effective.ignoredDisabled} 行` : '无停用业态影响汇总', href: 'product-maintenance' }
   ];
 
-  return <main className="page"><div className="container" style={{ maxWidth: 1280 }}>
-    <div className="page-header"><div><p className="eyebrow">汇总联动校验</p><h1 className="title">{project.name}</h1><p className="subtitle">检查收入新表、成本明细、税额、利润、单方和科目穿透是否与目标成本汇总表一致；Excel导入四级科目会计入汇总。</p></div><div className="actions" style={{ marginTop: 0 }}><Link className="btn btn-primary" href={`/projects/${project.id}/summary`}>目标成本汇总表</Link><Link className="btn" href={`/projects/${project.id}/tax-details`}>税金明细</Link><Link className="btn" href={`/projects/${project.id}/cost-mapping`}>科目映射</Link><Link className="btn" href={`/projects/${project.id}`}>返回工作台</Link></div></div>
-    <section className="card" style={{ marginBottom: 16 }}><h2>核心口径</h2><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}><div><span className="meta">含税总收入</span><div style={{ fontWeight: 900, fontSize: 20 }}>{fmt(revenue.taxInclusive)}</div></div><div><span className="meta">含税目标成本</span><div style={{ fontWeight: 900, fontSize: 20 }}>{fmt(cost.taxInclusive)}</div></div><div><span className="meta">税前利润</span><div style={{ fontWeight: 900, fontSize: 20 }}>{fmt(tax.profitBeforeIncomeTax)}</div></div><div><span className="meta">税后净利</span><div style={{ fontWeight: 900, fontSize: 20 }}>{fmt(tax.netProfit)}</div></div></div></section>
+  const issueCount = rows.filter((row) => row.status === '需处理').length;
+  const warningCount = rows.filter((row) => row.status === '提醒').length;
+
+  return <main className="page"><div className="container" style={{ maxWidth: 1320 }}>
+    <div className="page-header"><div><p className="eyebrow">汇总联动校验</p><h1 className="title">{project.name}</h1><p className="subtitle">检查收入、成本、成本分摊、税金明细、土地增值税、业态利润是否同口径；重点校验成本归属分组和分摊合计。</p></div><div className="actions" style={{ marginTop: 0 }}><Link className="btn btn-primary" href={`/projects/${project.id}/summary`}>目标成本汇总表</Link><Link className="btn" href={`/projects/${project.id}/cost-allocation`}>成本分摊</Link><Link className="btn" href={`/projects/${project.id}/tax-details`}>税金明细</Link><Link className="btn" href={`/projects/${project.id}/profit-analysis`}>业态利润</Link><Link className="btn" href={`/projects/${project.id}`}>返回工作台</Link></div></div>
+    <section className="card" style={{ marginBottom: 16 }}><h2>核心口径</h2><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}><div><span className="meta">含税总收入</span><div style={{ fontWeight: 900, fontSize: 20 }}>{fmt(revenue.taxInclusive)}</div></div><div><span className="meta">含税目标成本</span><div style={{ fontWeight: 900, fontSize: 20 }}>{fmt(cost.taxInclusive)}</div></div><div><span className="meta">分摊差异</span><div style={{ fontWeight: 900, fontSize: 20, color: Math.abs(allocation.allocationDiff) <= 1 ? '#2f9e44' : '#e03131' }}>{fmt(allocation.allocationDiff)}</div></div><div><span className="meta">需处理/提醒</span><div style={{ fontWeight: 900, fontSize: 20 }}>{issueCount} / {warningCount}</div></div><div><span className="meta">税后净利</span><div style={{ fontWeight: 900, fontSize: 20 }}>{fmt(tax.netProfit)}</div></div></div></section>
     <section className="card" style={{ marginBottom: 16 }}><h2>成本模块覆盖检查</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}><thead><tr>{['模块', '状态', '识别行数', '含税金额', '入口'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{moduleRows.map((row) => <tr key={row.name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{row.name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: color(row.status), fontWeight: 900 }}>{row.status}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row.count}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.amount)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><Link className="btn" href={`/projects/${project.id}/${row.href}`}>进入</Link></td></tr>)}</tbody></table></div></section>
-    <section className="card"><h2>校验结果</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}><thead><tr>{['检查项', '状态', '说明', '操作'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row.name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{row.name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: color(row.status), fontWeight: 900 }}>{row.status}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row.detail}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><Link className="btn" href={`/projects/${project.id}/${row.href}`}>进入</Link></td></tr>)}</tbody></table></div></section>
+    <section className="card"><h2>校验结果</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1060, borderCollapse: 'collapse' }}><thead><tr>{['检查项', '状态', '说明', '操作'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row.name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{row.name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: color(row.status), fontWeight: 900 }}>{row.status}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{row.detail}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><Link className="btn" href={`/projects/${project.id}/${row.href}`}>进入</Link></td></tr>)}</tbody></table></div></section>
   </div></main>;
 }
