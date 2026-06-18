@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { getV57CostDictionaryRows } from '@/data/cost-dictionary-v57';
+import { getV60CostDictionaryRows } from '@/data/cost-dictionary-v60';
 import { suggestQuantityFromOverview } from '@/lib/overview-quantity';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { getCostSettings, getProfessionalCostGroupName, normalizeCostGroupName, shouldGenerateProfessionalCostGroup } from '@/lib/cost-product-settings';
@@ -16,12 +16,12 @@ function round2(value: number) {
 }
 
 async function ensurePresetRows(projectId: string) {
-  const presetRows = getV57CostDictionaryRows().map((row) => ({ ...row, projectId }));
+  const presetRows = getV60CostDictionaryRows().map((row) => ({ ...row, projectId }));
   if (!presetRows.length) return;
 
   const count = await prisma.costDictionaryRow.count({ where: { projectId } });
-  const finalizedUpfrontRows = await prisma.costDictionaryRow.count({ where: { projectId, costCode: { startsWith: '02.01.01.' } } });
-  if (count >= 100 && finalizedUpfrontRows > 0) return;
+  const v60BuildingRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', detailSubject: '高层工程桩', costCode: { startsWith: '03.02.01.' } } });
+  if (count >= 100 && v60BuildingRows > 0) return;
 
   await prisma.$transaction([
     prisma.costDictionaryRow.deleteMany({ where: { projectId } }),
