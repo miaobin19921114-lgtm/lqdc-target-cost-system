@@ -54,11 +54,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const taxRules = version.taxes ? [
     { name: '增值税', rate: version.taxes.vatRate, scope: '销售收入', remark: '项目反向沉淀', sortOrder: 10 },
-    { name: '城建税', rate: version.taxes.urbanMaintenanceRate, scope: '增值税', remark: '项目反向沉淀', sortOrder: 20 },
+    { name: '城建税', rate: version.taxes.urbanMaintenanceTaxRate, scope: '增值税', remark: '项目反向沉淀', sortOrder: 20 },
     { name: '教育费附加', rate: version.taxes.educationSurchargeRate, scope: '增值税', remark: '项目反向沉淀', sortOrder: 30 },
     { name: '地方教育附加', rate: version.taxes.localEducationSurchargeRate, scope: '增值税', remark: '项目反向沉淀', sortOrder: 40 },
-    { name: '企业所得税', rate: version.taxes.corporateIncomeTaxRate, scope: '利润总额', remark: '项目反向沉淀', sortOrder: 50 },
-    { name: '土地增值税', rate: version.taxes.landValueAddedTaxRate, scope: '清算增值额', remark: '项目反向沉淀', sortOrder: 60 }
+    { name: '企业所得税', rate: version.taxes.incomeTaxRate, scope: '利润总额', remark: '项目反向沉淀', sortOrder: 50 },
+    { name: '土地增值税预征率', rate: version.taxes.landVatPrepayRate, scope: '清算增值额', remark: '项目反向沉淀', sortOrder: 60 }
   ] : [];
 
   await prisma.template.create({
