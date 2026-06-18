@@ -27,14 +27,25 @@ export function isVirtualCostGroup(groupName: string | null | undefined) {
   return name === '公共配套/所在主体' || name === '所在主体';
 }
 
+function commercialRevenueBaseName(productName: string | null | undefined) {
+  const name = String(productName || '').trim();
+  if (!name.startsWith('商业收入-')) return '';
+  const body = name.replace(/^商业收入-/, '');
+  return body.split('_')[0] || body.split('-')[0] || '商业';
+}
+
 export function isInternalBusinessDimension(productName: string | null | undefined) {
   const name = String(productName || '').trim();
+  if (name.startsWith('商业收入-') || name.startsWith('其他收入-')) return true;
   return /^商业街.*(一层|二层|三层|1层|2层|3层|首层|二楼|三楼)$/.test(name);
 }
 
 export function getProfessionalCostGroupName(product: ProductCostSettingInput) {
-  const setting = getCostSettings(product);
+  const commercialBase = commercialRevenueBaseName(product.name);
+  if (commercialBase) return normalizeCostGroupName(commercialBase);
+  if (String(product.name || '').startsWith('其他收入-')) return '项目整体共用';
   if (isInternalBusinessDimension(product.name)) return '商业街';
+  const setting = getCostSettings(product);
   return normalizeCostGroupName(setting.standalone ? product.name : setting.groupName);
 }
 
@@ -50,7 +61,14 @@ export function shouldGenerateProfessionalCostGroup(professionalGroup: string | 
 
 export function defaultCostSettings(product: ProductCostSettingInput): ProductCostSettings {
   const name = product.name || '';
+  const commercialBase = commercialRevenueBaseName(name);
 
+  if (commercialBase) {
+    return { standalone: false, groupName: commercialBase, note: '商业收入明细是收入测算维度，不作为独立成本业态组。' };
+  }
+  if (name.startsWith('其他收入-')) {
+    return { standalone: false, groupName: '项目整体共用', note: '其他收入是收入测算维度，不作为工程成本对象。' };
+  }
   if (isInternalBusinessDimension(name)) {
     return { standalone: false, groupName: '商业街', note: '楼层是商业街内部经营维度，不作为独立成本业态组。' };
   }
