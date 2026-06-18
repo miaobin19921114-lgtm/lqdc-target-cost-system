@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { getV57CostDictionaryRows } from '@/data/cost-dictionary-v57';
 import { projectNavGroups } from '@/components/project-navigation';
+import { LandFeeFormulaHelper } from '@/components/professional-detail-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,11 @@ function defaultFeeRatePercent(row: { detailSubject?: string | null; measureBasi
   const name = landRowName(row);
   if (name.includes('契税')) return 3;
   return '';
+}
+
+function isLandPriceDictionaryRow(row: { detailSubject?: string | null; measureBasis?: string | null }) {
+  const name = landRowName(row);
+  return (name.includes('土地出让金') || name.includes('土地价款')) && !isRateBasedLandFee(row);
 }
 
 function isLandPriceCost(row: { detailName?: string | null; costSubject?: { name?: string | null } | null }) {
@@ -153,10 +159,11 @@ export default async function LandCostPage({ params, searchParams }: { params: {
 
           <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <div><b>土地费用明细｜科目树填报</b><div className="meta">费率类科目默认带入土地价款基数；已有 0 金额记录也会自动补基数。契税默认 3%，其他费率按项目实际填。</div></div>
+              <div><b>土地费用明细｜科目树填报</b><div className="meta">费率类科目会实时监听土地价款行；改土地面积或单价后，契税等计费基数立即联动。手动改过的基数不再自动覆盖。</div></div>
               <button form="land-cost-batch" className="btn btn-primary">整表批量保存</button>
             </div>
             <form id="land-cost-batch" action={`/api/projects/${project.id}/land/batch`} method="post" />
+            <LandFeeFormulaHelper formId="land-cost-batch" />
             <div style={{ maxHeight: '72vh', overflow: 'auto', padding: 12 }}>
               {levelOneRows.length === 0 ? <p className="meta">暂无土地费用科目。</p> : levelOneRows.map((level1) => (
                 <details key={level1.name} open style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 10, overflow: 'hidden', background: '#fff' }}>
@@ -183,6 +190,7 @@ export default async function LandCostPage({ params, searchParams }: { params: {
                                   const savedQuantity = Number(saved?.quantity || 0);
                                   const savedRate = Number(saved?.taxInclusiveUnitPrice || 0);
                                   const rateBased = isRateBasedLandFee(row);
+                                  const landPriceRow = isLandPriceDictionaryRow(row);
                                   const shouldUseFormulaPreset = rateBased && landPriceBaseWan > 0 && (!saved || amount <= 0 || savedQuantity <= 0);
                                   const defaultQuantity = shouldUseFormulaPreset ? landPriceBaseWan : savedQuantity;
                                   const defaultRate = rateBased ? (savedRate > 0 ? savedRate : defaultFeeRatePercent(row)) : Number(saved?.taxInclusiveUnitPrice || 0) / 10000;
@@ -192,9 +200,9 @@ export default async function LandCostPage({ params, searchParams }: { params: {
                                     <td style={{ ...cell, fontWeight: 800 }}>{row.detailSubject}</td>
                                     <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`regionOrProductType-${row.id}`} defaultValue={saved?.regionOrProductType || '项目整体'} style={{ ...input, minWidth: 110 }} /></td>
                                     <td style={cell}>{saved?.measureBasis || row.measureBasis || (rateBased ? '土地价款/成交价×费率' : '土地面积/固定金额')}</td>
-                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" type="hidden" name="dictionaryRowId" value={row.id} />{saved ? <input form="land-cost-batch" type="hidden" name={`costLineId-${row.id}`} value={saved.id} /> : null}<input form="land-cost-batch" name={`quantity-${row.id}`} type="number" step="0.01" defaultValue={defaultQuantity || ''} placeholder={rateBased ? '自动取土地价款，可改' : '亩数/工程量'} style={input} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" type="hidden" name="dictionaryRowId" value={row.id} />{saved ? <input form="land-cost-batch" type="hidden" name={`costLineId-${row.id}`} value={saved.id} /> : null}<input form="land-cost-batch" name={`quantity-${row.id}`} type="number" step="0.01" defaultValue={defaultQuantity || ''} placeholder={rateBased ? '自动取土地价款，可改' : '亩数/工程量'} data-land-role={landPriceRow ? 'land-price-quantity' : rateBased ? 'rate-base' : undefined} data-row-id={row.id} data-formula-auto={rateBased && shouldUseFormulaPreset ? 'true' : 'false'} style={input} /></td>
                                     <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`unit-${row.id}`} defaultValue={saved?.unit || (rateBased ? '万元基数' : row.unit || '亩')} style={{ ...input, minWidth: 70 }} /></td>
-                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`priceWanPerUnit-${row.id}`} type={rateBased ? 'text' : 'number'} step="0.01" defaultValue={priceValue || ''} placeholder={rateBased ? '费率，如3或3%' : '万元/单位'} style={input} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`priceWanPerUnit-${row.id}`} type={rateBased ? 'text' : 'number'} step="0.01" defaultValue={priceValue || ''} placeholder={rateBased ? '费率，如3或3%' : '万元/单位'} data-land-role={landPriceRow ? 'land-price-unit-price' : rateBased ? 'fee-rate' : undefined} data-row-id={row.id} data-default-rate={rateBased ? String(defaultFeeRatePercent(row) || '') : undefined} style={input} /></td>
                                     <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`taxRate-${row.id}`} defaultValue={saved ? `${Number(saved.taxRate || 0) * 100}%` : row.defaultTaxRate || '0%'} style={{ ...input, minWidth: 68 }} /></td>
                                     <td style={{ ...cell, textAlign: 'right', fontWeight: 900 }}>{fmt(amount)}</td>
                                     <td style={{ ...cell, textAlign: 'right' }}>{fmt(single(amount, buildingArea))}</td>
