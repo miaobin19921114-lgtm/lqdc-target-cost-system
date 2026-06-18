@@ -32,23 +32,23 @@ model User {
 }
 
 model Template {
-  id              String             @id @default(cuid())
-  ownerId         String?
-  owner           User?              @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  baseTemplateId  String?
-  sourceProjectId String?
+  id                String             @id @default(cuid())
+  ownerId           String?
+  owner             User?              @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  baseTemplateId    String?
+  sourceProjectId   String?
   sourceProjectName String?
-  name            String
-  type            String             @default("住宅开发")
-  description     String?
-  isDefault       Boolean            @default(false)
-  isActive        Boolean            @default(true)
-  sortOrder       Int                @default(0)
-  products        TemplateProduct[]
-  costRules       TemplateCostRule[]
-  taxRules        TemplateTaxRule[]
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @default(now()) @updatedAt
+  name              String
+  type              String             @default("住宅开发")
+  description       String?
+  isDefault         Boolean            @default(false)
+  isActive          Boolean            @default(true)
+  sortOrder         Int                @default(0)
+  products          TemplateProduct[]
+  costRules         TemplateCostRule[]
+  taxRules          TemplateTaxRule[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now()) @updatedAt
 
   @@index([ownerId])
   @@index([baseTemplateId])
@@ -56,18 +56,18 @@ model Template {
 }
 
 model TemplateProduct {
-  id                    String   @id @default(cuid())
-  templateId             String
-  template               Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  category               String
-  name                   String
-  isSaleable             Boolean  @default(true)
-  participateAllocation  Boolean  @default(true)
-  allocationWeight       Decimal  @default(1)
-  sortOrder              Int      @default(0)
-  remark                 String?
-  isActive               Boolean  @default(true)
-  disabledAt             DateTime?
+  id                   String   @id @default(cuid())
+  templateId            String
+  template              Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  category              String
+  name                  String
+  isSaleable            Boolean  @default(true)
+  participateAllocation Boolean  @default(true)
+  allocationWeight      Decimal  @default(1)
+  sortOrder             Int      @default(0)
+  remark                String?
+  isActive              Boolean  @default(true)
+  disabledAt            DateTime?
 
   @@unique([templateId, name])
   @@index([templateId])
@@ -75,32 +75,32 @@ model TemplateProduct {
 }
 
 model TemplateCostRule {
-  id                String   @id @default(cuid())
-  templateId         String
-  template           Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  costCode           String?
-  category           String?
-  subjectName        String
-  sourceTable        String?
-  measureBasis       String?
-  unit               String?
-  defaultTaxRate     Decimal  @default(0.09)
-  allocationMethod   String?
-  sortOrder          Int      @default(0)
-  remark             String?
+  id              String   @id @default(cuid())
+  templateId      String
+  template        Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  costCode        String?
+  category        String?
+  subjectName     String
+  sourceTable     String?
+  measureBasis    String?
+  unit            String?
+  defaultTaxRate  Decimal  @default(0.09)
+  allocationMethod String?
+  sortOrder       Int      @default(0)
+  remark          String?
 
   @@index([templateId])
 }
 
 model TemplateTaxRule {
-  id          String   @id @default(cuid())
-  templateId   String
-  template     Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  name        String
-  rate        Decimal  @default(0)
-  scope       String?
-  remark      String?
-  sortOrder   Int      @default(0)
+  id        String   @id @default(cuid())
+  templateId String
+  template  Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name      String
+  rate      Decimal  @default(0)
+  scope     String?
+  remark    String?
+  sortOrder Int      @default(0)
 
   @@index([templateId])
 }
@@ -194,87 +194,88 @@ model Project {
 }
 
 model ProjectVersion {
-  id                      String        @id @default(cuid())
-  projectId               String
-  project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name                    String
-  stage                   String?
-  status                  String        @default("draft")
-  products                ProductType[]
-  costRules               ProjectCostRule[]
-  costs                   CostLine[]
-  revenues                RevenueLine[]
-  commercialRevenueLines  CommercialRevenueLine[]
-  otherRevenueLines       OtherRevenueLine[]
-  salesSchedulePlans      SalesSchedulePlan[]
-  taxes                   TaxParameter?
-  importBatches           ImportBatch[]
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @default(now()) @updatedAt
+  id                     String        @id @default(cuid())
+  projectId              String
+  project                Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name                   String
+  stage                  String?
+  status                 String        @default("draft")
+  products               ProductType[]
+  costRules              ProjectCostRule[]
+  costs                  CostLine[]
+  revenues               RevenueLine[]
+  commercialRevenueLines CommercialRevenueLine[]
+  otherRevenueLines      OtherRevenueLine[]
+  salesSchedulePlans     SalesSchedulePlan[]
+  taxes                  TaxParameter?
+  importBatches          ImportBatch[]
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @default(now()) @updatedAt
 }
 
 model ProductType {
-  id                    String         @id @default(cuid())
+  id                     String         @id @default(cuid())
   projectVersionId       String
   projectVersion         ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  name                  String
-  buildingArea          Decimal @default(0)
-  saleableArea          Decimal @default(0)
-  capacityArea          Decimal @default(0)
-  nonSaleableArea       Decimal @default(0)
-  salePrice             Decimal @default(0)
-  isSaleable            Boolean @default(true)
-  participateAllocation Boolean @default(true)
-  allocationWeight      Decimal @default(1)
-  remark                String?
-  isActive              Boolean @default(true)
-  disabledAt            DateTime?
-  costs                 CostLine[]
-  revenues              RevenueLine[]
+  name                   String
+  buildingArea           Decimal @default(0)
+  saleableArea           Decimal @default(0)
+  capacityArea           Decimal @default(0)
+  nonSaleableArea        Decimal @default(0)
+  salePrice              Decimal @default(0)
+  isSaleable             Boolean @default(true)
+  participateAllocation  Boolean @default(true)
+  allocationWeight       Decimal @default(1)
+  remark                 String?
+  isActive               Boolean @default(true)
+  disabledAt             DateTime?
+  costs                  CostLine[]
+  revenues               RevenueLine[]
   commercialRevenueLines CommercialRevenueLine[]
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @default(now()) @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @default(now()) @updatedAt
 
   @@index([projectVersionId])
   @@index([projectVersionId, isActive])
 }
 
 model ProjectCostRule {
-  id                 String         @id @default(cuid())
-  projectVersionId    String
-  projectVersion      ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  costCode            String?
-  category            String?
-  subjectName         String
-  sourceTable         String?
-  measureBasis        String?
-  unit                String?
-  defaultTaxRate      Decimal @default(0.09)
-  allocationMethod    String?
-  sortOrder           Int @default(0)
-  remark              String?
+  id                String         @id @default(cuid())
+  projectVersionId  String
+  projectVersion    ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  costCode          String?
+  category          String?
+  subjectName       String
+  sourceTable       String?
+  measureBasis      String?
+  unit              String?
+  defaultTaxRate    Decimal @default(0.09)
+  allocationMethod  String?
+  sortOrder         Int @default(0)
+  remark            String?
 }
 
 model CostSubject {
-  id                       String     @id @default(cuid())
-  code                     String     @unique
-  name                     String
-  level                    Int
-  parentCode               String?
-  fullPath                 String?
-  defaultUnit              String?
-  defaultTaxRate           Decimal    @default(0.09)
-  defaultMeasureBasis      String?
-  defaultAllocationMethod  String?
-  enabled                  Boolean    @default(true)
-  sortOrder                Int        @default(0)
-  costs                    CostLine[]
+  id                      String     @id @default(cuid())
+  code                    String     @unique
+  name                    String
+  level                   Int
+  parentCode              String?
+  fullPath                String?
+  defaultUnit             String?
+  defaultTaxRate          Decimal    @default(0.09)
+  defaultMeasureBasis     String?
+  defaultAllocationMethod String?
+  enabled                 Boolean    @default(true)
+  sortOrder               Int        @default(0)
+  costs                   CostLine[]
 }
 
 model CostDictionaryRow {
   id                         String   @id @default(cuid())
   projectId                  String
   rowIndex                   Int
+  parentCode                 String?
   firstSubject               String?
   secondSubject              String?
   thirdSubject               String?
@@ -344,22 +345,22 @@ model CostLine {
 }
 
 model ImportBatch {
-  id                  String         @id @default(cuid())
-  projectVersionId    String
-  projectVersion      ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  fileName            String
-  importType          String         @default("cost")
-  importMode          String         @default("update")
-  rowCount            Int            @default(0)
-  deletedCount        Int            @default(0)
-  taxInclusiveTotal   Decimal        @default(0)
-  taxExclusiveTotal   Decimal        @default(0)
-  taxAmountTotal      Decimal        @default(0)
-  status              String         @default("active")
-  remark              String?
-  costLines           CostLine[]
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @default(now()) @updatedAt
+  id                String         @id @default(cuid())
+  projectVersionId  String
+  projectVersion    ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  fileName          String
+  importType        String         @default("cost")
+  importMode        String         @default("update")
+  rowCount          Int            @default(0)
+  deletedCount      Int            @default(0)
+  taxInclusiveTotal Decimal        @default(0)
+  taxExclusiveTotal Decimal        @default(0)
+  taxAmountTotal    Decimal        @default(0)
+  status            String         @default("active")
+  remark            String?
+  costLines         CostLine[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @default(now()) @updatedAt
 
   @@index([projectVersionId])
   @@index([projectVersionId, status])
@@ -469,14 +470,14 @@ model SalesScheduleLine {
 }
 
 model TaxParameter {
-  id                          String         @id @default(cuid())
-  projectVersionId             String @unique
-  projectVersion               ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  vatRate                      Decimal @default(0.09)
-  urbanMaintenanceRate         Decimal @default(0.07)
-  educationSurchargeRate       Decimal @default(0.03)
-  localEducationSurchargeRate  Decimal @default(0.02)
-  corporateIncomeTaxRate       Decimal @default(0.25)
-  landValueAddedTaxRate        Decimal @default(0)
-  remark                       String?
+  id                         String         @id @default(cuid())
+  projectVersionId            String @unique
+  projectVersion              ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  vatRate                     Decimal @default(0.09)
+  urbanMaintenanceRate        Decimal @default(0.07)
+  educationSurchargeRate      Decimal @default(0.03)
+  localEducationSurchargeRate Decimal @default(0.02)
+  corporateIncomeTaxRate      Decimal @default(0.25)
+  landValueAddedTaxRate       Decimal @default(0)
+  remark                      String?
 }
