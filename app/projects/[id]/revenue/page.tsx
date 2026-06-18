@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
-import { isChargingProductName, isOtherRevenueProductName, isParkingProductName } from '@/lib/tax-summary';
+import { isChargingProductName, isCommercialBaseProductName, isCommercialRevenueProductName, isOtherRevenueProductName, isParkingProductName } from '@/lib/tax-summary';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,13 +21,24 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { products: true, taxes: true, revenues: { include: { productType: true } } }
+    include: { products: true, taxes: true, revenues: { include: { productType: true } }, commercialRevenueLines: true }
   });
 
   const taxRate = Number(version?.taxes?.vatRate || 0.09);
   const revenueMap = new Map((version?.revenues || []).map((item) => [item.productTypeId, item]));
   const products = version?.products || [];
-  const ordinaryProducts = products.filter((item) => item.isActive && item.isSaleable && !isParkingProductName(item.name) && !isChargingProductName(item.name) && !isOtherRevenueProductName(item.name));
+  const commercialParentIds = new Set<string>((version?.commercialRevenueLines || [])
+    .filter((line) => Number(line.taxInclusiveRevenue || 0) > 0)
+    .map((line) => line.parentProductTypeId)
+    .filter((id): id is string => Boolean(id)));
+  const excludedCommercialParents = products.filter((item) => item.isActive && item.isSaleable && commercialParentIds.has(item.id) && isCommercialBaseProductName(item.name));
+  const ordinaryProducts = products.filter((item) => item.isActive
+    && item.isSaleable
+    && !commercialParentIds.has(item.id)
+    && !isParkingProductName(item.name)
+    && !isChargingProductName(item.name)
+    && !isOtherRevenueProductName(item.name)
+    && !isCommercialRevenueProductName(item.name));
 
   const rows = ordinaryProducts.map((item) => {
     const area = Number(item.saleableArea || 0);
@@ -53,10 +64,11 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
         <div>
           <p className="eyebrow">收入测算</p>
           <h1 className="title">销售收入测算</h1>
-          <p className="subtitle">住宅、商业、配套等普通可售物业按“可售面积 × 含税销售单价”测算；车位和其他政策性收益在专项页面维护。</p>
+          <p className="subtitle">住宅、配套等普通可售物业按“可售面积 × 含税销售单价”测算；已拆分的一层/二层商业、车位和其他政策性收益在专项页面维护。</p>
         </div>
         <div className="actions" style={{ marginTop: 0 }}>
           <Link href={`/projects/${project.id}/revenue-summary`} className="btn btn-primary">收入汇总</Link>
+          <Link href={`/projects/${project.id}/commercial-revenue`} className="btn">商业收入</Link>
           <Link href={`/projects/${project.id}/parking-revenue`} className="btn">车位收入</Link>
           <Link href={`/projects/${project.id}/other-revenue`} className="btn">其他收入</Link>
           <Link href={`/projects/${project.id}/indicator-check`} className="btn">指标校验中心</Link>
@@ -67,6 +79,7 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
       {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb', background: '#f0fff4' }}>销售收入单价已保存，并已同步收入明细。{searchParams?.rows ? `本次处理 ${searchParams.rows} 行。` : ''}</div> : null}
       {searchParams?.synced === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb', background: '#f0fff4' }}>销售收入已同步。{searchParams?.rows ? `本次同步 ${searchParams.rows} 行。` : ''}</div> : null}
       {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8' }}>当前版本已锁定，不能同步收入明细。</div> : null}
+      {excludedCommercialParents.length ? <div className="card" style={{ marginBottom: 16, borderColor: '#d0ebff', background: '#f8fbff' }}><b>已排除商业父业态</b><p className="meta" style={{ margin: '6px 0 0' }}>{excludedCommercialParents.map((item) => item.name).join('、')} 已在“商业收入”页面拆分为一层、二层、自持出租等明细，本页不再按父业态整体计入销售收入。</p></div> : null}
 
       <section className="card" style={{ marginBottom: 16 }}>
         <div className="summary-strip">
@@ -80,7 +93,7 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
 
       <section className="card" style={{ marginBottom: 16, borderColor: '#d0ebff', background: '#f8fbff' }}>
         <b>本页口径</b>
-        <p className="meta" style={{ margin: '6px 0 0' }}>本页只维护普通销售类收入。收入总表请看“收入汇总”；车位按个数测算；税收返还、产业奖励、财政补贴等进入“其他收入测算”。</p>
+        <p className="meta" style={{ margin: '6px 0 0' }}>本页只维护普通销售类收入。商业街/底商如已经拆分到一层、二层、自持出租等专项收入，父业态只作为面积容器和校验口径，不再重复计收入。</p>
       </section>
 
       <section className="card" style={{ marginBottom: 16 }}>
@@ -91,7 +104,7 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
           </div>
           <button form="revenue-batch" className="btn btn-primary">保存销售单价并同步</button>
         </div>
-        {rows.length === 0 ? <p className="meta">暂无普通可售业态。请先到项目概况维护可售业态。</p> : <div style={{ overflowX: 'auto' }}>
+        {rows.length === 0 ? <p className="meta">暂无普通可售业态。请先到项目概况维护可售业态；商业收入请到“商业收入”页面维护。</p> : <div style={{ overflowX: 'auto' }}>
           <form id="revenue-batch" action={`/api/projects/${project.id}/revenue/batch`} method="post" />
           <input form="revenue-batch" type="hidden" name="rowCount" value={rows.length} />
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1080 }}>
