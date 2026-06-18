@@ -25,6 +25,11 @@ function numberFrom(form: FormData, name: string) {
   return Number.isFinite(num) ? num : 0;
 }
 
+function boolFrom(form: FormData, name: string) {
+  const value = clean(form.get(name));
+  return value === '1' || value === 'true' || value === 'on';
+}
+
 function taxRateFrom(inputValue: FormDataEntryValue | null, fallback = 0.09) {
   const raw = clean(inputValue);
   if (!raw) return fallback;
@@ -73,7 +78,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   for (const rowEntryId of rowEntries) {
     const rowId = dictionaryIdFromEntry(rowEntryId);
-    const quantity = numberFrom(form, entryKey(rowEntryId, 'quantity'));
+    const measureValue = numberFrom(form, entryKey(rowEntryId, 'measureValue'));
+    const coefficientRaw = numberFrom(form, entryKey(rowEntryId, 'coefficient'));
+    const coefficient = coefficientRaw || 1;
+    const quantityInput = numberFrom(form, entryKey(rowEntryId, 'quantity'));
+    const quantityOverride = boolFrom(form, entryKey(rowEntryId, 'quantityOverride'));
+    const formulaQuantity = measureValue ? round2(measureValue * coefficient) : 0;
+    const quantity = quantityOverride || !formulaQuantity ? quantityInput : formulaQuantity;
     const taxInclusiveUnitPrice = numberFrom(form, entryKey(rowEntryId, 'taxInclusiveUnitPrice'));
     const remark = clean(form.get(entryKey(rowEntryId, 'remark')));
     const unitInput = clean(form.get(entryKey(rowEntryId, 'unit')));
@@ -83,7 +94,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const measureBasisInput = clean(form.get(entryKey(rowEntryId, 'measureBasis')));
     const allocationMethodInput = clean(form.get(entryKey(rowEntryId, 'allocationMethod')));
 
-    if (!quantity && !taxInclusiveUnitPrice && !remark && !costLineId && !regionOrProductTypeInput && !measureBasisInput && !allocationMethodInput) continue;
+    if (!quantity && !measureValue && !coefficientRaw && !taxInclusiveUnitPrice && !remark && !costLineId && !regionOrProductTypeInput && !measureBasisInput && !allocationMethodInput) continue;
     const dict = await prisma.costDictionaryRow.findUnique({ where: { id: rowId } });
     if (!dict || !dict.detailSubject) continue;
     if (matchesInactiveProductName(regionOrProductTypeInput || dict.applicableProductType, inactiveProductNames)) continue;
@@ -94,10 +105,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     const code = dict.costCode || '03';
     const subjectName = dict.detailSubject;
+    const codeSort = Number(String(code).replace(/\D/g, '').slice(0, 8)) || 300;
     const costSubject = await prisma.costSubject.upsert({
       where: { code },
       update: { name: subjectName, level: Number(dict.subjectLevel || 4) || 4, parentCode: dict.parentCode || undefined, fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'), defaultUnit: dict.unit || undefined, defaultMeasureBasis: dict.measureBasis || undefined, defaultAllocationMethod: dict.targetAllocationMethod || undefined, enabled: true },
-      create: { code, name: subjectName, level: Number(dict.subjectLevel || 4) || 4, parentCode: dict.parentCode || undefined, fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'), defaultUnit: dict.unit || undefined, defaultMeasureBasis: dict.measureBasis || undefined, defaultAllocationMethod: dict.targetAllocationMethod || undefined, sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || 300, enabled: true }
+      create: { code, name: subjectName, level: Number(dict.subjectLevel || 4) || 4, parentCode: dict.parentCode || undefined, fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'), defaultUnit: dict.unit || undefined, defaultMeasureBasis: dict.measureBasis || undefined, defaultAllocationMethod: dict.targetAllocationMethod || undefined, sortOrder: codeSort, enabled: true }
     });
 
     const taxRate = taxRateFrom(taxRateInput || dict.defaultTaxRate, 0.09);
@@ -109,6 +121,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       regionOrProductType: regionOrProductTypeInput || dict.applicableProductType || '项目整体共用',
       professionalGroup,
       measureBasis: measureBasisInput || dict.measureBasis || '',
+      measureValue,
+      coefficient,
+      quantityOverride,
       quantity,
       unit: unitInput || dict.unit || '项',
       taxInclusiveUnitPrice,
@@ -120,7 +135,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       allocationMethod: allocationMethodInput || dict.targetAllocationMethod || '建筑面积分摊',
       description: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join(' / '),
       remark,
-      sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || Date.now() % 1000000000
+      sortOrder: codeSort || Date.now() % 1000000000
     };
 
     if (costLineId) await prisma.costLine.update({ where: { id: costLineId }, data });
