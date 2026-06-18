@@ -328,6 +328,9 @@ model CostLine {
   regionOrProductType    String?
   professionalGroup      String?
   measureBasis           String?
+  measureValue           Decimal @default(0)
+  coefficient            Decimal @default(1)
+  quantityOverride       Boolean @default(false)
   quantity               Decimal @default(0)
   unit                   String?
   taxExclusiveUnitPrice  Decimal @default(0)
@@ -430,55 +433,40 @@ model OtherRevenueLine {
   @@index([projectVersionId])
 }
 
-model SalesSchedulePlan {
-  id              String              @id @default(cuid())
-  projectVersionId String
-  projectVersion   ProjectVersion     @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  name            String              @default("默认去化计划")
-  months          Int                 @default(12)
-  downPaymentRate Decimal             @default(0.3)
-  mortgageRate    Decimal             @default(0.65)
-  tailRate        Decimal             @default(0.05)
-  mortgageDelay   Int                 @default(2)
-  tailDelay       Int                 @default(6)
-  remark          String?
-  lines           SalesScheduleLine[]
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @default(now()) @updatedAt
-
-  @@index([projectVersionId])
-}
-
-model SalesScheduleLine {
-  id                   String            @id @default(cuid())
-  planId               String
-  plan                 SalesSchedulePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  monthIndex           Int
-  sellThroughRate      Decimal           @default(0)
-  contractAmount       Decimal           @default(0)
-  downPayment          Decimal           @default(0)
-  mortgageCollection   Decimal           @default(0)
-  tailCollection       Decimal           @default(0)
-  totalCollection      Decimal           @default(0)
-  cumulativeContract   Decimal           @default(0)
-  cumulativeCollection Decimal           @default(0)
-  receivableBalance    Decimal           @default(0)
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @default(now()) @updatedAt
-
-  @@unique([planId, monthIndex])
-  @@index([planId])
-}
-
 model TaxParameter {
   id                         String         @id @default(cuid())
-  projectVersionId            String @unique
-  projectVersion              ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  vatRate                     Decimal @default(0.09)
-  urbanMaintenanceRate        Decimal @default(0.07)
-  educationSurchargeRate      Decimal @default(0.03)
-  localEducationSurchargeRate Decimal @default(0.02)
-  corporateIncomeTaxRate      Decimal @default(0.25)
-  landValueAddedTaxRate       Decimal @default(0)
-  remark                      String?
+  projectVersionId           String         @unique
+  projectVersion             ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  vatMethod                  String         @default("一般计税")
+  vatRate                    Decimal        @default(0.09)
+  deemedSalesRevenue         Decimal        @default(0)
+  nonDeductibleInputTax      Decimal        @default(0)
+  landDeductibleAmount       Decimal        @default(0)
+  urbanMaintenanceTaxRate    Decimal        @default(0.07)
+  educationSurchargeRate     Decimal        @default(0.03)
+  localEducationSurchargeRate Decimal       @default(0.02)
+  landVatPrepayRate          Decimal        @default(0.02)
+  incomeTaxRate              Decimal        @default(0.25)
+  costAdditionRate           Decimal        @default(0.20)
+  landVatClearanceMode       String         @default("预缴+清算测算")
+  incomeTaxMode              String         @default("项目口径测算")
+  createdAt                  DateTime       @default(now())
+  updatedAt                  DateTime       @default(now()) @updatedAt
+}
+
+model SalesSchedulePlan {
+  id                       String         @id @default(cuid())
+  projectVersionId         String
+  projectVersion           ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  periodName               String
+  periodIndex              Int            @default(0)
+  plannedSaleableArea      Decimal        @default(0)
+  plannedRevenue           Decimal        @default(0)
+  plannedCollectionRate    Decimal        @default(0.90)
+  actualCollectedAmount    Decimal        @default(0)
+  remark                   String?
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @default(now()) @updatedAt
+
+  @@index([projectVersionId])
 }
