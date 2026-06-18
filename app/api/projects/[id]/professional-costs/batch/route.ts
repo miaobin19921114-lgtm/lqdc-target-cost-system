@@ -49,6 +49,12 @@ function matchesInactiveProductName(text: string | null | undefined, inactiveNam
   return Array.from(inactiveNames).some((name) => value === name || value === `业态-${name}` || value === `区域-${name}`);
 }
 
+function entryMatchesSaveScope(form: FormData, entryId: string, saveGroupId: string) {
+  if (!saveGroupId) return true;
+  if (entryId.includes(`__${saveGroupId}`)) return true;
+  return form.getAll(entryKey(entryId, 'saveScope')).map((item) => String(item || '')).includes(saveGroupId);
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
   const baseUrl = getBaseUrl(request);
@@ -62,7 +68,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const products = await prisma.productType.findMany({ where: { projectVersionId: version.id }, select: { name: true, isActive: true } });
   const inactiveProductNames = new Set(products.filter((item) => !item.isActive).map((item) => item.name));
   const allRowEntries = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
-  const rowEntries = saveGroupId ? allRowEntries.filter((entryId) => entryId.includes(`__${saveGroupId}`)) : allRowEntries;
+  const rowEntries = saveGroupId ? allRowEntries.filter((entryId) => entryMatchesSaveScope(form, entryId, saveGroupId)) : allRowEntries;
   let savedCount = 0;
 
   for (const rowEntryId of rowEntries) {
@@ -90,8 +96,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const subjectName = dict.detailSubject;
     const costSubject = await prisma.costSubject.upsert({
       where: { code },
-      update: { name: subjectName, level: Number(dict.subjectLevel || 4) || 4, fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'), defaultUnit: dict.unit || undefined, defaultMeasureBasis: dict.measureBasis || undefined, defaultAllocationMethod: dict.targetAllocationMethod || undefined, enabled: true },
-      create: { code, name: subjectName, level: Number(dict.subjectLevel || 4) || 4, fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'), defaultUnit: dict.unit || undefined, defaultMeasureBasis: dict.measureBasis || undefined, defaultAllocationMethod: dict.targetAllocationMethod || undefined, sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || 300, enabled: true }
+      update: { name: subjectName, level: Number(dict.subjectLevel || 4) || 4, parentCode: dict.parentCode || undefined, fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'), defaultUnit: dict.unit || undefined, defaultMeasureBasis: dict.measureBasis || undefined, defaultAllocationMethod: dict.targetAllocationMethod || undefined, enabled: true },
+      create: { code, name: subjectName, level: Number(dict.subjectLevel || 4) || 4, parentCode: dict.parentCode || undefined, fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'), defaultUnit: dict.unit || undefined, defaultMeasureBasis: dict.measureBasis || undefined, defaultAllocationMethod: dict.targetAllocationMethod || undefined, sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || 300, enabled: true }
     });
 
     const taxRate = taxRateFrom(taxRateInput || dict.defaultTaxRate, 0.09);
