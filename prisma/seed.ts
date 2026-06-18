@@ -20,23 +20,19 @@ async function main() {
   });
 
   const subjects = [
-    ['01', '土地获取费'],
+    ['01', '土地成本'],
     ['02', '前期工程费'],
     ['03', '建安工程费'],
-    ['04', '基础设施费'],
-    ['05', '公共配套设施费'],
-    ['06', '开发间接费'],
-    ['07', '销售费用'],
-    ['08', '管理费用'],
-    ['09', '财务费用'],
-    ['10', '增值税及附加'],
-    ['11', '企业所得税']
+    ['04', '销售费用'],
+    ['05', '管理费用'],
+    ['06', '财务费用'],
+    ['07', '税费及预备费']
   ];
 
   for (const [code, subjectName] of subjects) {
     await prisma.costSubject.upsert({
       where: { code },
-      update: {},
+      update: { name: subjectName, level: 1, sortOrder: Number(code) },
       create: { code, name: subjectName, level: 1, sortOrder: Number(code) }
     });
   }
