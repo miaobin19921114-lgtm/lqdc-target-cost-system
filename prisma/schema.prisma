@@ -75,25 +75,25 @@ model TemplateProduct {
 }
 
 model TemplateCostRule {
-  id              String   @id @default(cuid())
-  templateId      String
-  template        Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  costCode        String?
-  category        String?
-  subjectName     String
-  sourceTable     String?
-  measureBasis    String?
-  unit            String?
-  defaultTaxRate  Decimal  @default(0.09)
+  id               String   @id @default(cuid())
+  templateId       String
+  template         Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  costCode         String?
+  category         String?
+  subjectName      String
+  sourceTable      String?
+  measureBasis     String?
+  unit             String?
+  defaultTaxRate   Decimal  @default(0.09)
   allocationMethod String?
-  sortOrder       Int      @default(0)
-  remark          String?
+  sortOrder        Int      @default(0)
+  remark           String?
 
   @@index([templateId])
 }
 
 model TemplateTaxRule {
-  id        String   @id @default(cuid())
+  id         String   @id @default(cuid())
   templateId String
   template  Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
   name      String
@@ -276,6 +276,7 @@ model CostDictionaryRow {
   projectId                  String
   rowIndex                   Int
   parentCode                 String?
+  name                       String?
   firstSubject               String?
   secondSubject              String?
   thirdSubject               String?
