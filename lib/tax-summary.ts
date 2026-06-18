@@ -61,6 +61,15 @@ export function isCommercialRevenueProductName(name?: string | null) {
   return (name || '').startsWith('商业收入-');
 }
 
+export function isCommercialBaseProductName(name?: string | null) {
+  const value = name || '';
+  return !isCommercialRevenueProductName(value)
+    && !isParkingProductName(value)
+    && !isChargingProductName(value)
+    && !isOtherRevenueProductName(value)
+    && ['商业', '底商', '商铺', '集中商业', '沿街'].some((word) => value.includes(word));
+}
+
 export function revenueFromProducts(products: Array<{ isActive?: boolean | null; isSaleable?: boolean | null; saleableArea: unknown; salePrice: unknown }>, vatRate: number) {
   const rows = products
     .filter((item) => item.isActive && item.isSaleable)
@@ -86,7 +95,7 @@ function addRevenue(target: { taxInclusive: number; taxExclusive: number; output
 export function revenueFromProjectData(input: {
   products: Array<{ id: string; name?: string | null; isActive?: boolean | null; isSaleable?: boolean | null; saleableArea: unknown; salePrice: unknown }>;
   revenues?: Array<{ productTypeId?: string | null; taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown; productType?: { name?: string | null } | null }>;
-  commercialRevenueLines?: Array<{ taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown }>;
+  commercialRevenueLines?: Array<{ parentProductTypeId?: string | null; taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown }>;
   otherRevenueLines?: Array<{ taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown }>;
   vatRate: number;
 }) {
@@ -95,9 +104,21 @@ export function revenueFromProjectData(input: {
   const parking = blankRevenue();
   const other = blankRevenue();
   const charging = blankRevenue();
+  const commercialParentIds = new Set<string>((input.commercialRevenueLines || [])
+    .filter((row) => n(row.taxInclusiveRevenue) > 0)
+    .map((row) => row.parentProductTypeId)
+    .filter((id): id is string => Boolean(id)));
 
+  // 商业街/底商等父业态如果已经在“商业细分收入”拆成一层、二层、自持出租等，
+  // 父业态只作为面积容器和校验口径，不再进入普通销售收入，避免“商业街 + 一二层”重复。
   input.products
-    .filter((item) => item.isActive && item.isSaleable && !isParkingProductName(item.name) && !isChargingProductName(item.name) && !isOtherRevenueProductName(item.name) && !isCommercialRevenueProductName(item.name))
+    .filter((item) => item.isActive
+      && item.isSaleable
+      && !commercialParentIds.has(item.id)
+      && !isParkingProductName(item.name)
+      && !isChargingProductName(item.name)
+      && !isOtherRevenueProductName(item.name)
+      && !isCommercialRevenueProductName(item.name))
     .forEach((item) => addRevenue(ordinary, calculateRevenueLine(n(item.saleableArea), n(item.salePrice), input.vatRate)));
 
   const revenueProductIds = new Set<string>((input.revenues || []).map((row) => row.productTypeId).filter((id): id is string => Boolean(id)));
