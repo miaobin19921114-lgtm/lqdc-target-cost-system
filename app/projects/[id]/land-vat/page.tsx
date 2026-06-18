@@ -70,8 +70,8 @@ export default async function LandVatPage({ params }: { params: { id: string } }
 
   const taxParam = version?.taxes;
   const vatRate = n(taxParam?.vatRate || 0.09);
-  const surchargeRate = n(taxParam?.urbanMaintenanceRate || 0.07) + n(taxParam?.educationSurchargeRate || 0.03) + n(taxParam?.localEducationSurchargeRate || 0.02);
-  const incomeTaxRate = n(taxParam?.corporateIncomeTaxRate || 0.25);
+  const surchargeRate = n(taxParam?.urbanMaintenanceTaxRate || 0.07) + n(taxParam?.educationSurchargeRate || 0.03) + n(taxParam?.localEducationSurchargeRate || 0.02);
+  const incomeTaxRate = n(taxParam?.incomeTaxRate || 0.25);
   const dictRows = await prisma.costDictionaryRow.findMany({ where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } }, select: { costCode: true } });
   const leafCodes = new Set<string>(dictRows.map((row) => row.costCode).filter((code): code is string => Boolean(code)));
   const effective = effectiveCostRows(version?.costs || [], leafCodes);
