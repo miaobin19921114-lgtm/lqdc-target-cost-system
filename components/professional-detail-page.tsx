@@ -62,9 +62,12 @@ function hasAny(text: string | null | undefined, words: string[]) { const value 
 function groupKey(code: string | null | undefined, groupName: string) { return `${code || ''}__${normalizeCostGroupName(groupName)}`; }
 function safeDomId(input: string) { return input.replace(/\s+/g, '-'); }
 
-function productOrder(product: any, index: number) {
-  const raw = Number(product?.sortOrder ?? product?.displayOrder ?? product?.rowIndex ?? product?.order ?? index);
-  return Number.isFinite(raw) ? raw : index;
+const DEFAULT_PRODUCT_ORDER = ['高层住宅', '小高层住宅', '洋房', '叠拼', '合院', '别墅', '底商', '商业', '商业街', '集中商业', '会所商业', '地下车位', '地下车库', '人防', '物业', '社区', '配套', '会所'];
+
+function defaultProductOrderRank(name: string) {
+  const value = normalize(name);
+  const index = DEFAULT_PRODUCT_ORDER.findIndex((item) => value.includes(item) || item.includes(value));
+  return index >= 0 ? index : 999;
 }
 
 function productGroupRank(name: string, activeProducts: any[] = []) {
@@ -72,8 +75,7 @@ function productGroupRank(name: string, activeProducts: any[] = []) {
   if (!value) return 9999;
   if (hasAny(value, ['项目整体', '项目共用', '整体共用', '全项目'])) return 0;
 
-  const orderedProducts = [...activeProducts].sort((a, b) => productOrder(a, 0) - productOrder(b, 0));
-  const overviewIndex = orderedProducts.findIndex((product) => {
+  const overviewIndex = activeProducts.findIndex((product) => {
     const productName = normalize(product?.name);
     const groupName = normalizeCostGroupName(getProfessionalCostGroupName(product));
     if (!productName && !groupName) return false;
@@ -81,10 +83,10 @@ function productGroupRank(name: string, activeProducts: any[] = []) {
   });
   if (overviewIndex >= 0) return 100 + overviewIndex;
 
-  if (hasAny(value, ['住宅', '高层', '洋房', '别墅', '合院', '叠拼', '小高'])) return 1000;
-  if (hasAny(value, ['商业', '底商', '商铺', '商业街', '集中商业', '会所商业'])) return 2000;
-  if (hasAny(value, ['地下', '地下室', '地库', '车库', '车位', '人防'])) return 3000;
-  if (hasAny(value, ['配套', '物业', '社区', '会所', '设备用房', '养老', '托育', '公建'])) return 4000;
+  if (hasAny(value, ['住宅', '高层', '洋房', '别墅', '合院', '叠拼', '小高'])) return 1000 + defaultProductOrderRank(value);
+  if (hasAny(value, ['商业', '底商', '商铺', '商业街', '集中商业', '会所商业'])) return 2000 + defaultProductOrderRank(value);
+  if (hasAny(value, ['地下', '地下室', '地库', '车库', '车位', '人防'])) return 3000 + defaultProductOrderRank(value);
+  if (hasAny(value, ['配套', '物业', '社区', '会所', '设备用房', '养老', '托育', '公建'])) return 4000 + defaultProductOrderRank(value);
   return 9000;
 }
 
@@ -179,7 +181,11 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
   if (!project) return <main className="page">项目不存在</main>;
 
   await ensurePresetRows(project.id);
-  const version = await prisma.projectVersion.findFirst({ where: activeVersionWhere(project), orderBy: activeVersionOrder(project), include: { products: true } });
+  const version = await prisma.projectVersion.findFirst({
+    where: activeVersionWhere(project),
+    orderBy: activeVersionOrder(project),
+    include: { products: { orderBy: { createdAt: 'asc' } } }
+  });
   const activeProducts = (version?.products || []).filter((item) => item.isActive);
   const inactiveProductNames = new Set((version?.products || []).filter((item) => !item.isActive).map((item) => item.name));
 
