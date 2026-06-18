@@ -21,8 +21,8 @@ export default async function BossReportPage({ params }: { params: { id: string 
   });
 
   const vatRate = n(version?.taxes?.vatRate || 0.09);
-  const surchargeRate = n(version?.taxes?.urbanMaintenanceRate || 0.07) + n(version?.taxes?.educationSurchargeRate || 0.03) + n(version?.taxes?.localEducationSurchargeRate || 0.02);
-  const incomeTaxRate = n(version?.taxes?.corporateIncomeTaxRate || 0.25);
+  const surchargeRate = n(version?.taxes?.urbanMaintenanceTaxRate || 0.07) + n(version?.taxes?.educationSurchargeRate || 0.03) + n(version?.taxes?.localEducationSurchargeRate || 0.02);
+  const incomeTaxRate = n(version?.taxes?.incomeTaxRate || 0.25);
   const dictRows = await prisma.costDictionaryRow.findMany({ where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } }, select: { costCode: true } });
   const leafCodes = new Set(dictRows.map((row) => row.costCode).filter((code): code is string => Boolean(code)));
   const effective = effectiveCostRows(version?.costs || [], leafCodes);
