@@ -9,6 +9,7 @@ const cell = { padding: 8, borderBottom: '1px solid #eef2f6', borderRight: '1px 
 const input = { width: '100%', minWidth: 88, height: 32, border: '1px solid #d9e2ec', borderRadius: 6, padding: '4px 6px' };
 function fmt(value: unknown) { return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 function single(value: unknown, area: number) { return area ? Number(value || 0) / area : 0; }
+function round2(value: number) { return Math.round((value + Number.EPSILON) * 100) / 100; }
 
 type TreeNode = { name: string; amount: number; rows: number; filled: number; children: Map<string, TreeNode>; leaves: any[] };
 
@@ -43,6 +44,17 @@ function landRowName(row: { detailSubject?: string | null; measureBasis?: string
 function isRateBasedLandFee(row: { detailSubject?: string | null; measureBasis?: string | null }) {
   const name = landRowName(row);
   return ['契税', '土地交易服务费', '土地评估费', '土地咨询', '居间服务费'].some((key) => name.includes(key));
+}
+
+function defaultFeeRatePercent(row: { detailSubject?: string | null; measureBasis?: string | null }) {
+  const name = landRowName(row);
+  if (name.includes('契税')) return 3;
+  return '';
+}
+
+function isLandPriceCost(row: { detailName?: string | null; costSubject?: { name?: string | null } | null }) {
+  const name = `${row.detailName || ''}${row.costSubject?.name || ''}`;
+  return (name.includes('土地出让金') || name.includes('土地价款')) && !name.includes('契税') && !name.includes('交易') && !name.includes('评估') && !name.includes('咨询') && !name.includes('居间');
 }
 
 async function ensureDictionary(projectId: string) {
@@ -81,6 +93,8 @@ export default async function LandCostPage({ params, searchParams }: { params: {
   const activeCosts = costs.filter((row) => row.professionalGroup === '土地费用' && leafCodes.has(row.costSubject.code));
   const costByCode = new Map<string, any>();
   costs.forEach((row) => costByCode.set(row.costSubject.code, row));
+  const landPriceCost = activeCosts.find((row) => isLandPriceCost(row));
+  const landPriceBaseWan = landPriceCost ? round2(Number(landPriceCost.taxInclusiveAmount || 0) / 10000) : 0;
 
   const root = node('root');
   leafRows.forEach((row) => {
@@ -118,7 +132,7 @@ export default async function LandCostPage({ params, searchParams }: { params: {
             <div>
               <p className="eyebrow">土地费用明细表</p>
               <h1 className="title">{project.name}</h1>
-              <p className="subtitle">土地费已改为科目树结构。土地价款按面积×单价；契税、交易服务费、评估费、居间费默认按土地价款/成交价×费率，且契税不叠加其他费用。</p>
+              <p className="subtitle">土地价款按面积×单价；契税、交易服务费、评估费、居间费自动引用土地价款作为计费基数，按费率计算，且保留手动编辑。</p>
             </div>
             <div className="actions" style={{ marginTop: 0 }}>
               <Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总表</Link>
@@ -132,14 +146,14 @@ export default async function LandCostPage({ params, searchParams }: { params: {
 
           <div className="summary-strip">
             <div className="stat"><div className="stat-label">土地费合计</div><div className="stat-value">{fmt(total)}元</div></div>
+            <div className="stat"><div className="stat-label">土地价款基数</div><div className="stat-value">{fmt(landPriceBaseWan)}万元</div></div>
             <div className="stat"><div className="stat-label">建面单方</div><div className="stat-value">{fmt(single(total, buildingArea))}</div></div>
-            <div className="stat"><div className="stat-label">可售单方</div><div className="stat-value">{fmt(single(total, saleableArea))}</div></div>
             <div className="stat"><div className="stat-label">已填 / 末级行</div><div className="stat-value">{activeCosts.length} / {leafRows.length}</div></div>
           </div>
 
           <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <div><b>土地费用明细｜科目树填报</b><div className="meta">土地价款填面积和万元/单位；费率类科目填计费基数和费率，如契税率 3 填 3 或 3%。</div></div>
+              <div><b>土地费用明细｜科目树填报</b><div className="meta">费率类科目默认带入土地价款基数；没有土地价款时可手动填写计费基数。契税默认 3%，其他费率按项目实际填。</div></div>
               <button form="land-cost-batch" className="btn btn-primary">整表批量保存</button>
             </div>
             <form id="land-cost-batch" action={`/api/projects/${project.id}/land/batch`} method="post" />
@@ -166,24 +180,26 @@ export default async function LandCostPage({ params, searchParams }: { params: {
                                 <tbody>{level3.leaves.map((row, index) => {
                                   const saved = row.costCode ? costByCode.get(row.costCode) : null;
                                   const amount = Number(saved?.taxInclusiveAmount || 0);
-                                  const quantity = Number(saved?.quantity || 0);
+                                  const savedQuantity = Number(saved?.quantity || 0);
                                   const rateBased = isRateBasedLandFee(row);
-                                  const priceValue = rateBased ? Number(saved?.taxInclusiveUnitPrice || 0) : Number(saved?.taxInclusiveUnitPrice || 0) / 10000;
+                                  const defaultQuantity = saved ? savedQuantity : (rateBased && landPriceBaseWan ? landPriceBaseWan : 0);
+                                  const defaultRate = saved ? Number(saved?.taxInclusiveUnitPrice || 0) : defaultFeeRatePercent(row);
+                                  const priceValue = rateBased ? defaultRate : Number(saved?.taxInclusiveUnitPrice || 0) / 10000;
                                   return <tr key={row.id} style={{ background: amount > 0 ? '#f8fff9' : index % 2 ? '#fff' : '#fcfdff' }}>
                                     <td style={{ ...cell, fontWeight: 900, color: '#0f4c5c' }}>{row.costCode}</td>
                                     <td style={{ ...cell, fontWeight: 800 }}>{row.detailSubject}</td>
                                     <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`regionOrProductType-${row.id}`} defaultValue={saved?.regionOrProductType || '项目整体'} style={{ ...input, minWidth: 110 }} /></td>
                                     <td style={cell}>{saved?.measureBasis || row.measureBasis || (rateBased ? '土地价款/成交价×费率' : '土地面积/固定金额')}</td>
-                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" type="hidden" name="dictionaryRowId" value={row.id} />{saved ? <input form="land-cost-batch" type="hidden" name={`costLineId-${row.id}`} value={saved.id} /> : null}<input form="land-cost-batch" name={`quantity-${row.id}`} type="number" step="0.01" defaultValue={quantity || ''} placeholder={rateBased ? '土地价款/成交价（万元）' : '亩数/工程量'} style={input} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" type="hidden" name="dictionaryRowId" value={row.id} />{saved ? <input form="land-cost-batch" type="hidden" name={`costLineId-${row.id}`} value={saved.id} /> : null}<input form="land-cost-batch" name={`quantity-${row.id}`} type="number" step="0.01" defaultValue={defaultQuantity || ''} placeholder={rateBased ? '自动取土地价款，可改' : '亩数/工程量'} style={input} /></td>
                                     <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`unit-${row.id}`} defaultValue={saved?.unit || (rateBased ? '万元基数' : row.unit || '亩')} style={{ ...input, minWidth: 70 }} /></td>
-                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`priceWanPerUnit-${row.id}`} type="number" step="0.01" defaultValue={priceValue || ''} placeholder={rateBased ? '费率，如3或3%' : '万元/单位'} style={input} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`priceWanPerUnit-${row.id}`} type={rateBased ? 'text' : 'number'} step="0.01" defaultValue={priceValue || ''} placeholder={rateBased ? '费率，如3或3%' : '万元/单位'} style={input} /></td>
                                     <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`taxRate-${row.id}`} defaultValue={saved ? `${Number(saved.taxRate || 0) * 100}%` : row.defaultTaxRate || '0%'} style={{ ...input, minWidth: 68 }} /></td>
                                     <td style={{ ...cell, textAlign: 'right', fontWeight: 900 }}>{fmt(amount)}</td>
                                     <td style={{ ...cell, textAlign: 'right' }}>{fmt(single(amount, buildingArea))}</td>
                                     <td style={{ ...cell, textAlign: 'right' }}>{fmt(single(amount, saleableArea))}</td>
                                     <td style={cell}>{saved?.allocationMethod || row.targetAllocationMethod || '按可售面积占比'}</td>
                                     <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`remark-${row.id}`} defaultValue={saved?.remark || ''} placeholder="备注" style={{ ...input, minWidth: 130 }} /></td>
-                                    <td style={{ ...cell, color: amount > 0 ? '#2f9e44' : '#98a2b3', fontWeight: 800 }}>{amount > 0 ? '已填' : '未填'}</td>
+                                    <td style={{ ...cell, color: amount > 0 ? '#2f9e44' : '#98a2b3', fontWeight: 800 }}>{amount > 0 ? '已填' : (rateBased && landPriceBaseWan ? '已带入公式' : '未填')}</td>
                                   </tr>;
                                 })}</tbody>
                               </table></div>
