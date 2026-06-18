@@ -159,12 +159,13 @@ export async function POST(request: Request) {
           taxes: {
             create: {
               vatRate: rateByName(taxRules, '增值税', 0.09),
-              urbanMaintenanceRate: rateByName(taxRules, '城建税', 0.07),
+              urbanMaintenanceTaxRate: rateByName(taxRules, '城建税', 0.07),
               educationSurchargeRate: rateByName(taxRules, '教育费附加', 0.03),
               localEducationSurchargeRate: rateByName(taxRules, '地方教育附加', 0.02),
-              corporateIncomeTaxRate: rateByName(taxRules, '企业所得税', 0.25),
-              landValueAddedTaxRate: rateByName(taxRules, '土地增值税', 0),
-              remark: template ? `来自${template.ownerId ? '个人模板' : '系统模板'}：${template.name}；阶段：${stage}` : `阶段：${stage}`
+              incomeTaxRate: rateByName(taxRules, '企业所得税', 0.25),
+              landVatPrepayRate: rateByName(taxRules, '土地增值税', 0),
+              landVatClearanceMode: '预缴+清算测算',
+              incomeTaxMode: '项目口径测算'
             }
           }
         }
