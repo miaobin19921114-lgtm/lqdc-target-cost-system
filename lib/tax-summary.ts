@@ -11,9 +11,30 @@ export function rateByLandVatRatio(ratio: number) {
   return { rate: 0.6, deduction: 0.35 };
 }
 
+function normalizeCode(code?: string | null) {
+  return String(code || '').trim();
+}
+
+function isChildCode(parentCode: string, childCode: string) {
+  return Boolean(parentCode && childCode && childCode !== parentCode && childCode.startsWith(`${parentCode}.`));
+}
+
+function hasChildCostRow<T extends { costSubject: { code: string } }>(row: T, rows: T[]) {
+  const code = normalizeCode(row.costSubject.code);
+  return rows.some((other) => isChildCode(code, normalizeCode(other.costSubject.code)));
+}
+
 export function effectiveCostRows<T extends { productTypeId?: string | null; productType?: { isActive?: boolean | null } | null; costSubject: { code: string; level: number } }>(costs: T[], leafCodes: ReadonlySet<string | null>) {
   const activeCosts = costs.filter((row) => !row.productTypeId || row.productType?.isActive);
-  const effective = leafCodes.size ? activeCosts.filter((row) => row.costSubject.level >= 4 || leafCodes.has(row.costSubject.code)) : activeCosts;
+
+  // 目标成本只能统计末级/明细成本行。历史数据里可能同时存在“01 土地获取费”父级行和
+  // “01.01.01 土地出让金/土地价款”等子级行；如果二者都计入，土地费会在汇总表、税金表中重复。
+  // 因此先按原规则找候选行，再剔除“自身存在子级成本行”的父级/汇总行。
+  const candidateRows = leafCodes.size
+    ? activeCosts.filter((row) => row.costSubject.level >= 4 || leafCodes.has(row.costSubject.code))
+    : activeCosts;
+  const effective = candidateRows.filter((row) => !hasChildCostRow(row, candidateRows));
+
   return {
     activeCosts,
     effective,
