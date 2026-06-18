@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
+import { getHealthStatus } from '@/lib/health';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  return NextResponse.json({ ok: true, service: 'lqdc-target-cost-system', time: new Date().toISOString() });
+  const health = await getHealthStatus();
+  const httpStatus = health.status === 'error' ? 503 : 200;
+  return NextResponse.json(health, { status: httpStatus });
 }
