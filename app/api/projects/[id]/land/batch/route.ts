@@ -16,13 +16,17 @@ function numberFrom(form: FormData, name: string) {
   return Number.isFinite(num) ? num : 0;
 }
 
-function taxRateFrom(inputValue: FormDataEntryValue | null, fallback = 0) {
+function rateFromText(inputValue: FormDataEntryValue | null, fallback = 0) {
   const raw = clean(inputValue);
   if (!raw) return fallback;
   const num = Number(raw.replace('%', ''));
   if (!Number.isFinite(num)) return fallback;
   if (raw.includes('%')) return num / 100;
   return num > 1 ? num / 100 : num;
+}
+
+function taxRateFrom(inputValue: FormDataEntryValue | null, fallback = 0) {
+  return rateFromText(inputValue, fallback);
 }
 
 function round2(value: number) {
@@ -39,6 +43,22 @@ function matchesInactiveProductName(text: string | null | undefined, inactiveNam
   const value = String(text || '').trim();
   if (!value) return false;
   return Array.from(inactiveNames).some((name) => value === name || value === `业态-${name}` || value === `区域-${name}`);
+}
+
+function landRowName(dict: { detailSubject?: string | null; measureBasis?: string | null }) {
+  return `${dict.detailSubject || ''}${dict.measureBasis || ''}`;
+}
+
+function isRateBasedLandFee(dict: { detailSubject?: string | null; measureBasis?: string | null }) {
+  const name = landRowName(dict);
+  return ['契税', '土地交易服务费', '土地评估费', '土地咨询', '居间服务费'].some((key) => name.includes(key));
+}
+
+function defaultTaxRateForLandRow(dict: { detailSubject?: string | null; defaultTaxRate?: string | null }) {
+  const name = dict.detailSubject || '';
+  if (name.includes('契税')) return 0;
+  if (['土地交易服务费', '土地评估费', '土地咨询', '居间服务费', '土地尽调费', '法务尽调费', '财税尽调费'].some((key) => name.includes(key))) return 0.06;
+  return taxRateFrom(dict.defaultTaxRate || '0%', 0);
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -75,9 +95,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
       update: {
         name: subjectName,
         level: Number(dict.subjectLevel || 4) || 4,
+        parentCode: dict.parentCode || undefined,
         fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join(' / '),
         defaultUnit: dict.unit || undefined,
-        defaultTaxRate: taxRateFrom(dict.defaultTaxRate || '0%'),
+        defaultTaxRate: defaultTaxRateForLandRow(dict),
         defaultMeasureBasis: dict.measureBasis || undefined,
         defaultAllocationMethod: dict.targetAllocationMethod || undefined,
         enabled: true
@@ -86,9 +107,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
         code,
         name: subjectName,
         level: Number(dict.subjectLevel || 4) || 4,
+        parentCode: dict.parentCode || undefined,
         fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join(' / '),
         defaultUnit: dict.unit || undefined,
-        defaultTaxRate: taxRateFrom(dict.defaultTaxRate || '0%'),
+        defaultTaxRate: defaultTaxRateForLandRow(dict),
         defaultMeasureBasis: dict.measureBasis || undefined,
         defaultAllocationMethod: dict.targetAllocationMethod || undefined,
         sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || 101,
@@ -96,9 +118,20 @@ export async function POST(request: Request, { params }: { params: { id: string 
       }
     });
 
-    const taxRate = taxRateFrom(taxRateInput || dict.defaultTaxRate, 0);
-    const taxInclusiveUnitPrice = round2(priceWanPerUnit * 10000);
-    const taxInclusiveAmount = round2(quantity * taxInclusiveUnitPrice);
+    const rateBased = isRateBasedLandFee(dict);
+    const taxRate = taxRateFrom(taxRateInput || dict.defaultTaxRate, defaultTaxRateForLandRow(dict));
+    let taxInclusiveUnitPrice = 0;
+    let taxInclusiveAmount = 0;
+
+    if (rateBased) {
+      const feeRate = rateFromText(form.get(`priceWanPerUnit-${rowId}`), 0);
+      taxInclusiveUnitPrice = round2(feeRate * 100); // 保存为费率百分数，例如 3 表示 3%。
+      taxInclusiveAmount = round2(quantity * 10000 * feeRate); // quantity 为土地价款/计费基数，单位万元。
+    } else {
+      taxInclusiveUnitPrice = round2(priceWanPerUnit * 10000); // priceWanPerUnit 为万元/单位。
+      taxInclusiveAmount = round2(quantity * taxInclusiveUnitPrice);
+    }
+
     const taxExclusiveAmount = taxRate ? round2(taxInclusiveAmount / (1 + taxRate)) : taxInclusiveAmount;
     const taxAmount = round2(taxInclusiveAmount - taxExclusiveAmount);
     const taxExclusiveUnitPrice = taxRate ? round2(taxInclusiveUnitPrice / (1 + taxRate)) : taxInclusiveUnitPrice;
@@ -110,9 +143,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       detailName: dict.detailSubject,
       regionOrProductType: regionOrProductType || dict.applicableProductType || '项目整体',
       professionalGroup: '土地费用',
-      measureBasis: dict.measureBasis || '土地面积/固定金额',
+      measureBasis: rateBased ? '土地价款/成交价×费率' : (dict.measureBasis || '土地面积/固定金额'),
       quantity,
-      unit: unitInput || dict.unit || '亩',
+      unit: unitInput || (rateBased ? '万元基数' : (dict.unit || '亩')),
       taxRate,
       taxInclusiveUnitPrice,
       taxExclusiveUnitPrice,
