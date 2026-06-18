@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
-import { costTotals, effectiveCostRows, fullTaxSummary, n, revenueFromProducts } from '@/lib/tax-summary';
+import { costTotals, effectiveCostRows, fullTaxSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,6 @@ function fmt(value: unknown) { return n(value).toLocaleString('zh-CN', { maximum
 function pct(value: number) { return `${(value * 100).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}%`; }
 function statusColor(value: number) { return value >= 0 ? '#2f9e44' : '#e03131'; }
 function riskColor(level: string) { return level === '高' ? '#e03131' : level === '中' ? '#f08c00' : '#2f9e44'; }
-function factorText(value: number | null, label: string) { return value === null ? '无法测算' : `${label}${pct(value - 1)}`; }
 
 export default async function DecisionPage({ params }: { params: { id: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
@@ -18,16 +17,16 @@ export default async function DecisionPage({ params }: { params: { id: string } 
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { products: true, costs: { include: { costSubject: true, productType: true } }, taxes: true }
+    include: { products: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true, costs: { include: { costSubject: true, productType: true } }, taxes: true }
   });
 
   const vatRate = n(version?.taxes?.vatRate || 0.09);
   const surchargeRate = n(version?.taxes?.urbanMaintenanceRate || 0.07) + n(version?.taxes?.educationSurchargeRate || 0.03) + n(version?.taxes?.localEducationSurchargeRate || 0.02);
   const incomeTaxRate = n(version?.taxes?.corporateIncomeTaxRate || 0.25);
   const dictRows = await prisma.costDictionaryRow.findMany({ where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } }, select: { costCode: true } });
-  const leafCodes = new Set(dictRows.map((row) => row.costCode).filter(Boolean));
+  const leafCodes = new Set(dictRows.map((row) => row.costCode).filter((code): code is string => Boolean(code)));
   const effective = effectiveCostRows(version?.costs || [], leafCodes);
-  const revenue = revenueFromProducts(version?.products || [], vatRate);
+  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines: version?.commercialRevenueLines || [], otherRevenueLines: version?.otherRevenueLines || [], vatRate });
   const cost = costTotals(effective.effective);
   const tax = fullTaxSummary({ revenueExclusive: revenue.taxExclusive, outputVat: revenue.outputVat, inputVat: cost.inputVat, costExclusive: cost.taxExclusive, landCost: cost.landCost, devCost: cost.devCost, saleManageFinance: cost.saleManageFinance, surchargeRate, incomeTaxRate });
   const buildingArea = n(project.totalBuildingArea);
