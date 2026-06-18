@@ -11,6 +11,10 @@ function fmt(value: unknown) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
+function round2(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 async function ensurePresetRows(projectId: string) {
   const presetRows = getV57CostDictionaryRows().map((row) => ({ ...row, projectId }));
   if (!presetRows.length) return;
@@ -148,6 +152,13 @@ function buildSubjectTree(entries: DetailEntry[]): SubjectSecondGroupView[] {
   return Array.from(secondMap.values()).map((second) => ({ id: second.id, name: second.name, amount: second.amount, rows: second.rows, filled: second.filled, childRows: Array.from(second.children.values()) }));
 }
 
+function renderTopNav(projectId: string, projectName: string, activePath: string, title: string) {
+  return <nav style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, marginBottom: 12, overflow: 'hidden' }}>
+    <div style={{ padding: '10px 12px', borderBottom: '1px solid #eef2f6', background: '#f8fafc', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}><b>{projectName}</b><span className="meta">{title}</span></div>
+    <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: 8 }}>{projectNavGroups.map((group) => <div key={group.title} style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 6, padding: 6, border: '1px solid #eef2f6', borderRadius: 10, background: '#f8fafc' }}><span style={{ fontSize: 12, fontWeight: 900, color: '#667085', whiteSpace: 'nowrap' }}>{group.title}</span>{group.items.map(([name, href]) => { if (!href) return null; const active = href === activePath; const target = href.startsWith('/') ? href : `/projects/${projectId}/${href}`; return <Link key={`${group.title}-${name}`} href={target} style={{ whiteSpace: 'nowrap', padding: '7px 10px', borderRadius: 8, fontSize: 13, background: active ? '#e6fcf5' : '#fff', color: active ? '#087f5b' : '#102033', border: active ? '1px solid #96f2d7' : '1px solid #eef2f6', fontWeight: active ? 900 : 500 }}>{name}</Link>; })}</div>)}</div>
+  </nav>;
+}
+
 export async function ProfessionalDetailPage(props: DetailPageProps) {
   const project = await prisma.project.findUnique({ where: { id: props.projectId } });
   if (!project) return <main className="page">项目不存在</main>;
@@ -209,9 +220,9 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
 
   function renderEntryTable(entries: DetailEntry[], saveScopes: string[]) {
     return <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', minWidth: 1700, borderCollapse: 'collapse', fontSize: 12 }}>
+      <table style={{ width: '100%', minWidth: 1900, borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
-          <tr style={{ background: '#fff' }}>{['编码', '末级科目', '专业/部位', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额', '不含税金额', '税额', '分摊方式', '备注', '状态'].map((head, index) => <th key={head} style={{ ...(index === 0 ? stickyCode : index === 1 ? stickyName : cell), textAlign: 'left', color: '#475467' }}>{head}</th>)}</tr>
+          <tr style={{ background: '#fff' }}>{['编码', '末级科目', '专业/部位', '测算依据', '测算指标', '含量/系数', '工程量/计费基数', '单位', '含税单价', '税率', '含税金额', '不含税金额', '税额', '分摊方式', '备注', '状态'].map((head, index) => <th key={head} style={{ ...(index === 0 ? stickyCode : index === 1 ? stickyName : cell), textAlign: 'left', color: '#475467' }}>{head}</th>)}</tr>
         </thead>
         <tbody>
           {entries.map((entry, index) => {
@@ -219,7 +230,9 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
             const saved = entry.saved;
             const amount = entry.amount;
             const suggestion = suggestQuantityFromOverview(project, dict);
-            const quantity = saved ? Number(saved.quantity || 0) : suggestion.quantity;
+            const measureValue = saved ? Number(saved.measureValue || saved.quantity || 0) : suggestion.quantity;
+            const coefficient = saved ? Number(saved.coefficient || 1) : 1;
+            const quantity = saved ? Number(saved.quantity || 0) : round2(measureValue * coefficient);
             const unit = saved?.unit || suggestion.unit || dict.unit || '';
             const unitPrice = Number(saved?.taxInclusiveUnitPrice || 0);
             const isFilled = amount > 0;
@@ -234,10 +247,12 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
                 {rowScopes.map((scope) => <input key={scope} form={formId} type="hidden" name={entryKey(entry.entryId, 'saveScope')} value={scope} />)}
                 {saved ? <input form={formId} type="hidden" name={entryKey(entry.entryId, 'costLineId')} value={saved.id} /> : null}
                 <input form={formId} type="hidden" name={entryKey(entry.entryId, 'regionOrProductType')} value={entry.groupName} />
-                <input form={formId} name={entryKey(entry.entryId, 'measureBasis')} defaultValue={saved?.measureBasis || dict.measureBasis || ''} style={{ ...inputStyle, minWidth: 180 }} />
+                <input form={formId} name={entryKey(entry.entryId, 'measureBasis')} defaultValue={saved?.measureBasis || dict.measureBasis || ''} style={{ ...inputStyle, minWidth: 160 }} />
                 {!saved && suggestion.source ? <div className="meta">默认取数：{suggestion.source}</div> : null}
               </td>
-              <td style={{ ...cell, padding: 0 }}><input form={formId} name={entryKey(entry.entryId, 'quantity')} type="number" step="0.01" defaultValue={quantity || ''} placeholder="工程量" style={inputStyle} /></td>
+              <td style={{ ...cell, padding: 0 }}><input form={formId} name={entryKey(entry.entryId, 'measureValue')} type="number" step="0.01" defaultValue={measureValue || ''} placeholder="测算指标" style={inputStyle} /></td>
+              <td style={{ ...cell, padding: 0 }}><input form={formId} name={entryKey(entry.entryId, 'coefficient')} type="number" step="0.0001" defaultValue={coefficient || 1} placeholder="含量/系数" style={inputStyle} /></td>
+              <td style={{ ...cell, padding: 0 }}><div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 4, alignItems: 'center' }}><input form={formId} name={entryKey(entry.entryId, 'quantity')} type="number" step="0.01" defaultValue={quantity || ''} placeholder="自动=指标×系数" style={inputStyle} /><label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4, fontSize: 12, color: '#667085' }}><input form={formId} name={entryKey(entry.entryId, 'quantityOverride')} type="checkbox" defaultChecked={Boolean(saved?.quantityOverride)} style={{ width: 14, height: 14, padding: 0 }} />手动</label></div></td>
               <td style={{ ...cell, padding: 0 }}><input form={formId} name={entryKey(entry.entryId, 'unit')} defaultValue={unit} style={{ ...inputStyle, minWidth: 70 }} /></td>
               <td style={{ ...cell, padding: 0 }}><input form={formId} name={entryKey(entry.entryId, 'taxInclusiveUnitPrice')} type="number" step="0.01" defaultValue={unitPrice || ''} placeholder="单价" style={inputStyle} /></td>
               <td style={{ ...cell, padding: 0 }}><input form={formId} name={entryKey(entry.entryId, 'taxRate')} defaultValue={taxRateText} style={{ ...inputStyle, minWidth: 68 }} /></td>
@@ -255,26 +270,19 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
   }
 
   return <main className="page" style={{ padding: 0 }}>
-    <div data-detail-scope={scopeId} style={{ maxWidth: 1840, margin: '0 auto', padding: 12, display: 'grid', gridTemplateColumns: '260px minmax(0, 1fr)', gap: 12 }} className="detail-shell">
-      <aside className="detail-side-nav" style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', alignSelf: 'start', position: 'sticky', top: 12, maxHeight: 'calc(100vh - 24px)', overflowY: 'auto' }}>
-        <div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc' }}><div className="meta">当前项目</div><b>{project.name}</b><div className="meta">{props.title}</div></div>
-        <div style={{ padding: 8 }}>{projectNavGroups.map((group) => <div key={group.title} style={{ marginBottom: 8 }}><div style={{ padding: '8px 8px 5px', fontSize: 12, fontWeight: 900, color: '#667085' }}>{group.title}</div>{group.items.map(([name, href, status]) => {
-          const active = href === props.returnPath;
-          const target = href ? (href.startsWith('/') ? href : `/projects/${project.id}/${href}`) : '';
-          return href ? <Link key={`${group.title}-${name}`} href={target} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', padding: '8px 10px', borderRadius: 8, fontSize: 13, background: active ? '#e6fcf5' : undefined, color: active ? '#087f5b' : '#102033', fontWeight: active ? 900 : 500 }}><span>{name}</span><span>{active ? '●' : '›'}</span></Link> : <div key={`${group.title}-${name}`} style={{ padding: '8px 10px', borderRadius: 8, fontSize: 13, color: '#98a2b3', background: status === 'planned' ? '#f8fafc' : undefined }}>{name}</div>;
-        })}</div>)}</div>
-      </aside>
+    <div data-detail-scope={scopeId} style={{ maxWidth: 1840, margin: '0 auto', padding: 12 }}>
+      {renderTopNav(project.id, project.name, props.returnPath, props.title)}
       <div className="container" style={{ maxWidth: 'none', width: '100%', padding: 0 }}>
-        <div className="page-header"><div><p className="eyebrow">{props.eyebrow}</p><h1 className="title">{project.name}</h1><p className="subtitle">{props.subtitle} 顶层仍按启用业态/成本归属生成；下层按二级、三级、四级科目树分组展示。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总</Link><Link href={`/projects/${project.id}/cost-mapping`} className="btn">导入科目映射</Link><Link href={`/projects/${project.id}/product-maintenance`} className="btn">业态维护</Link><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+        <div className="page-header"><div><p className="eyebrow">{props.eyebrow}</p><h1 className="title">{project.name}</h1><p className="subtitle">{props.subtitle} 底层按“测算指标 × 含量/系数 = 工程量/计费基数”计算；勾选手动后才按手填工程量保存。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总</Link><Link href={`/projects/${project.id}/cost-mapping`} className="btn">导入科目映射</Link><Link href={`/projects/${project.id}/product-maintenance`} className="btn">业态维护</Link><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
         {props.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>{props.title}已保存。</div> : null}
         {hiddenDictionaryRows || hiddenCostRows || redirectedProductRows ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8', background: '#fff9db' }}>已隐藏未启用/虚拟归属/跨专业科目 {hiddenDictionaryRows} 行、成本行 {hiddenCostRows} 行；有 {redirectedProductRows} 个业态明细按成本归属规则重定向。</div> : null}
         <div className="summary-strip"><div className="stat"><div className="stat-label">含税合计</div><div className="stat-value">{fmt(totalInclusive)}</div></div><div className="stat"><div className="stat-label">不含税金额</div><div className="stat-value">{fmt(totalExclusive)}</div></div><div className="stat"><div className="stat-label">税额</div><div className="stat-value">{fmt(totalTax)}</div></div><div className="stat"><div className="stat-label">已填 / 明细行</div><div className="stat-value">{filledRows} / {visibleRows}</div></div></div>
         <section className="card" style={{ padding: 0, overflow: 'hidden' }}><div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><div><b>{props.title}｜业态归属 + 科目树填报</b><div className="meta">顶层排序：项目整体共用、住宅、商业、地下室/车位、配套、其他；二级、三级科目均可单独保存。</div></div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}><ProfessionalDetailFoldControls scopeId={scopeId} /><button form={formId} className="btn btn-primary" style={{ minHeight: 34 }}>整表批量保存</button></div></div><form id={formId} action={`/api/projects/${project.id}/professional-costs/batch`} method="post" /><input form={formId} type="hidden" name="professionalGroup" value={props.professionalGroup} /><input form={formId} type="hidden" name="returnPath" value={props.returnPath} />
           <div style={{ maxHeight: '72vh', overflow: 'auto', padding: 12 }}>
-            {visibleGroups.length === 0 ? <p className="meta">{props.emptyText} 请先在项目概况/业态维护中启用对应业态。</p> : visibleGroups.map((group) => <details key={group.id} data-cost-detail-group open style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 10, overflow: 'hidden', background: '#fff' }}><summary style={{ cursor: 'pointer', padding: 12, background: '#e9f7f8', display: 'grid', gridTemplateColumns: '1fr 130px 150px 120px 120px', gap: 10, alignItems: 'center', fontWeight: 900 }}><span>成本归属｜{group.name}</span><span>已填 {group.filled}/{group.rows}</span><span style={{ textAlign: 'right' }}>{fmt(group.amount)}</span><span style={{ textAlign: 'right' }}><GroupSaveButton formId={formId} groupId={group.id} label="保存归属组" /></span><span style={{ textAlign: 'right' }}>展开/收起</span></summary><div style={{ padding: 10 }}>{buildSubjectTree(group.entries).map((second) => <details key={`${group.id}-${second.id}`} data-cost-detail-group open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden', background: '#fff' }}><summary style={{ cursor: 'pointer', padding: 10, background: '#f8fafc', display: 'grid', gridTemplateColumns: '1fr 130px 150px 120px 120px', gap: 10, alignItems: 'center', fontWeight: 800 }}><span>二级｜{second.name}</span><span>已填 {second.filled}/{second.rows}</span><span style={{ textAlign: 'right' }}>{fmt(second.amount)}</span><span style={{ textAlign: 'right' }}><GroupSaveButton formId={formId} groupId={`${group.id}__${second.id}`} label="保存二级" /></span><span style={{ textAlign: 'right' }}>展开/收起</span></summary><div style={{ padding: 8 }}>{second.childRows.map((third) => <details key={`${group.id}-${third.id}`} data-cost-detail-group open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden', background: '#fff' }}><summary style={{ cursor: 'pointer', padding: 10, background: '#fcfdff', display: 'grid', gridTemplateColumns: '1fr 130px 150px 120px 120px', gap: 10, alignItems: 'center' }}><b>三级｜{third.name}</b><span>已填 {third.filled}/{third.rows}</span><span style={{ textAlign: 'right', fontWeight: 800 }}>{fmt(third.amount)}</span><span style={{ textAlign: 'right' }}><GroupSaveButton formId={formId} groupId={`${group.id}__${second.id}__${third.id}`} label="保存三级" /></span><span style={{ textAlign: 'right' }}>展开/收起</span></summary>{renderEntryTable(third.entries, [`${group.id}__${second.id}`, `${group.id}__${second.id}__${third.id}`])}</details>)}</div></details>)}</div></details>)}
-          </div></section>
+            {visibleGroups.length === 0 ? <p className="meta">{props.emptyText} 请先在项目概况/业态维护中启用对应业态。</p> : visibleGroups.map((group) => <details key={group.id} data-cost-detail-group open style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 10, overflow: 'hidden', background: '#fff' }}><summary style={{ cursor: 'pointer', padding: 12, background: '#e9f7f8', display: 'grid', gridTemplateColumns: '1fr 130px 150px 120px 120px', gap: 10, alignItems: 'center', fontWeight: 900 }}><span>成本归属｜{group.name}</span><span>已填 {group.filled}/{group.rows}</span><span style={{ textAlign: 'right' }}>{fmt(group.amount)}</span><span style={{ textAlign: 'right' }}><GroupSaveButton formId={formId} groupId={group.id} label="保存归属组" /></span><span style={{ textAlign: 'right' }}>展开/收起</span></summary><div style={{ padding: 10 }}>{buildSubjectTree(group.entries).map((second) => <details key={`${group.id}-${second.id}`} data-cost-detail-group open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden', background: '#fff' }}><summary style={{ cursor: 'pointer', padding: 10, background: '#f8fafc', display: 'grid', gridTemplateColumns: '1fr 130px 150px 120px 120px', gap: 10, alignItems: 'center', fontWeight: 800 }}><span>二级｜{second.name}</span><span>已填 {second.filled}/{second.rows}</span><span style={{ textAlign: 'right' }}>{fmt(second.amount)}</span><span style={{ textAlign: 'right' }}><GroupSaveButton formId={formId} groupId={`${group.id}__${second.id}`} label="保存二级" /></span><span style={{ textAlign: 'right' }}>展开/收起</span></summary><div style={{ padding: 8 }}>{second.childRows.map((third) => <details key={`${group.id}-${third.id}`} data-cost-detail-group open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden', background: '#fff' }}><summary style={{ cursor: 'pointer', padding: 10, background: '#fcfdff', display: 'grid', gridTemplateColumns: '1fr 130px 150px 120px 120px', gap: 10, alignItems: 'center' }}><b>三级｜{third.name}</b><span>已填 {third.filled}/{third.rows}</span><span style={{ textAlign: 'right' }}>{fmt(third.amount)}</span><span style={{ textAlign: 'right' }}><GroupSaveButton formId={formId} groupId={`${group.id}__${second.id}__${third.id}`} label="保存三级" /></span><span style={{ textAlign: 'right' }}>展开/收起</span></summary>{renderEntryTable(third.entries, [`${group.id}__${second.id}`, `${group.id}__${second.id}__${third.id}`])}</details>)}</div></details>)}</div></details>)}
+          </div>
+        </section>
       </div>
     </div>
-    <style>{`@media (max-width: 1100px){.detail-shell{grid-template-columns:1fr!important}.detail-side-nav{position:static!important;max-height:none!important}}`}</style>
   </main>;
 }
