@@ -11,7 +11,7 @@ export function rateByLandVatRatio(ratio: number) {
   return { rate: 0.6, deduction: 0.35 };
 }
 
-export function effectiveCostRows<T extends { productTypeId?: string | null; productType?: { isActive?: boolean | null } | null; costSubject: { code: string; level: number } }>(costs: T[], leafCodes: Set<string | null>) {
+export function effectiveCostRows<T extends { productTypeId?: string | null; productType?: { isActive?: boolean | null } | null; costSubject: { code: string; level: number } }>(costs: T[], leafCodes: ReadonlySet<string | null>) {
   const activeCosts = costs.filter((row) => !row.productTypeId || row.productType?.isActive);
   const effective = leafCodes.size ? activeCosts.filter((row) => row.costSubject.level >= 4 || leafCodes.has(row.costSubject.code)) : activeCosts;
   return {
@@ -79,7 +79,7 @@ export function revenueFromProjectData(input: {
     .filter((item) => item.isActive && item.isSaleable && !isParkingProductName(item.name) && !isChargingProductName(item.name) && !isOtherRevenueProductName(item.name) && !isCommercialRevenueProductName(item.name))
     .forEach((item) => addRevenue(ordinary, calculateRevenueLine(n(item.saleableArea), n(item.salePrice), input.vatRate)));
 
-  const revenueProductIds = new Set((input.revenues || []).map((row) => row.productTypeId).filter(Boolean));
+  const revenueProductIds = new Set<string>((input.revenues || []).map((row) => row.productTypeId).filter((id): id is string => Boolean(id)));
   input.products
     .filter((item) => item.isActive && item.isSaleable && isParkingProductName(item.name) && !revenueProductIds.has(item.id))
     .forEach((item) => addRevenue(parking, calculateRevenueLine(n(item.saleableArea), n(item.salePrice), input.vatRate)));
