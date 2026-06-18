@@ -153,7 +153,7 @@ export default async function LandCostPage({ params, searchParams }: { params: {
 
           <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <div><b>土地费用明细｜科目树填报</b><div className="meta">费率类科目默认带入土地价款基数；没有土地价款时可手动填写计费基数。契税默认 3%，其他费率按项目实际填。</div></div>
+              <div><b>土地费用明细｜科目树填报</b><div className="meta">费率类科目默认带入土地价款基数；已有 0 金额记录也会自动补基数。契税默认 3%，其他费率按项目实际填。</div></div>
               <button form="land-cost-batch" className="btn btn-primary">整表批量保存</button>
             </div>
             <form id="land-cost-batch" action={`/api/projects/${project.id}/land/batch`} method="post" />
@@ -181,9 +181,11 @@ export default async function LandCostPage({ params, searchParams }: { params: {
                                   const saved = row.costCode ? costByCode.get(row.costCode) : null;
                                   const amount = Number(saved?.taxInclusiveAmount || 0);
                                   const savedQuantity = Number(saved?.quantity || 0);
+                                  const savedRate = Number(saved?.taxInclusiveUnitPrice || 0);
                                   const rateBased = isRateBasedLandFee(row);
-                                  const defaultQuantity = saved ? savedQuantity : (rateBased && landPriceBaseWan ? landPriceBaseWan : 0);
-                                  const defaultRate = saved ? Number(saved?.taxInclusiveUnitPrice || 0) : defaultFeeRatePercent(row);
+                                  const shouldUseFormulaPreset = rateBased && landPriceBaseWan > 0 && (!saved || amount <= 0 || savedQuantity <= 0);
+                                  const defaultQuantity = shouldUseFormulaPreset ? landPriceBaseWan : savedQuantity;
+                                  const defaultRate = rateBased ? (savedRate > 0 ? savedRate : defaultFeeRatePercent(row)) : Number(saved?.taxInclusiveUnitPrice || 0) / 10000;
                                   const priceValue = rateBased ? defaultRate : Number(saved?.taxInclusiveUnitPrice || 0) / 10000;
                                   return <tr key={row.id} style={{ background: amount > 0 ? '#f8fff9' : index % 2 ? '#fff' : '#fcfdff' }}>
                                     <td style={{ ...cell, fontWeight: 900, color: '#0f4c5c' }}>{row.costCode}</td>
