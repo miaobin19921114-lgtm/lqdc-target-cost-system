@@ -15,9 +15,27 @@ function hasAny(text: string, words: string[]) {
   return words.some((word) => text.includes(word));
 }
 
+function normalizeSourceName(value: string | null | undefined) {
+  return String(value || '').trim();
+}
+
+function commercialRevenueBaseName(productName: string | null | undefined) {
+  const name = normalizeSourceName(productName);
+  if (name.startsWith('商业收入-')) {
+    const body = name.replace(/^商业收入-/, '');
+    return body.split('_')[0] || body.split('--')[0] || body.split('-')[0] || '商业';
+  }
+  if (name.startsWith('商业街') && /一层|二层|三层|1层|2层|3层|首层|二楼|三楼|临街|及以上/.test(name) && name !== '商业街') {
+    return '商业街';
+  }
+  return '';
+}
+
 export function normalizeCostGroupName(groupName: string | null | undefined) {
-  const name = String(groupName || '').trim();
+  const name = normalizeSourceName(groupName);
   if (!name) return '项目整体共用';
+  const commercialBase = commercialRevenueBaseName(name);
+  if (commercialBase) return commercialBase;
   if (hasAny(name, ['非主楼纯地库', '纯地库'])) return '非主楼地下室';
   return name;
 }
@@ -27,17 +45,10 @@ export function isVirtualCostGroup(groupName: string | null | undefined) {
   return name === '公共配套/所在主体' || name === '所在主体';
 }
 
-function commercialRevenueBaseName(productName: string | null | undefined) {
-  const name = String(productName || '').trim();
-  if (!name.startsWith('商业收入-')) return '';
-  const body = name.replace(/^商业收入-/, '');
-  return body.split('_')[0] || body.split('-')[0] || '商业';
-}
-
 export function isInternalBusinessDimension(productName: string | null | undefined) {
-  const name = String(productName || '').trim();
+  const name = normalizeSourceName(productName);
   if (name.startsWith('商业收入-') || name.startsWith('其他收入-')) return true;
-  return /^商业街.*(一层|二层|三层|1层|2层|3层|首层|二楼|三楼)$/.test(name);
+  return Boolean(commercialRevenueBaseName(name));
 }
 
 export function getProfessionalCostGroupName(product: ProductCostSettingInput) {
@@ -64,7 +75,7 @@ export function defaultCostSettings(product: ProductCostSettingInput): ProductCo
   const commercialBase = commercialRevenueBaseName(name);
 
   if (commercialBase) {
-    return { standalone: false, groupName: commercialBase, note: '商业收入明细是收入测算维度，不作为独立成本业态组。' };
+    return { standalone: false, groupName: commercialBase, note: '商业收入/楼层明细是收入测算维度，不作为独立成本业态组。' };
   }
   if (name.startsWith('其他收入-')) {
     return { standalone: false, groupName: '项目整体共用', note: '其他收入是收入测算维度，不作为工程成本对象。' };
