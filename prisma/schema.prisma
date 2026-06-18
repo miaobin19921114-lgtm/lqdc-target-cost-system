@@ -455,18 +455,46 @@ model TaxParameter {
 }
 
 model SalesSchedulePlan {
-  id                       String         @id @default(cuid())
+  id                       String              @id @default(cuid())
   projectVersionId         String
-  projectVersion           ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  periodName               String
-  periodIndex              Int            @default(0)
-  plannedSaleableArea      Decimal        @default(0)
-  plannedRevenue           Decimal        @default(0)
-  plannedCollectionRate    Decimal        @default(0.90)
-  actualCollectedAmount    Decimal        @default(0)
+  projectVersion           ProjectVersion      @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  periodName               String              @default("默认去化计划")
+  periodIndex              Int                 @default(0)
+  months                   Int                 @default(12)
+  downPaymentRate          Decimal             @default(0.30)
+  mortgageRate             Decimal             @default(0.65)
+  tailRate                 Decimal             @default(0.05)
+  mortgageDelay            Int                 @default(2)
+  tailDelay                Int                 @default(6)
+  plannedSaleableArea      Decimal             @default(0)
+  plannedRevenue           Decimal             @default(0)
+  plannedCollectionRate    Decimal             @default(0.90)
+  actualCollectedAmount    Decimal             @default(0)
   remark                   String?
-  createdAt                DateTime       @default(now())
-  updatedAt                DateTime       @default(now()) @updatedAt
+  lines                    SalesScheduleLine[]
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @default(now()) @updatedAt
 
   @@index([projectVersionId])
+}
+
+model SalesScheduleLine {
+  id                    String            @id @default(cuid())
+  planId                String
+  plan                  SalesSchedulePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  monthIndex            Int
+  sellThroughRate       Decimal           @default(0)
+  contractAmount        Decimal           @default(0)
+  downPayment           Decimal           @default(0)
+  mortgageCollection    Decimal           @default(0)
+  tailCollection        Decimal           @default(0)
+  totalCollection       Decimal           @default(0)
+  cumulativeContract    Decimal           @default(0)
+  cumulativeCollection  Decimal           @default(0)
+  receivableBalance     Decimal           @default(0)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @default(now()) @updatedAt
+
+  @@unique([planId, monthIndex])
+  @@index([planId])
 }
