@@ -68,13 +68,19 @@ async function copyVersion(projectId: string, sourceVersionId: string, name: str
     await prisma.taxParameter.create({
       data: {
         projectVersionId: target.id,
+        vatMethod: source.taxes.vatMethod,
         vatRate: source.taxes.vatRate,
-        urbanMaintenanceRate: source.taxes.urbanMaintenanceRate,
+        deemedSalesRevenue: source.taxes.deemedSalesRevenue,
+        nonDeductibleInputTax: source.taxes.nonDeductibleInputTax,
+        landDeductibleAmount: source.taxes.landDeductibleAmount,
+        urbanMaintenanceTaxRate: source.taxes.urbanMaintenanceTaxRate,
         educationSurchargeRate: source.taxes.educationSurchargeRate,
         localEducationSurchargeRate: source.taxes.localEducationSurchargeRate,
-        corporateIncomeTaxRate: source.taxes.corporateIncomeTaxRate,
-        landValueAddedTaxRate: source.taxes.landValueAddedTaxRate,
-        remark: source.taxes.remark
+        landVatPrepayRate: source.taxes.landVatPrepayRate,
+        incomeTaxRate: source.taxes.incomeTaxRate,
+        costAdditionRate: source.taxes.costAdditionRate,
+        landVatClearanceMode: source.taxes.landVatClearanceMode,
+        incomeTaxMode: source.taxes.incomeTaxMode
       }
     });
   }
@@ -109,6 +115,9 @@ async function copyVersion(projectId: string, sourceVersionId: string, name: str
           regionOrProductType: cost.regionOrProductType,
           professionalGroup: cost.professionalGroup,
           measureBasis: cost.measureBasis,
+          measureValue: cost.measureValue,
+          coefficient: cost.coefficient,
+          quantityOverride: cost.quantityOverride,
           quantity: cost.quantity,
           unit: cost.unit,
           taxExclusiveUnitPrice: cost.taxExclusiveUnitPrice,
