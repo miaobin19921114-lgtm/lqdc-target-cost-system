@@ -62,12 +62,28 @@ function hasAny(text: string | null | undefined, words: string[]) { const value 
 function groupKey(code: string | null | undefined, groupName: string) { return `${code || ''}__${normalizeCostGroupName(groupName)}`; }
 function safeDomId(input: string) { return input.replace(/\s+/g, '-'); }
 
-const DEFAULT_PRODUCT_ORDER = ['高层住宅', '小高层住宅', '洋房', '叠拼', '合院', '别墅', '底商', '商业', '商业街', '集中商业', '会所商业', '地下车位', '地下车库', '人防', '物业', '社区', '配套', '会所'];
+const DEFAULT_PRODUCT_ORDER = ['高层住宅', '小高层住宅', '高层', '小高层', '洋房', '叠拼', '合院', '别墅', '底商', '商业街', '集中商业', '商业', '会所商业', '非主楼地下室', '主楼地下室', '地下车位', '地下车库', '地库', '人防地下室', '人防', '物业', '社区', '配套', '会所'];
 
 function defaultProductOrderRank(name: string) {
-  const value = normalize(name);
+  const value = normalizeCostGroupName(name);
   const index = DEFAULT_PRODUCT_ORDER.findIndex((item) => value.includes(item) || item.includes(value));
   return index >= 0 ? index : 999;
+}
+
+function findMatchedProductRank(name: string, activeProducts: any[]) {
+  const value = normalizeCostGroupName(name);
+  const matched = activeProducts
+    .map((product, index) => {
+      const productName = normalize(product?.name);
+      const groupName = normalizeCostGroupName(getProfessionalCostGroupName(product));
+      const matchedProduct = Boolean(productName || groupName) && (value === productName || value === groupName || value.includes(productName) || value.includes(groupName) || productName.includes(value) || groupName.includes(value));
+      if (!matchedProduct) return null;
+      return { index, rank: Math.min(defaultProductOrderRank(productName), defaultProductOrderRank(groupName)) };
+    })
+    .filter((item): item is { index: number; rank: number } => Boolean(item));
+  if (!matched.length) return null;
+  matched.sort((a, b) => a.rank - b.rank || a.index - b.index);
+  return matched[0];
 }
 
 function productGroupRank(name: string, activeProducts: any[] = []) {
@@ -75,18 +91,15 @@ function productGroupRank(name: string, activeProducts: any[] = []) {
   if (!value) return 9999;
   if (hasAny(value, ['项目整体', '项目共用', '整体共用', '全项目'])) return 0;
 
-  const overviewIndex = activeProducts.findIndex((product) => {
-    const productName = normalize(product?.name);
-    const groupName = normalizeCostGroupName(getProfessionalCostGroupName(product));
-    if (!productName && !groupName) return false;
-    return value === productName || value === groupName || value.includes(productName) || value.includes(groupName) || productName.includes(value) || groupName.includes(value);
-  });
-  if (overviewIndex >= 0) return 100 + overviewIndex;
+  const matched = findMatchedProductRank(value, activeProducts);
+  if (matched) return 100 + matched.rank;
 
-  if (hasAny(value, ['住宅', '高层', '洋房', '别墅', '合院', '叠拼', '小高'])) return 1000 + defaultProductOrderRank(value);
-  if (hasAny(value, ['商业', '底商', '商铺', '商业街', '集中商业', '会所商业'])) return 2000 + defaultProductOrderRank(value);
-  if (hasAny(value, ['地下', '地下室', '地库', '车库', '车位', '人防'])) return 3000 + defaultProductOrderRank(value);
-  if (hasAny(value, ['配套', '物业', '社区', '会所', '设备用房', '养老', '托育', '公建'])) return 4000 + defaultProductOrderRank(value);
+  const defaultRank = defaultProductOrderRank(value);
+  if (defaultRank < 999) return 100 + defaultRank;
+  if (hasAny(value, ['住宅', '高层', '洋房', '别墅', '合院', '叠拼', '小高'])) return 1000 + defaultRank;
+  if (hasAny(value, ['商业', '底商', '商铺', '商业街', '集中商业', '会所商业'])) return 2000 + defaultRank;
+  if (hasAny(value, ['地下', '地下室', '地库', '车库', '车位', '人防'])) return 3000 + defaultRank;
+  if (hasAny(value, ['配套', '物业', '社区', '会所', '设备用房', '养老', '托育', '公建'])) return 4000 + defaultRank;
   return 9000;
 }
 
@@ -259,6 +272,8 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
             const isFilled = amount > 0;
             const taxRateText = saved ? `${Number(saved.taxRate || 0) * 100}%` : dict.defaultTaxRate || '9%';
             const rowScopes = Array.from(new Set([entry.groupId, ...saveScopes]));
+            const measureBasisValue = saved?.measureBasis || dict.measureBasis || '';
+            const measureBasisOptions = Array.from(new Set(String(measureBasisValue).split(/[\/、,，;；\n]+/).map((item) => item.trim()).filter(Boolean)));
             return <tr key={entry.entryId} style={{ background: isFilled ? '#f8fff9' : index % 2 ? '#fff' : '#fcfdff' }}>
               <td style={stickyCode}>{dict.costCode || '-'}</td>
               <td style={stickyName}>{dict.detailSubject || '-'}</td>
@@ -268,13 +283,15 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
                 {rowScopes.map((scope) => <input key={scope} form={formId} type="hidden" name={entryKey(entry.entryId, 'saveScope')} value={scope} />)}
                 {saved ? <input form={formId} type="hidden" name={entryKey(entry.entryId, 'costLineId')} value={saved.id} /> : null}
                 <input form={formId} type="hidden" name={entryKey(entry.entryId, 'regionOrProductType')} value={entry.groupName} />
-                <input form={formId} name={entryKey(entry.entryId, 'measureBasis')} defaultValue={saved?.measureBasis || dict.measureBasis || ''} style={{ ...inputStyle, minWidth: 160 }} />
-                {!saved && suggestion.source ? <div className="meta">默认取数：{suggestion.source}</div> : null}
+                <select form={formId} name={entryKey(entry.entryId, 'measureBasis')} defaultValue={measureBasisOptions[0] || measureBasisValue} style={{ ...inputStyle, minWidth: 160 }}>
+                  {(measureBasisOptions.length ? measureBasisOptions : [measureBasisValue || '固定金额']).map((option, optionIndex) => <option key={option} value={option}>{optionIndex === 0 ? `${option}（默认）` : option}</option>)}
+                </select>
+                {!saved && suggestion.source ? <div className="meta" data-measure-source="1">默认取数：{suggestion.source}</div> : <div className="meta" data-measure-source="1" />}
               </td>
               <td style={{ ...cell, padding: 0 }}><input form={formId} name={entryKey(entry.entryId, 'measureValue')} type="number" step="0.01" defaultValue={measureValue || ''} placeholder="测算指标" style={inputStyle} /></td>
               <td style={{ ...cell, padding: 0 }}><input form={formId} name={entryKey(entry.entryId, 'coefficient')} type="number" step="0.0001" defaultValue={coefficient || 1} placeholder="含量/系数" style={inputStyle} /></td>
               <td style={{ ...cell, padding: 0 }}><div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 4, alignItems: 'center' }}><input form={formId} name={entryKey(entry.entryId, 'quantity')} type="number" step="0.01" defaultValue={quantity || ''} placeholder="自动=指标×系数" style={inputStyle} /><label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4, fontSize: 12, color: '#667085' }}><input form={formId} name={entryKey(entry.entryId, 'quantityOverride')} type="checkbox" defaultChecked={Boolean(saved?.quantityOverride)} style={{ width: 14, height: 14, padding: 0 }} />手动</label></div></td>
-              <td style={{ ...cell, padding: 0 }}><input form={formId} name={entryKey(entry.entryId, 'unit')} defaultValue={unit} style={{ ...inputStyle, minWidth: 70 }} /></td>
+              <td style={{ ...cell, padding: 0 }}><input form={formId} name={entryKey(entry.entryId, 'unit')} defaultValue={unit} data-detail-unit={unit} style={{ ...inputStyle, minWidth: 70 }} /></td>
               <td style={{ ...cell, padding: 0 }}><input form={formId} name={entryKey(entry.entryId, 'taxInclusiveUnitPrice')} type="number" step="0.01" defaultValue={unitPrice || ''} placeholder="单价" style={inputStyle} /></td>
               <td style={{ ...cell, padding: 0 }}><input form={formId} name={entryKey(entry.entryId, 'taxRate')} defaultValue={taxRateText} style={{ ...inputStyle, minWidth: 68 }} /></td>
               <td style={{ ...cell, textAlign: 'right', fontWeight: 900 }}>{fmt(amount)}</td>
@@ -298,7 +315,7 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
         {props.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>{props.title}已保存。</div> : null}
         {hiddenDictionaryRows || hiddenCostRows || redirectedProductRows ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8', background: '#fff9db' }}>已隐藏未启用/虚拟归属/跨专业科目 {hiddenDictionaryRows} 行、成本行 {hiddenCostRows} 行；有 {redirectedProductRows} 个业态明细按成本归属规则重定向。</div> : null}
         <div className="summary-strip"><div className="stat"><div className="stat-label">含税合计</div><div className="stat-value">{fmt(totalInclusive)}</div></div><div className="stat"><div className="stat-label">不含税金额</div><div className="stat-value">{fmt(totalExclusive)}</div></div><div className="stat"><div className="stat-label">税额</div><div className="stat-value">{fmt(totalTax)}</div></div><div className="stat"><div className="stat-label">已填 / 明细行</div><div className="stat-value">{filledRows} / {visibleRows}</div></div></div>
-        <section className="card" style={{ padding: 0, overflow: 'hidden' }}><div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><div><b>{props.title}｜业态归属 + 科目树填报</b><div className="meta">顶层排序：项目整体共用、住宅、商业、地下室/车位、配套、其他；启用业态优先按概况表/业态维护顺序显示，二级、三级科目均可单独保存。</div></div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}><ProfessionalDetailFoldControls scopeId={scopeId} /><button form={formId} className="btn btn-primary" style={{ minHeight: 34 }}>整表批量保存</button></div></div><form id={formId} action={`/api/projects/${project.id}/professional-costs/batch`} method="post" /><input form={formId} type="hidden" name="professionalGroup" value={props.professionalGroup} /><input form={formId} type="hidden" name="returnPath" value={props.returnPath} />
+        <section className="card" style={{ padding: 0, overflow: 'hidden' }}><div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><div><b>{props.title}｜业态归属 + 科目树填报</b><div className="meta">顶层排序：项目整体共用、住宅、商业、地下室/车位、配套、其他；启用业态优先按地产产品逻辑顺序显示，二级、三级科目均可单独保存。</div></div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}><ProfessionalDetailFoldControls scopeId={scopeId} /><button form={formId} className="btn btn-primary" style={{ minHeight: 34 }}>整表批量保存</button></div></div><form id={formId} action={`/api/projects/${project.id}/professional-costs/batch`} method="post" /><input form={formId} type="hidden" name="professionalGroup" value={props.professionalGroup} /><input form={formId} type="hidden" name="returnPath" value={props.returnPath} />
           <div style={{ maxHeight: '72vh', overflow: 'auto', padding: 12 }}>
             {visibleGroups.length === 0 ? <p className="meta">{props.emptyText} 请先在项目概况/业态维护中启用对应业态。</p> : visibleGroups.map((group) => <details key={group.id} data-cost-detail-group open style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 10, overflow: 'hidden', background: '#fff' }}><summary style={{ cursor: 'pointer', padding: 12, background: '#e9f7f8', display: 'grid', gridTemplateColumns: '1fr 130px 150px 120px 120px', gap: 10, alignItems: 'center', fontWeight: 900 }}><span>成本归属｜{group.name}</span><span>已填 {group.filled}/{group.rows}</span><span style={{ textAlign: 'right' }}>{fmt(group.amount)}</span><span style={{ textAlign: 'right' }}><GroupSaveButton formId={formId} groupId={group.id} label="保存归属组" /></span><span style={{ textAlign: 'right' }}>展开/收起</span></summary><div style={{ padding: 10 }}>{buildSubjectTree(group.entries).map((second) => <details key={`${group.id}-${second.id}`} data-cost-detail-group open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden', background: '#fff' }}><summary style={{ cursor: 'pointer', padding: 10, background: '#f8fafc', display: 'grid', gridTemplateColumns: '1fr 130px 150px 120px 120px', gap: 10, alignItems: 'center', fontWeight: 800 }}><span>二级｜{second.name}</span><span>已填 {second.filled}/{second.rows}</span><span style={{ textAlign: 'right' }}>{fmt(second.amount)}</span><span style={{ textAlign: 'right' }}><GroupSaveButton formId={formId} groupId={`${group.id}__${second.id}`} label="保存二级" /></span><span style={{ textAlign: 'right' }}>展开/收起</span></summary><div style={{ padding: 8 }}>{second.childRows.map((third) => <details key={`${group.id}-${third.id}`} data-cost-detail-group open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden', background: '#fff' }}><summary style={{ cursor: 'pointer', padding: 10, background: '#fcfdff', display: 'grid', gridTemplateColumns: '1fr 130px 150px 120px 120px', gap: 10, alignItems: 'center' }}><b>三级｜{third.name}</b><span>已填 {third.filled}/{third.rows}</span><span style={{ textAlign: 'right' }}>{fmt(third.amount)}</span><span style={{ textAlign: 'right' }}><GroupSaveButton formId={formId} groupId={`${group.id}__${second.id}__${third.id}`} label="保存三级" /></span><span style={{ textAlign: 'right' }}>展开/收起</span></summary>{renderEntryTable(third.entries, [`${group.id}__${second.id}`, `${group.id}__${second.id}__${third.id}`])}</details>)}</div></details>)}</div></details>)}
           </div>
