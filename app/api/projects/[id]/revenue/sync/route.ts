@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
 import { getEditableActiveVersion } from '@/lib/project-version';
+import { isCommercialRevenueProductName } from '@/lib/tax-summary';
 
 export const runtime = 'nodejs';
 
@@ -48,8 +49,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const tax = await prisma.taxParameter.findUnique({ where: { projectVersionId: version.id } });
   const taxRate = Number(tax?.vatRate || 0.09);
+  const commercialLines = await prisma.commercialRevenueLine.findMany({ where: { projectVersionId: version.id, taxInclusiveRevenue: { gt: 0 } }, select: { parentProductTypeId: true } });
+  const commercialParentIds = new Set(commercialLines.map((line) => line.parentProductTypeId).filter((id): id is string => Boolean(id)));
   const products = await prisma.productType.findMany({ where: { projectVersionId: version.id, isActive: true, isSaleable: true } });
-  const ordinaryProducts = products.filter((product) => !isParkingProduct(product.name) && !isChargingProduct(product.name) && !isOtherRevenueProduct(product.name));
+  const ordinaryProducts = products.filter((product) => !commercialParentIds.has(product.id) && !isParkingProduct(product.name) && !isChargingProduct(product.name) && !isOtherRevenueProduct(product.name) && !isCommercialRevenueProductName(product.name));
 
   let count = 0;
   for (const product of ordinaryProducts) {
@@ -69,7 +72,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       OR: [
         { productType: { isActive: false } },
         { productType: { isSaleable: false } },
-        { productType: { name: { contains: '充电' } } }
+        { productType: { name: { contains: '充电' } } },
+        { productType: { name: { startsWith: '商业收入-' } } },
+        { productTypeId: { in: Array.from(commercialParentIds) } }
       ]
     }
   });
