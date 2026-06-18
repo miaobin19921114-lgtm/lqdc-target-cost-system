@@ -20,7 +20,7 @@ async function ensurePresetRows(projectId: string) {
   if (!presetRows.length) return;
 
   const count = await prisma.costDictionaryRow.count({ where: { projectId } });
-  const v60BuildingRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', detailSubject: '高层工程桩', costCode: { startsWith: '03.02.01.' } } });
+  const v60BuildingRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', detailSubject: '高层工程桩', costCode: { startsWith: '03.02.01.' }, unit: 'm' } });
   if (count >= 100 && v60BuildingRows > 0) return;
 
   await prisma.$transaction([
@@ -254,7 +254,7 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
             const measureValue = saved ? Number(saved.measureValue || saved.quantity || 0) : suggestion.quantity;
             const coefficient = saved ? Number(saved.coefficient || 1) : 1;
             const quantity = saved ? Number(saved.quantity || 0) : round2(measureValue * coefficient);
-            const unit = saved?.unit || suggestion.unit || dict.unit || '';
+            const unit = saved?.unit || dict.unit || suggestion.unit || '';
             const unitPrice = Number(saved?.taxInclusiveUnitPrice || 0);
             const isFilled = amount > 0;
             const taxRateText = saved ? `${Number(saved.taxRate || 0) * 100}%` : dict.defaultTaxRate || '9%';
@@ -294,7 +294,7 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
     <div data-detail-scope={scopeId} style={{ maxWidth: 1840, margin: '0 auto', padding: 12 }}>
       {renderTopNav(project.id, project.name, props.returnPath, props.title)}
       <div className="container" style={{ maxWidth: 'none', width: '100%', padding: 0 }}>
-        <div className="page-header"><div><p className="eyebrow">{props.eyebrow}</p><h1 className="title">{project.name}</h1><p className="subtitle">{props.subtitle} 底层按“测算指标 × 含量/系数 = 工程量/计费基数”计算；勾选手动后才按手填工程量保存。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总</Link><Link href={`/projects/${project.id}/cost-mapping`} className="btn">导入科目映射</Link><Link href={`/projects/${project.id}/product-maintenance`} className="btn">业态维护</Link><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+        <div className="page-header"><div><p className="eyebrow">{props.eyebrow}</p><h1 className="title">{project.name}</h1><p className="subtitle">{props.subtitle} 底层按“测算指标 × 含量/系数 = 工程量/计费基数”计算；工程量单位优先按末级科目单位，勾选手动后才按手填工程量保存。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总</Link><Link href={`/projects/${project.id}/cost-mapping`} className="btn">导入科目映射</Link><Link href={`/projects/${project.id}/product-maintenance`} className="btn">业态维护</Link><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
         {props.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>{props.title}已保存。</div> : null}
         {hiddenDictionaryRows || hiddenCostRows || redirectedProductRows ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8', background: '#fff9db' }}>已隐藏未启用/虚拟归属/跨专业科目 {hiddenDictionaryRows} 行、成本行 {hiddenCostRows} 行；有 {redirectedProductRows} 个业态明细按成本归属规则重定向。</div> : null}
         <div className="summary-strip"><div className="stat"><div className="stat-label">含税合计</div><div className="stat-value">{fmt(totalInclusive)}</div></div><div className="stat"><div className="stat-label">不含税金额</div><div className="stat-value">{fmt(totalExclusive)}</div></div><div className="stat"><div className="stat-label">税额</div><div className="stat-value">{fmt(totalTax)}</div></div><div className="stat"><div className="stat-label">已填 / 明细行</div><div className="stat-value">{filledRows} / {visibleRows}</div></div></div>
