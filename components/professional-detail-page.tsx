@@ -22,8 +22,10 @@ async function ensurePresetRows(projectId: string) {
   const count = await prisma.costDictionaryRow.count({ where: { projectId } });
   const v60BuildingRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', detailSubject: '高层工程桩', costCode: { startsWith: '03.02.01.' }, unit: 'm' } });
   const v60LocationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '地下车位 / 非主楼纯地下车库', detailSubject: '消防水池防水' } });
+  const v60SectionRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '高层住宅', secondSubject: '基础工程', thirdSubject: '桩基及基础工程', detailSubject: '高层工程桩' } });
   const legacyOverallDeviceRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '项目整体共摊土建', detailSubject: '配电房防潮处理' } });
-  if (count >= 100 && v60BuildingRows > 0 && v60LocationRows > 0 && legacyOverallDeviceRows === 0) return;
+  const legacySectionRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '高层住宅', secondSubject: '桩基及基础工程', detailSubject: '高层工程桩' } });
+  if (count >= 100 && v60BuildingRows > 0 && v60LocationRows > 0 && v60SectionRows > 0 && legacyOverallDeviceRows === 0 && legacySectionRows === 0) return;
 
   await prisma.$transaction([
     prisma.costDictionaryRow.deleteMany({ where: { projectId } }),
