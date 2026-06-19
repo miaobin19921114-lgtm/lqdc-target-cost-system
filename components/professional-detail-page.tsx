@@ -35,7 +35,7 @@ async function ensurePresetRows(projectId: string) {
   const v60SectionRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '高层住宅', secondSubject: '基础工程', thirdSubject: '桩基及基础工程', detailSubject: '高层工程桩' } });
   const v60InstallationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '安装明细表', applicableProductType: '高层住宅', secondSubject: '给排水工程', thirdSubject: '给排水安装工程', detailSubject: '高层室内给水管道' } });
   const v60EquipmentRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '设备明细表', applicableProductType: '高层住宅', secondSubject: '电梯及垂直交通设备', thirdSubject: '高层电梯', detailSubject: '客梯' } });
-  const v60HeatingRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '安装明细表', applicableProductType: '高层住宅', secondSubject: '采暖安装工程', detailSubject: '高层户内采暖管道' } });
+  const v60HeatingRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '精装修明细表', applicableProductType: '高层住宅', secondSubject: '户内采暖地面精装工程', detailSubject: '高层地暖盘管' } });
   const legacyOverallDeviceRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '项目整体共摊土建', detailSubject: '配电房防潮处理' } });
   const legacySectionRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '高层住宅', secondSubject: '桩基及基础工程', detailSubject: '高层工程桩' } });
   const legacyInstallationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '安装明细表', applicableProductType: '住宅/商业/地下车库/配套', secondSubject: '安装工程' } });
