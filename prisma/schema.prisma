@@ -185,6 +185,30 @@ model Project {
   powerRoomCount                  Int      @default(0)
   pumpRoomCount                   Int      @default(0)
   firePoolVolume                  Decimal  @default(0)
+  isPrefabricated                 Boolean  @default(false)
+  prefabricatedScope              String?
+  prefabricationRate              Decimal  @default(0)
+  prefabricatedSystem             String?
+  residentialPublicFitoutStandard String   @default("标准")
+  undergroundLobbyFitoutStandard  String   @default("标准")
+  residentialFitoutDelivery       Boolean  @default(false)
+  residentialFitoutType           String   @default("硬装")
+  residentialFitoutStandard       String   @default("毛坯")
+  commercialPublicFitout          Boolean  @default(false)
+  commercialPublicFitoutStandard  String   @default("标准")
+  shopDeliveryStandard            String   @default("毛坯")
+  basementQualityUpgrade          Boolean  @default(false)
+  basementQualityStandard         String   @default("基础美化")
+  propertyFitout                  Boolean  @default(true)
+  communityFitout                 Boolean  @default(true)
+  supportFitout                   Boolean  @default(false)
+  hasSalesOffice                  Boolean  @default(true)
+  salesOfficeFitoutType           String   @default("硬装+软装")
+  hasShowFlat                     Boolean  @default(true)
+  showFlatFitoutType              String   @default("全部")
+  heatingEnabled                  Boolean  @default(false)
+  heatingScope                    String?
+  heatingType                     String?
   remark                          String?
   versions                        ProjectVersion[]
   createdAt                       DateTime @default(now())
