@@ -21,6 +21,9 @@ function round2(value: number) {
 }
 
 async function ensurePresetRows(projectId: string) {
+  const count = await prisma.costDictionaryRow.count({ where: { projectId } });
+  if (count > 0) return;
+
   const baseRows = getV60CostDictionaryRows().filter((row) => row.sourceTable !== '安装明细表' && row.sourceTable !== '设备明细表' && row.sourceTable !== '精装修明细表');
   const installOffset = Math.max(0, ...baseRows.map((row) => row.rowIndex || 0)) + 1;
   const installRows = buildV60InstallationRows(installOffset);
@@ -32,25 +35,7 @@ async function ensurePresetRows(projectId: string) {
   const heatingRows = buildV60HeatingRows(heatingOffset);
   const presetRows = [...baseRows, ...installRows, ...equipmentRows, ...fitoutRows, ...heatingRows].map((row) => ({ ...row, projectId }));
   if (!presetRows.length) return;
-
-  const count = await prisma.costDictionaryRow.count({ where: { projectId } });
-  const v60BuildingRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', detailSubject: '高层工程桩', costCode: { startsWith: '03.02.01.' }, unit: 'm' } });
-  const v60LocationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '地下车位 / 非主楼纯地下车库', detailSubject: '消防水池防水' } });
-  const v60SectionRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '高层住宅', secondSubject: '基础工程', thirdSubject: '桩基及基础工程', detailSubject: '高层工程桩' } });
-  const v60InstallationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '安装明细表', applicableProductType: '高层住宅', secondSubject: '给排水工程', thirdSubject: '给排水安装工程', detailSubject: '高层室内给水管道' } });
-  const v60EquipmentRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '设备明细表', applicableProductType: '高层住宅', secondSubject: '电梯及垂直交通设备', thirdSubject: '高层电梯', detailSubject: '客梯' } });
-  const v60FitoutRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '精装修明细表', applicableProductType: '高层住宅', secondSubject: '公区精装修', thirdSubject: '首层入户大堂精装修', detailSubject: '首层入户大堂精装修' } });
-  const v60HeatingRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '精装修明细表', applicableProductType: '高层住宅', secondSubject: '户内采暖地面精装工程', detailSubject: '高层地暖盘管' } });
-  const legacyOverallDeviceRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '项目整体共摊土建', detailSubject: '配电房防潮处理' } });
-  const legacySectionRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '高层住宅', secondSubject: '桩基及基础工程', detailSubject: '高层工程桩' } });
-  const legacyInstallationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '安装明细表', applicableProductType: '住宅/商业/地下车库/配套', secondSubject: '安装工程' } });
-  const legacyEquipmentRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '设备明细表', applicableProductType: '住宅/商业/地下车库/配套', secondSubject: '设备工程' } });
-  if (count >= 100 && v60BuildingRows > 0 && v60LocationRows > 0 && v60SectionRows > 0 && v60InstallationRows > 0 && v60EquipmentRows > 0 && v60FitoutRows > 0 && v60HeatingRows > 0 && legacyOverallDeviceRows === 0 && legacySectionRows === 0 && legacyInstallationRows === 0 && legacyEquipmentRows === 0) return;
-
-  await prisma.$transaction([
-    prisma.costDictionaryRow.deleteMany({ where: { projectId } }),
-    prisma.costDictionaryRow.createMany({ data: presetRows })
-  ]);
+  await prisma.costDictionaryRow.createMany({ data: presetRows });
 }
 
 type DetailPageProps = {
@@ -290,8 +275,8 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
   const project = await prisma.project.findUnique({ where: { id: props.projectId } });
   if (!project) return <main className="page">项目不存在</main>;
 
-  await rebuildProjectCostDictionary(project.id);
   await ensurePresetRows(project.id);
+  await rebuildProjectCostDictionary(project.id);
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
