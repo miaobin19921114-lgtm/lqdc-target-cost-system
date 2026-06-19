@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { rebuildProjectCostDictionary } from '@/lib/rebuild-project-cost-dictionary';
 
 function clean(form: FormData, name: string) {
   return String(form.get(name) || '').trim();
@@ -144,6 +145,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       remark: clean(form, 'remark') || null
     }
   });
+
+  await rebuildProjectCostDictionary(params.id);
 
   return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/overview?saved=1`, 303);
 }
