@@ -1,11 +1,8 @@
 import { ProfessionalDetailPage } from '@/components/professional-detail-page';
-import { rebuildProjectCostDictionary } from '@/lib/rebuild-project-cost-dictionary';
 
 export const dynamic = 'force-dynamic';
 
 export default async function BuildingDetailsPage({ params, searchParams }: { params: { id: string }, searchParams?: { saved?: string } }) {
-  await rebuildProjectCostDictionary(params.id);
-
   return <ProfessionalDetailPage
     projectId={params.id}
     saved={searchParams?.saved}
