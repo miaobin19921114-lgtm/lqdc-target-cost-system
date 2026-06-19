@@ -21,7 +21,9 @@ async function ensurePresetRows(projectId: string) {
 
   const count = await prisma.costDictionaryRow.count({ where: { projectId } });
   const v60BuildingRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', detailSubject: '高层工程桩', costCode: { startsWith: '03.02.01.' }, unit: 'm' } });
-  if (count >= 100 && v60BuildingRows > 0) return;
+  const v60LocationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '地下车位 / 非主楼纯地下车库', detailSubject: '消防水池防水' } });
+  const legacyOverallDeviceRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '项目整体共摊土建', detailSubject: '配电房防潮处理' } });
+  if (count >= 100 && v60BuildingRows > 0 && v60LocationRows > 0 && legacyOverallDeviceRows === 0) return;
 
   await prisma.$transaction([
     prisma.costDictionaryRow.deleteMany({ where: { projectId } }),
@@ -62,21 +64,70 @@ function hasAny(text: string | null | undefined, words: string[]) { const value 
 function groupKey(code: string | null | undefined, groupName: string) { return `${code || ''}__${normalizeCostGroupName(groupName)}`; }
 function safeDomId(input: string) { return input.replace(/\s+/g, '-'); }
 
-const DEFAULT_PRODUCT_ORDER = ['高层住宅', '小高层住宅', '高层', '小高层', '洋房', '叠拼', '合院', '别墅', '底商', '商业街', '集中商业', '商业', '会所商业', '非主楼地下室', '主楼地下室', '地下车位', '地下车库', '地库', '人防地下室', '人防', '物业', '社区', '配套', '会所'];
+const DEFAULT_PRODUCT_ORDER = ['项目整体共用', '高层住宅', '小高层住宅', '高层', '小高层', '洋房', '叠拼', '合院', '别墅', '底商', '商业街', '集中商业', '商业', '会所商业', '非主楼地下室', '主楼地下室', '地下车位', '地下车库', '地库', '人防地下室', '人防', '物业/社区/配套用房', '物业', '社区', '配套', '会所'];
+
+const RESIDENTIAL_SPECIFIC = ['高层住宅', '小高层住宅', '洋房', '叠拼', '合院', '别墅'];
+const BASEMENT_ALIASES = ['地下车位', '地下车库', '非主楼地下室', '非主楼纯地下车库', '非主楼纯地库', '纯地库', '地库'];
+const CIVIL_DEFENSE_ALIASES = ['人防', '人防地下室', '人防车位'];
+const COMMERCIAL_ALIASES = ['商业', '底商', '商铺', '商业街', '集中商业', '会所商业'];
+const SUPPORT_ALIASES = ['物业/社区/配套用房', '物业', '社区', '配套', '会所', '养老', '托育', '公建', '设备用房'];
 
 function defaultProductOrderRank(name: string) {
   const value = normalizeCostGroupName(name);
-  const index = DEFAULT_PRODUCT_ORDER.findIndex((item) => value.includes(item) || item.includes(value));
+  if (!value) return 999;
+  const index = DEFAULT_PRODUCT_ORDER.findIndex((item) => value === item || value.includes(item) || item.includes(value));
   return index >= 0 ? index : 999;
+}
+
+function strictProductTokens(product: any) {
+  const name = normalize(product?.name);
+  const groupName = normalizeCostGroupName(getProfessionalCostGroupName(product));
+  const tokens = new Set<string>();
+  if (name) tokens.add(normalizeCostGroupName(name));
+  if (groupName) tokens.add(groupName);
+
+  if (hasAny(name, ['小高层'])) { tokens.add('小高层住宅'); tokens.add('小高层'); tokens.add('住宅'); }
+  else if (hasAny(name, ['高层住宅']) || name === '高层') { tokens.add('高层住宅'); tokens.add('高层'); tokens.add('住宅'); }
+  else if (hasAny(name, ['洋房'])) { tokens.add('洋房'); tokens.add('住宅'); }
+  else if (hasAny(name, ['叠拼'])) { tokens.add('叠拼'); tokens.add('住宅'); }
+  else if (hasAny(name, ['合院'])) { tokens.add('合院'); tokens.add('住宅'); }
+  else if (hasAny(name, ['别墅'])) { tokens.add('别墅'); tokens.add('住宅'); }
+
+  if (hasAny(name, COMMERCIAL_ALIASES) || COMMERCIAL_ALIASES.some((item) => groupName.includes(item))) {
+    tokens.add('商业');
+    if (hasAny(name, ['底商'])) tokens.add('底商');
+    if (hasAny(name, ['商业街'])) tokens.add('商业街');
+    if (hasAny(name, ['集中商业'])) tokens.add('集中商业');
+  }
+
+  if (groupName === '非主楼地下室' || hasAny(name, BASEMENT_ALIASES)) {
+    BASEMENT_ALIASES.forEach((item) => tokens.add(item));
+    tokens.add('非主楼地下室');
+  }
+
+  if (groupName === '人防地下室' || hasAny(name, CIVIL_DEFENSE_ALIASES)) {
+    CIVIL_DEFENSE_ALIASES.forEach((item) => tokens.add(item));
+    tokens.add('人防地下室');
+  }
+
+  if (groupName === '主楼地下室') tokens.add('主楼地下室');
+
+  if (hasAny(name, SUPPORT_ALIASES) || SUPPORT_ALIASES.some((item) => groupName.includes(item))) {
+    SUPPORT_ALIASES.forEach((item) => tokens.add(item));
+  }
+
+  return Array.from(tokens).map(normalizeCostGroupName).filter(Boolean);
 }
 
 function findMatchedProductRank(name: string, activeProducts: any[]) {
   const value = normalizeCostGroupName(name);
   const matched = activeProducts
     .map((product, index) => {
-      const productName = normalize(product?.name);
+      const productName = normalizeCostGroupName(product?.name);
       const groupName = normalizeCostGroupName(getProfessionalCostGroupName(product));
-      const matchedProduct = Boolean(productName || groupName) && (value === productName || value === groupName || value.includes(productName) || value.includes(groupName) || productName.includes(value) || groupName.includes(value));
+      const matchedProduct =
+        Boolean(productName && (value === productName || value.includes(productName) || productName.includes(value))) ||
+        Boolean(groupName && (value === groupName || value.includes(groupName) || groupName.includes(value)));
       if (!matchedProduct) return null;
       return { index, rank: Math.min(defaultProductOrderRank(productName), defaultProductOrderRank(groupName)) };
     })
@@ -97,24 +148,14 @@ function productGroupRank(name: string, activeProducts: any[] = []) {
   const defaultRank = defaultProductOrderRank(value);
   if (defaultRank < 999) return 100 + defaultRank;
   if (hasAny(value, ['住宅', '高层', '洋房', '别墅', '合院', '叠拼', '小高'])) return 1000 + defaultRank;
-  if (hasAny(value, ['商业', '底商', '商铺', '商业街', '集中商业', '会所商业'])) return 2000 + defaultRank;
+  if (hasAny(value, COMMERCIAL_ALIASES)) return 2000 + defaultRank;
   if (hasAny(value, ['地下', '地下室', '地库', '车库', '车位', '人防'])) return 3000 + defaultRank;
-  if (hasAny(value, ['配套', '物业', '社区', '会所', '设备用房', '养老', '托育', '公建'])) return 4000 + defaultRank;
+  if (hasAny(value, SUPPORT_ALIASES)) return 4000 + defaultRank;
   return 9000;
 }
 
 function sortVisibleGroups(groups: Group[], activeProducts: any[]) {
   return groups.sort((a, b) => productGroupRank(a.name, activeProducts) - productGroupRank(b.name, activeProducts) || a.name.localeCompare(b.name, 'zh-CN'));
-}
-
-function productTokens(name: string) {
-  const tokens = [name];
-  if (hasAny(name, ['商业街']) && hasAny(name, ['一层', '二层', '三层', '1层', '2层', '3层', '首层', '二楼', '三楼'])) tokens.push('商业街');
-  if (hasAny(name, ['住宅', '高层', '洋房', '别墅', '合院', '叠拼', '小高'])) tokens.push('住宅', '高层', '洋房', '别墅', '合院');
-  if (hasAny(name, ['商业', '底商', '商铺', '集中商业', '商业街'])) tokens.push('商业', '底商', '商铺', '商业街');
-  if (hasAny(name, ['地下', '车位', '车库', '地库', '人防'])) tokens.push('地下', '地下车库', '地下车位', '车位', '车库', '地库', '人防');
-  if (hasAny(name, ['配套', '物业', '社区', '会所', '养老', '托育', '文化', '设备用房'])) tokens.push('配套', '物业', '社区', '会所');
-  return Array.from(new Set(tokens));
 }
 
 function matchesInactiveProductName(text: string | null | undefined, inactiveNames: Set<string>) {
@@ -123,11 +164,36 @@ function matchesInactiveProductName(text: string | null | undefined, inactiveNam
   return Array.from(inactiveNames).some((name) => value === name || value === `业态-${name}` || value === `区域-${name}` || value.includes(name));
 }
 
+function scopedKeywordMatch(applicable: string, tokens: string[], keywords: string[]) {
+  if (!keywords.some((word) => applicable.includes(word))) return null;
+  return keywords.some((word) => tokens.includes(normalizeCostGroupName(word)) || tokens.some((token) => token.includes(word)));
+}
+
 function appliesToProduct(row: any, product: any) {
-  const applicable = normalize(row.applicableProductType);
+  const applicable = normalizeCostGroupName(row.applicableProductType);
   if (!applicable) return true;
   if (hasAny(applicable, ['全项目', '项目整体', '项目共用'])) return false;
-  return productTokens(product.name).some((token) => applicable.includes(token));
+
+  const tokens = strictProductTokens(product);
+  if (tokens.includes(applicable)) return true;
+
+  const specificResidential = RESIDENTIAL_SPECIFIC.find((item) => applicable.includes(item));
+  if (specificResidential) return tokens.includes(specificResidential);
+  if (applicable === '住宅') return tokens.some((token) => RESIDENTIAL_SPECIFIC.includes(token) || token === '住宅');
+
+  const basementMatch = scopedKeywordMatch(applicable, tokens, BASEMENT_ALIASES);
+  if (basementMatch !== null) return basementMatch;
+
+  const civilDefenseMatch = scopedKeywordMatch(applicable, tokens, CIVIL_DEFENSE_ALIASES);
+  if (civilDefenseMatch !== null) return civilDefenseMatch;
+
+  const commercialMatch = scopedKeywordMatch(applicable, tokens, COMMERCIAL_ALIASES);
+  if (commercialMatch !== null) return commercialMatch;
+
+  const supportMatch = scopedKeywordMatch(applicable, tokens, SUPPORT_ALIASES);
+  if (supportMatch !== null) return supportMatch;
+
+  return tokens.some((token) => token.length >= 3 && (applicable === token || applicable.includes(token) || token.includes(applicable)));
 }
 
 function getOrCreateGroup(groupMap: Map<string, Group>, groupName: string) {
