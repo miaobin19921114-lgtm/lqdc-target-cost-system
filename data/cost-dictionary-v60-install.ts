@@ -42,6 +42,48 @@ function prefixDetail(detail: DetailInput, prefix: string) {
   return { ...item, name };
 }
 
+const overallInstallGroups: GroupInput[] = [
+  { scope: '项目整体共用', section: '项目共用给排水工程', group: '项目共用给排水安装工程', code: '03.05.00', details: [
+    { name: '项目总给水接入安装配合', unit: '项' },
+    { name: '水表总表及总阀安装', unit: '套' },
+    { name: '生活水池管线接驳', unit: '项' },
+    { name: '消防水池管线接驳', unit: '项' },
+    { name: '生活泵房给排水管线接驳', unit: '项' },
+    { name: '雨污水提升及排水接驳', unit: '项' },
+    { name: '项目给排水系统总调试', unit: '项' }
+  ], measureBasis: '项目整体/机房数量/接入口数量/固定金额', unit: '按末级科目', remark: '项目共用给排水安装只计共用接入、接驳和调试；设备本体进设备明细表。' },
+  { scope: '项目整体共用', section: '项目共用强电工程', group: '项目共用强电安装工程', code: '03.06.00', details: [
+    { name: '项目总配电接入安装配合', unit: '项' },
+    { name: '变配电房低压出线接驳', unit: '项' },
+    { name: '公区主干电缆', unit: 'm' },
+    { name: '项目总配电箱柜安装配合', unit: '台' },
+    { name: '电表集中箱安装', unit: '台' },
+    { name: '柴油发电机接入预留', unit: '项' },
+    { name: '项目强电系统总调试', unit: '项' }
+  ], measureBasis: '项目整体/箱柜数量/电缆长度/固定金额', unit: '按末级科目', remark: '项目共用强电安装只计主干、接驳和调试；变配电设备本体进设备明细表。' },
+  { scope: '项目整体共用', section: '项目共用弱电工程', group: '项目共用弱电及智能化主干工程', code: '03.06.03', details: [
+    { name: '弱电机房预留预埋', unit: '项' },
+    { name: '运营商机房接入预留', unit: '项' },
+    { name: '监控中心管线接入', unit: '项' },
+    { name: '园区主干弱电桥架', unit: 'm' },
+    { name: '综合布线主干管线', unit: 'm' },
+    { name: '项目弱电系统总调试', unit: '项' }
+  ], measureBasis: '项目整体/桥架长度/管线长度/固定金额', unit: '按末级科目' },
+  { scope: '项目整体共用', section: '项目共用消防工程', group: '项目共用消防安装工程', code: '03.07.00', details: [
+    { name: '消防泵房管线接驳', unit: '项' },
+    { name: '消防控制室安装配合', unit: '项' },
+    { name: '消防报警主机接入配合', unit: '项' },
+    { name: '消防联动总调试', unit: '项' },
+    { name: '共用防火封堵', unit: '项' }
+  ], measureBasis: '项目整体/机房数量/固定金额', unit: '按末级科目', remark: '消防设备本体进设备明细表，安装明细只计管线接驳、控制室配合和调试。' },
+  { scope: '项目整体共用', section: '项目共用暖通工程', group: '项目共用暖通及通风安装工程', code: '03.07.05', details: [
+    { name: '通风机房安装配套', unit: '项' },
+    { name: '防排烟主干系统', unit: '㎡' },
+    { name: '风机房电源接入配合', unit: '项' },
+    { name: '项目暖通系统总调试', unit: '项' }
+  ], measureBasis: '项目整体/风管面积/机房数量/固定金额', unit: '按末级科目' }
+];
+
 const productInstallCommon: GroupInput[] = [
   { scope: '', section: '给排水工程', group: '给排水安装工程', code: '03.05.01', details: [
     { name: '室内给水管道', unit: 'm' },
@@ -177,6 +219,7 @@ export function buildV60InstallationRows(offset: number): CostDictionaryPresetRo
   }
 
   [
+    ...overallInstallGroups,
     ...prefixedProductInstallGroups('高层住宅', '高层'),
     ...prefixedProductInstallGroups('洋房', '洋房'),
     ...commercialInstallGroups(),
