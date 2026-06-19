@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getV60CostDictionaryRows } from '@/data/cost-dictionary-v60';
 import { buildV60InstallationRows } from '@/data/cost-dictionary-v60-install';
 import { buildV60EquipmentRows } from '@/data/cost-dictionary-v60-equipment';
+import { buildV60HeatingRows } from '@/data/cost-dictionary-v60-heating';
 import { suggestQuantityFromOverview } from '@/lib/overview-quantity';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { getCostSettings, getProfessionalCostGroupName, normalizeCostGroupName, shouldGenerateProfessionalCostGroup } from '@/lib/cost-product-settings';
@@ -23,7 +24,9 @@ async function ensurePresetRows(projectId: string) {
   const installRows = buildV60InstallationRows(installOffset);
   const equipmentOffset = installOffset + installRows.length;
   const equipmentRows = buildV60EquipmentRows(equipmentOffset);
-  const presetRows = [...baseRows, ...installRows, ...equipmentRows].map((row) => ({ ...row, projectId }));
+  const heatingOffset = equipmentOffset + equipmentRows.length;
+  const heatingRows = buildV60HeatingRows(heatingOffset);
+  const presetRows = [...baseRows, ...installRows, ...equipmentRows, ...heatingRows].map((row) => ({ ...row, projectId }));
   if (!presetRows.length) return;
 
   const count = await prisma.costDictionaryRow.count({ where: { projectId } });
@@ -31,12 +34,13 @@ async function ensurePresetRows(projectId: string) {
   const v60LocationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '地下车位 / 非主楼纯地下车库', detailSubject: '消防水池防水' } });
   const v60SectionRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '高层住宅', secondSubject: '基础工程', thirdSubject: '桩基及基础工程', detailSubject: '高层工程桩' } });
   const v60InstallationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '安装明细表', applicableProductType: '高层住宅', secondSubject: '给排水工程', thirdSubject: '给排水安装工程', detailSubject: '高层室内给水管道' } });
-  const v60EquipmentRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '设备明细表', applicableProductType: '高层住宅', secondSubject: '垂直交通设备', thirdSubject: '电梯设备', detailSubject: '高层客梯设备' } });
+  const v60EquipmentRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '设备明细表', applicableProductType: '高层住宅', secondSubject: '电梯及垂直交通设备', thirdSubject: '高层电梯', detailSubject: '客梯' } });
+  const v60HeatingRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '安装明细表', applicableProductType: '高层住宅', secondSubject: '采暖安装工程', detailSubject: '高层户内采暖管道' } });
   const legacyOverallDeviceRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '项目整体共摊土建', detailSubject: '配电房防潮处理' } });
   const legacySectionRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '高层住宅', secondSubject: '桩基及基础工程', detailSubject: '高层工程桩' } });
   const legacyInstallationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '安装明细表', applicableProductType: '住宅/商业/地下车库/配套', secondSubject: '安装工程' } });
   const legacyEquipmentRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '设备明细表', applicableProductType: '住宅/商业/地下车库/配套', secondSubject: '设备工程' } });
-  if (count >= 100 && v60BuildingRows > 0 && v60LocationRows > 0 && v60SectionRows > 0 && v60InstallationRows > 0 && v60EquipmentRows > 0 && legacyOverallDeviceRows === 0 && legacySectionRows === 0 && legacyInstallationRows === 0 && legacyEquipmentRows === 0) return;
+  if (count >= 100 && v60BuildingRows > 0 && v60LocationRows > 0 && v60SectionRows > 0 && v60InstallationRows > 0 && v60EquipmentRows > 0 && v60HeatingRows > 0 && legacyOverallDeviceRows === 0 && legacySectionRows === 0 && legacyInstallationRows === 0 && legacyEquipmentRows === 0) return;
 
   await prisma.$transaction([
     prisma.costDictionaryRow.deleteMany({ where: { projectId } }),
