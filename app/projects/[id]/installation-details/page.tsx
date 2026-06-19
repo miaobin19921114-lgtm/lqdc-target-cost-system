@@ -1,17 +1,20 @@
 import { ProfessionalDetailPage } from '@/components/professional-detail-page';
+import { rebuildProjectCostDictionary } from '@/lib/rebuild-project-cost-dictionary';
 
 export const dynamic = 'force-dynamic';
 
 export default async function InstallationDetailsPage({ params, searchParams }: { params: { id: string }, searchParams?: { saved?: string } }) {
+  await rebuildProjectCostDictionary(params.id);
+
   return <ProfessionalDetailPage
     projectId={params.id}
     saved={searchParams?.saved}
     title="安装明细"
     eyebrow="安装明细表"
-    subtitle="给排水、电气弱电、消防暖通、充电桩安装等科目从成本科目词典预设。"
+    subtitle="给排水、电气弱电、消防暖通、采暖、充电桩安装等科目从成本科目词典预设，并按项目概况配置控制。"
     professionalGroup="安装明细"
     returnPath="installation-details"
-    dictionaryKeywords={['安装', '给排水', '电气', '弱电', '消防', '暖通', '充电桩']}
+    dictionaryKeywords={['安装', '给排水', '电气', '弱电', '消防', '暖通', '采暖', '充电桩']}
     emptyText="暂无安装明细。"
     selectPlaceholder="请选择安装科目"
     detailPlaceholder="自动带出四级/明细科目"
