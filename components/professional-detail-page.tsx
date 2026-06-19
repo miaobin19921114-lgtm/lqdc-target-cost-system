@@ -5,6 +5,7 @@ import { buildV60InstallationRows } from '@/data/cost-dictionary-v60-install';
 import { buildV60EquipmentRows } from '@/data/cost-dictionary-v60-equipment';
 import { buildV60FitoutRows } from '@/data/cost-dictionary-v60-fitout';
 import { buildV60HeatingRows } from '@/data/cost-dictionary-v60-heating';
+import { rebuildProjectCostDictionary } from '@/lib/rebuild-project-cost-dictionary';
 import { suggestQuantityFromOverview } from '@/lib/overview-quantity';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { getCostSettings, getProfessionalCostGroupName, normalizeCostGroupName, shouldGenerateProfessionalCostGroup } from '@/lib/cost-product-settings';
@@ -289,6 +290,7 @@ export async function ProfessionalDetailPage(props: DetailPageProps) {
   const project = await prisma.project.findUnique({ where: { id: props.projectId } });
   if (!project) return <main className="page">项目不存在</main>;
 
+  await rebuildProjectCostDictionary(project.id);
   await ensurePresetRows(project.id);
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
