@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { getV60CostDictionaryRows } from '@/data/cost-dictionary-v60';
+import { buildV60InstallationRows } from '@/data/cost-dictionary-v60-install';
 import { suggestQuantityFromOverview } from '@/lib/overview-quantity';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { getCostSettings, getProfessionalCostGroupName, normalizeCostGroupName, shouldGenerateProfessionalCostGroup } from '@/lib/cost-product-settings';
@@ -16,16 +17,20 @@ function round2(value: number) {
 }
 
 async function ensurePresetRows(projectId: string) {
-  const presetRows = getV60CostDictionaryRows().map((row) => ({ ...row, projectId }));
+  const v60Rows = getV60CostDictionaryRows().filter((row) => row.sourceTable !== '安装明细表');
+  const installOffset = Math.max(0, ...v60Rows.map((row) => row.rowIndex || 0)) + 1;
+  const presetRows = [...v60Rows, ...buildV60InstallationRows(installOffset)].map((row) => ({ ...row, projectId }));
   if (!presetRows.length) return;
 
   const count = await prisma.costDictionaryRow.count({ where: { projectId } });
   const v60BuildingRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', detailSubject: '高层工程桩', costCode: { startsWith: '03.02.01.' }, unit: 'm' } });
   const v60LocationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '地下车位 / 非主楼纯地下车库', detailSubject: '消防水池防水' } });
   const v60SectionRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '高层住宅', secondSubject: '基础工程', thirdSubject: '桩基及基础工程', detailSubject: '高层工程桩' } });
+  const v60InstallationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '安装明细表', applicableProductType: '高层住宅', secondSubject: '给排水工程', thirdSubject: '给排水安装工程', detailSubject: '高层室内给水管道' } });
   const legacyOverallDeviceRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '项目整体共摊土建', detailSubject: '配电房防潮处理' } });
   const legacySectionRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '土建明细表', applicableProductType: '高层住宅', secondSubject: '桩基及基础工程', detailSubject: '高层工程桩' } });
-  if (count >= 100 && v60BuildingRows > 0 && v60LocationRows > 0 && v60SectionRows > 0 && legacyOverallDeviceRows === 0 && legacySectionRows === 0) return;
+  const legacyInstallationRows = await prisma.costDictionaryRow.count({ where: { projectId, sourceTable: '安装明细表', applicableProductType: '住宅/商业/地下车库/配套', secondSubject: '安装工程' } });
+  if (count >= 100 && v60BuildingRows > 0 && v60LocationRows > 0 && v60SectionRows > 0 && v60InstallationRows > 0 && legacyOverallDeviceRows === 0 && legacySectionRows === 0 && legacyInstallationRows === 0) return;
 
   await prisma.$transaction([
     prisma.costDictionaryRow.deleteMany({ where: { projectId } }),
