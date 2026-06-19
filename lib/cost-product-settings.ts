@@ -31,11 +31,17 @@ function commercialRevenueBaseName(productName: string | null | undefined) {
   return '';
 }
 
+function isCommercialBasementName(productName: string | null | undefined) {
+  const name = normalizeSourceName(productName);
+  return hasAny(name, ['商业地下室', '商业地下面积', '商业地下工程', '商业地下']);
+}
+
 export function normalizeCostGroupName(groupName: string | null | undefined) {
   const name = normalizeSourceName(groupName);
   if (!name) return '项目整体共用';
   const commercialBase = commercialRevenueBaseName(name);
   if (commercialBase) return commercialBase;
+  if (isCommercialBasementName(name)) return '商业街-地下室';
   if (hasAny(name, ['非主楼纯地库', '纯地库'])) return '非主楼地下室';
   return name;
 }
@@ -76,6 +82,9 @@ export function defaultCostSettings(product: ProductCostSettingInput): ProductCo
 
   if (commercialBase) {
     return { standalone: false, groupName: commercialBase, note: '商业收入/楼层明细是收入测算维度，不作为独立成本业态组。' };
+  }
+  if (isCommercialBasementName(name)) {
+    return { standalone: false, groupName: '商业街-地下室', note: '商业地下室作为商业业态的地下工程部位显示，不与非主楼地下室混淆。' };
   }
   if (name.startsWith('其他收入-')) {
     return { standalone: false, groupName: '项目整体共用', note: '其他收入是收入测算维度，不作为工程成本对象。' };
