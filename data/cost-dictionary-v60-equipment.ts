@@ -1,16 +1,17 @@
 import type { CostDictionaryPresetRow } from './cost-dictionary-v57';
 
-type DetailInput = string | { name: string; unit?: string; measureBasis?: string; remark?: string };
-type GroupInput = {
-  scope: string;
-  section: string;
-  group: string;
+type V60EquipmentInput = {
+  sourceRow: number;
   code: string;
-  details: DetailInput[];
-  measureBasis?: string;
-  unit?: string;
-  tax?: string;
-  remark?: string;
+  product: string;
+  group: string;
+  targetSubject: string;
+  detailSubject: string;
+  location: string;
+  measureBasis: string;
+  unit: string;
+  tax: string;
+  remark: string;
 };
 
 const common = {
@@ -32,194 +33,155 @@ const common = {
   taxRemark: '按项目测算口径归集，最终以财税审核为准'
 };
 
-function normalizeDetail(detail: DetailInput) {
-  return typeof detail === 'string' ? { name: detail } : detail;
-}
-
-function prefixDetail(detail: DetailInput, prefix: string) {
-  const item = normalizeDetail(detail);
-  const name = item.name.startsWith(prefix) ? item.name : `${prefix}${item.name}`;
-  return { ...item, name };
-}
-
-const overallEquipmentGroups: GroupInput[] = [
-  { scope: '项目整体共用', section: '供配电设备', group: '项目共用供配电设备', code: '03.08.00', details: [
-    { name: '变压器', unit: '台' },
-    { name: '高压柜', unit: '台' },
-    { name: '低压柜', unit: '台' },
-    { name: '环网柜', unit: '台' },
-    { name: '直流屏/UPS', unit: '套' },
-    { name: '柴油发电机组', unit: '台' },
-    { name: '电能计量设备', unit: '套' },
-    { name: '配电监控设备', unit: '套' }
-  ], measureBasis: '供电容量/配电房数量/设备清单/固定金额', unit: '按末级科目', tax: '13%' },
-  { scope: '项目整体共用', section: '水泵及给排水设备', group: '项目共用水泵及给排水设备', code: '03.08.01', details: [
-    { name: '生活给水泵组', unit: '套' },
-    { name: '消防水泵', unit: '套' },
-    { name: '喷淋水泵', unit: '套' },
-    { name: '稳压设备', unit: '套' },
-    { name: '生活水箱/水池附属设备', unit: '套' },
-    { name: '消防水池液位及控制设备', unit: '套' },
-    { name: '潜污泵/排水泵', unit: '台' },
-    { name: '泵房控制柜', unit: '台' }
-  ], measureBasis: '泵房数量/水池数量/设备清单/固定金额', unit: '按末级科目', tax: '13%' },
-  { scope: '项目整体共用', section: '消防主机及控制设备', group: '项目共用消防设备', code: '03.08.02', details: [
-    { name: '火灾报警主机', unit: '台' },
-    { name: '消防联动控制柜', unit: '台' },
-    { name: '消防广播主机', unit: '台' },
-    { name: '消防电话主机', unit: '台' },
-    { name: '电气火灾监控主机', unit: '台' },
-    { name: '消防电源监控主机', unit: '台' },
-    { name: '防火门监控主机', unit: '台' },
-    { name: '气体灭火控制设备', unit: '套' }
-  ], measureBasis: '消防控制室设备清单/固定金额', unit: '按末级科目', tax: '13%' },
-  { scope: '项目整体共用', section: '弱电智能化设备', group: '项目共用弱电智能化设备', code: '03.08.03', details: [
-    { name: '监控中心设备', unit: '套' },
-    { name: '视频监控主机及存储', unit: '套' },
-    { name: '门禁控制设备', unit: '套' },
-    { name: '可视对讲管理机', unit: '套' },
-    { name: '周界报警主机', unit: '套' },
-    { name: '电子巡更设备', unit: '套' },
-    { name: '机房交换机及网络设备', unit: '套' },
-    { name: '背景音乐/广播主机', unit: '套' },
-    { name: '机电设备监控主机', unit: '套' }
-  ], measureBasis: '弱电机房设备清单/点位数量/固定金额', unit: '按末级科目', tax: '13%' },
-  { scope: '项目整体共用', section: '暖通及通风设备', group: '项目共用暖通通风设备', code: '03.08.04', details: [
-    { name: '送排风机', unit: '台' },
-    { name: '排烟风机', unit: '台' },
-    { name: '补风机', unit: '台' },
-    { name: '风机控制箱', unit: '台' },
-    { name: '排烟防火阀执行机构', unit: '套' },
-    { name: '新风机组', unit: '台' },
-    { name: '空调主机/室外机', unit: '台' }
-  ], measureBasis: '设备清单/风机数量/固定金额', unit: '按末级科目', tax: '13%' }
+const v60EquipmentRows: V60EquipmentInput[] = [
+  { sourceRow: 8, code: "05.01", product: "项目整体共用设备", group: "给排水设备", targetSubject: "生活水泵", detailSubject: "生活水泵", location: "项目整体 / 公共泵房", measureBasis: "设备数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 9, code: "05.02", product: "项目整体共用设备", group: "给排水设备", targetSubject: "生活水箱", detailSubject: "生活水箱", location: "项目整体 / 公共泵房", measureBasis: "水箱容积", unit: "m³", tax: "13%", remark: "" },
+  { sourceRow: 10, code: "05.03", product: "项目整体共用设备", group: "给排水设备", targetSubject: "变频供水设备", detailSubject: "变频供水设备", location: "项目整体 / 公共泵房", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 11, code: "05.04", product: "项目整体共用设备", group: "给排水设备", targetSubject: "稳压设备", detailSubject: "稳压设备", location: "项目整体 / 公共泵房", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 12, code: "05.05", product: "项目整体共用设备", group: "给排水设备", targetSubject: "消防水泵", detailSubject: "消防水泵", location: "项目整体 / 消防泵房", measureBasis: "设备数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 13, code: "05.06", product: "项目整体共用设备", group: "给排水设备", targetSubject: "喷淋泵", detailSubject: "喷淋泵", location: "项目整体 / 消防泵房", measureBasis: "设备数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 14, code: "05.07", product: "项目整体共用设备", group: "给排水设备", targetSubject: "消防水池液位及控制设备", detailSubject: "消防水池液位及控制设备", location: "项目整体 / 消防泵房", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 17, code: "05.08", product: "项目整体共用设备", group: "消防设备", targetSubject: "火灾报警主机", detailSubject: "火灾报警主机", location: "项目整体 / 消控中心", measureBasis: "主机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 18, code: "05.09", product: "项目整体共用设备", group: "消防设备", targetSubject: "消防联动控制柜", detailSubject: "消防联动控制柜", location: "项目整体 / 消控中心", measureBasis: "柜体数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 19, code: "05.10", product: "项目整体共用设备", group: "消防设备", targetSubject: "消防广播主机", detailSubject: "消防广播主机", location: "项目整体 / 消控中心", measureBasis: "主机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 20, code: "05.11", product: "项目整体共用设备", group: "消防设备", targetSubject: "消防电话主机", detailSubject: "消防电话主机", location: "项目整体 / 消控中心", measureBasis: "主机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 21, code: "05.12", product: "项目整体共用设备", group: "消防设备", targetSubject: "消防电源监控主机", detailSubject: "消防电源监控主机", location: "项目整体 / 消控中心", measureBasis: "主机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 22, code: "05.13", product: "项目整体共用设备", group: "消防设备", targetSubject: "电气火灾监控主机", detailSubject: "电气火灾监控主机", location: "项目整体 / 消控中心", measureBasis: "主机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 23, code: "05.14", product: "项目整体共用设备", group: "消防设备", targetSubject: "防火门监控主机", detailSubject: "防火门监控主机", location: "项目整体 / 消控中心", measureBasis: "主机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 26, code: "05.15", product: "项目整体共用设备", group: "强电设备", targetSubject: "变压器", detailSubject: "变压器", location: "项目整体 / 配电房", measureBasis: "容量/台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 27, code: "05.16", product: "项目整体共用设备", group: "强电设备", targetSubject: "高压柜", detailSubject: "高压柜", location: "项目整体 / 配电房", measureBasis: "柜体数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 28, code: "05.17", product: "项目整体共用设备", group: "强电设备", targetSubject: "低压柜", detailSubject: "低压柜", location: "项目整体 / 配电房", measureBasis: "柜体数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 29, code: "05.18", product: "项目整体共用设备", group: "强电设备", targetSubject: "环网柜", detailSubject: "环网柜", location: "项目整体 / 配电房", measureBasis: "柜体数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 30, code: "05.19", product: "项目整体共用设备", group: "强电设备", targetSubject: "直流屏/UPS", detailSubject: "直流屏/UPS", location: "项目整体 / 配电房", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 31, code: "05.20", product: "项目整体共用设备", group: "强电设备", targetSubject: "柴油发电机", detailSubject: "柴油发电机", location: "项目整体 / 配电房", measureBasis: "发电机容量/台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 32, code: "05.21", product: "项目整体共用设备", group: "强电设备", targetSubject: "电表集中箱", detailSubject: "电表集中箱", location: "项目整体 / 配电房", measureBasis: "箱体数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 35, code: "05.22", product: "项目整体共用设备", group: "暖通及防排烟设备", targetSubject: "消防排烟风机", detailSubject: "消防排烟风机", location: "项目整体 / 风机房", measureBasis: "风机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 36, code: "05.23", product: "项目整体共用设备", group: "暖通及防排烟设备", targetSubject: "送风机", detailSubject: "送风机", location: "项目整体 / 风机房", measureBasis: "风机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 37, code: "05.24", product: "项目整体共用设备", group: "暖通及防排烟设备", targetSubject: "排风机", detailSubject: "排风机", location: "项目整体 / 风机房", measureBasis: "风机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 38, code: "05.25", product: "项目整体共用设备", group: "暖通及防排烟设备", targetSubject: "补风机", detailSubject: "补风机", location: "项目整体 / 风机房", measureBasis: "风机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 39, code: "05.26", product: "项目整体共用设备", group: "暖通及防排烟设备", targetSubject: "风机控制箱", detailSubject: "风机控制箱", location: "项目整体 / 风机房", measureBasis: "控制箱数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 42, code: "05.27", product: "项目整体共用设备", group: "弱电智能化设备", targetSubject: "监控中心设备", detailSubject: "监控中心设备", location: "项目整体 / 弱电机房及消控中心", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 43, code: "05.28", product: "项目整体共用设备", group: "弱电智能化设备", targetSubject: "视频存储设备", detailSubject: "视频存储设备", location: "项目整体 / 弱电机房及消控中心", measureBasis: "存储容量/路数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 44, code: "05.29", product: "项目整体共用设备", group: "弱电智能化设备", targetSubject: "门禁管理设备", detailSubject: "门禁管理设备", location: "项目整体 / 弱电机房及消控中心", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 45, code: "05.30", product: "项目整体共用设备", group: "弱电智能化设备", targetSubject: "综合布线机柜", detailSubject: "综合布线机柜", location: "项目整体 / 弱电机房及消控中心", measureBasis: "机柜数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 46, code: "05.31", product: "项目整体共用设备", group: "弱电智能化设备", targetSubject: "网络交换设备", detailSubject: "网络交换设备", location: "项目整体 / 弱电机房及消控中心", measureBasis: "设备数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 50, code: "05.32", product: "高层住宅", group: "给排水设备", targetSubject: "高层生活加压设备分摊", detailSubject: "高层生活加压设备分摊", location: "高层生活供水", measureBasis: "高层建筑面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 51, code: "05.33", product: "高层住宅", group: "给排水设备", targetSubject: "高层屋面水箱/水箱间设备", detailSubject: "高层屋面水箱/水箱间设备", location: "高层生活供水", measureBasis: "设备数量", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 54, code: "05.34", product: "高层住宅", group: "消防设备", targetSubject: "高层消防设备分摊", detailSubject: "高层消防设备分摊", location: "高层消防", measureBasis: "高层建筑面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 55, code: "05.35", product: "高层住宅", group: "消防设备", targetSubject: "屋面消防水箱/稳压设备", detailSubject: "屋面消防水箱/稳压设备", location: "高层消防", measureBasis: "设备数量", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 58, code: "05.36", product: "高层住宅", group: "强电设备", targetSubject: "高层配电设备分摊", detailSubject: "高层配电设备分摊", location: "高层配电", measureBasis: "高层建筑面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 59, code: "05.37", product: "高层住宅", group: "强电设备", targetSubject: "高层公共配电箱", detailSubject: "高层公共配电箱", location: "高层配电", measureBasis: "配电箱数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 62, code: "05.38", product: "高层住宅", group: "暖通及防排烟设备", targetSubject: "楼梯间加压送风机", detailSubject: "楼梯间加压送风机", location: "高层防排烟", measureBasis: "楼梯间数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 63, code: "05.39", product: "高层住宅", group: "暖通及防排烟设备", targetSubject: "前室加压送风机", detailSubject: "前室加压送风机", location: "高层防排烟", measureBasis: "前室数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 64, code: "05.40", product: "高层住宅", group: "暖通及防排烟设备", targetSubject: "屋面排烟风机", detailSubject: "屋面排烟风机", location: "高层防排烟", measureBasis: "风机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 65, code: "05.41", product: "高层住宅", group: "暖通及防排烟设备", targetSubject: "屋面送风机", detailSubject: "屋面送风机", location: "高层防排烟", measureBasis: "风机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 68, code: "05.42", product: "高层住宅", group: "弱电智能化设备", targetSubject: "可视对讲主机", detailSubject: "可视对讲主机", location: "高层智能化", measureBasis: "单元数量", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 69, code: "05.43", product: "高层住宅", group: "弱电智能化设备", targetSubject: "门禁设备", detailSubject: "门禁设备", location: "高层智能化", measureBasis: "门禁点数量", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 70, code: "05.44", product: "高层住宅", group: "弱电智能化设备", targetSubject: "电梯五方通话设备", detailSubject: "电梯五方通话设备", location: "高层智能化", measureBasis: "电梯台数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 71, code: "05.45", product: "高层住宅", group: "弱电智能化设备", targetSubject: "高层监控设备分摊", detailSubject: "高层监控设备分摊", location: "高层智能化", measureBasis: "高层建筑面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 74, code: "05.46", product: "高层住宅", group: "电梯及垂直交通设备", targetSubject: "客梯", detailSubject: "客梯", location: "高层电梯", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 75, code: "05.47", product: "高层住宅", group: "电梯及垂直交通设备", targetSubject: "消防电梯", detailSubject: "消防电梯", location: "高层电梯", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 76, code: "05.48", product: "高层住宅", group: "电梯及垂直交通设备", targetSubject: "担架电梯", detailSubject: "担架电梯", location: "高层电梯", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 77, code: "05.49", product: "高层住宅", group: "电梯及垂直交通设备", targetSubject: "电梯轿厢装修", detailSubject: "电梯轿厢装修", location: "高层电梯", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 78, code: "05.50", product: "高层住宅", group: "电梯及垂直交通设备", targetSubject: "电梯空调", detailSubject: "电梯空调", location: "高层电梯", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 82, code: "05.51", product: "洋房", group: "给排水设备", targetSubject: "洋房生活供水设备分摊", detailSubject: "洋房生活供水设备分摊", location: "洋房生活供水", measureBasis: "洋房建筑面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 85, code: "05.52", product: "洋房", group: "消防设备", targetSubject: "洋房消防设备分摊", detailSubject: "洋房消防设备分摊", location: "洋房消防", measureBasis: "洋房建筑面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 88, code: "05.53", product: "洋房", group: "强电设备", targetSubject: "洋房配电设备分摊", detailSubject: "洋房配电设备分摊", location: "洋房配电", measureBasis: "洋房建筑面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 91, code: "05.54", product: "洋房", group: "暖通及防排烟设备", targetSubject: "加压送风机", detailSubject: "加压送风机", location: "洋房防排烟", measureBasis: "设备数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 92, code: "05.55", product: "洋房", group: "暖通及防排烟设备", targetSubject: "排烟风机", detailSubject: "排烟风机", location: "洋房防排烟", measureBasis: "设备数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 95, code: "05.56", product: "洋房", group: "弱电智能化设备", targetSubject: "可视对讲主机", detailSubject: "可视对讲主机", location: "洋房智能化", measureBasis: "单元数量", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 96, code: "05.57", product: "洋房", group: "弱电智能化设备", targetSubject: "门禁设备", detailSubject: "门禁设备", location: "洋房智能化", measureBasis: "门禁点数量", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 97, code: "05.58", product: "洋房", group: "弱电智能化设备", targetSubject: "洋房监控设备分摊", detailSubject: "洋房监控设备分摊", location: "洋房智能化", measureBasis: "洋房建筑面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 100, code: "05.59", product: "洋房", group: "电梯及垂直交通设备", targetSubject: "洋房客梯", detailSubject: "洋房客梯", location: "洋房电梯", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 101, code: "05.60", product: "洋房", group: "电梯及垂直交通设备", targetSubject: "洋房消防电梯", detailSubject: "洋房消防电梯", location: "洋房电梯", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 102, code: "05.61", product: "洋房", group: "电梯及垂直交通设备", targetSubject: "电梯轿厢装修", detailSubject: "电梯轿厢装修", location: "洋房电梯", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 103, code: "05.62", product: "洋房", group: "电梯及垂直交通设备", targetSubject: "电梯空调", detailSubject: "电梯空调", location: "洋房电梯", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 107, code: "05.63", product: "商业", group: "给排水设备", targetSubject: "商业生活供水设备", detailSubject: "商业生活供水设备", location: "商业给排水", measureBasis: "商业面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 108, code: "05.64", product: "商业", group: "给排水设备", targetSubject: "商业隔油设备", detailSubject: "商业隔油设备", location: "商业给排水", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 109, code: "05.65", product: "商业", group: "给排水设备", targetSubject: "商业排污提升设备", detailSubject: "商业排污提升设备", location: "商业给排水", measureBasis: "设备数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 112, code: "05.66", product: "商业", group: "消防设备", targetSubject: "商业消防设备分摊", detailSubject: "商业消防设备分摊", location: "商业消防", measureBasis: "商业面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 113, code: "05.67", product: "商业", group: "消防设备", targetSubject: "商业防火卷帘控制设备", detailSubject: "商业防火卷帘控制设备", location: "商业消防", measureBasis: "防火卷帘樘数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 116, code: "05.68", product: "商业", group: "强电设备", targetSubject: "商业专变/商业配电设备", detailSubject: "商业专变/商业配电设备", location: "商业强电", measureBasis: "商业面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 117, code: "05.69", product: "商业", group: "强电设备", targetSubject: "商业动力配电柜", detailSubject: "商业动力配电柜", location: "商业强电", measureBasis: "柜体数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 120, code: "05.70", product: "商业", group: "暖通及防排烟设备", targetSubject: "商业排烟风机", detailSubject: "商业排烟风机", location: "商业暖通", measureBasis: "风机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 121, code: "05.71", product: "商业", group: "暖通及防排烟设备", targetSubject: "商业补风机", detailSubject: "商业补风机", location: "商业暖通", measureBasis: "风机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 122, code: "05.72", product: "商业", group: "暖通及防排烟设备", targetSubject: "商业新风机组", detailSubject: "商业新风机组", location: "商业暖通", measureBasis: "设备数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 123, code: "05.73", product: "商业", group: "暖通及防排烟设备", targetSubject: "商业空调主机", detailSubject: "商业空调主机", location: "商业暖通", measureBasis: "冷量/台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 124, code: "05.74", product: "商业", group: "暖通及防排烟设备", targetSubject: "商业多联机外机", detailSubject: "商业多联机外机", location: "商业暖通", measureBasis: "设备数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 125, code: "05.75", product: "商业", group: "暖通及防排烟设备", targetSubject: "油烟净化设备", detailSubject: "油烟净化设备", location: "商业暖通", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 128, code: "05.76", product: "商业", group: "弱电智能化设备", targetSubject: "商业监控设备", detailSubject: "商业监控设备", location: "商业智能化", measureBasis: "点位数量", unit: "点", tax: "13%", remark: "" },
+  { sourceRow: 129, code: "05.77", product: "商业", group: "弱电智能化设备", targetSubject: "商业门禁设备", detailSubject: "商业门禁设备", location: "商业智能化", measureBasis: "门禁点数量", unit: "点", tax: "13%", remark: "" },
+  { sourceRow: 130, code: "05.78", product: "商业", group: "弱电智能化设备", targetSubject: "商业信息发布屏", detailSubject: "商业信息发布屏", location: "商业智能化", measureBasis: "点位数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 131, code: "05.79", product: "商业", group: "弱电智能化设备", targetSubject: "商业广播设备", detailSubject: "商业广播设备", location: "商业智能化", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 134, code: "05.80", product: "商业", group: "电梯及垂直交通设备", targetSubject: "商业客梯", detailSubject: "商业客梯", location: "商业垂直交通", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 135, code: "05.81", product: "商业", group: "电梯及垂直交通设备", targetSubject: "商业货梯", detailSubject: "商业货梯", location: "商业垂直交通", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 136, code: "05.82", product: "商业", group: "电梯及垂直交通设备", targetSubject: "自动扶梯", detailSubject: "自动扶梯", location: "商业垂直交通", measureBasis: "扶梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 137, code: "05.83", product: "商业", group: "电梯及垂直交通设备", targetSubject: "观光电梯", detailSubject: "观光电梯", location: "商业垂直交通", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 141, code: "05.84", product: "地下车位 / 非主楼纯地库", group: "给排水设备", targetSubject: "集水坑排污泵", detailSubject: "集水坑排污泵", location: "地库排水", measureBasis: "集水坑数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 142, code: "05.85", product: "地下车位 / 非主楼纯地库", group: "给排水设备", targetSubject: "坡道排水泵", detailSubject: "坡道排水泵", location: "地库排水", measureBasis: "坡道数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 143, code: "05.86", product: "地下车位 / 非主楼纯地库", group: "给排水设备", targetSubject: "地库排水泵控制箱", detailSubject: "地库排水泵控制箱", location: "地库排水", measureBasis: "控制箱数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 146, code: "05.87", product: "地下车位 / 非主楼纯地库", group: "消防设备", targetSubject: "地库消防设备分摊", detailSubject: "地库消防设备分摊", location: "地库消防", measureBasis: "非主楼纯地下车库面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 147, code: "05.88", product: "地下车位 / 非主楼纯地库", group: "消防设备", targetSubject: "防火卷帘控制箱", detailSubject: "防火卷帘控制箱", location: "地库消防", measureBasis: "防火卷帘樘数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 148, code: "05.89", product: "地下车位 / 非主楼纯地库", group: "消防设备", targetSubject: "消防排烟联动设备", detailSubject: "消防排烟联动设备", location: "地库消防", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 151, code: "05.90", product: "地下车位 / 非主楼纯地库", group: "强电设备", targetSubject: "地库动力配电柜", detailSubject: "地库动力配电柜", location: "地库强电", measureBasis: "柜体数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 152, code: "05.91", product: "地下车库-非主楼纯车位", group: "强电设备", targetSubject: "充电桩配电箱", detailSubject: "充电桩配电箱", location: "地库强电", measureBasis: "充电桩数量", unit: "台", tax: "13%", remark: "充电桩配电箱/控制箱，按充电桩数量或配置台数测算" },
+  { sourceRow: 155, code: "05.92", product: "地下车位 / 非主楼纯地库", group: "暖通及防排烟设备", targetSubject: "地库排风机", detailSubject: "地库排风机", location: "地库暖通防排烟", measureBasis: "风机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 156, code: "05.93", product: "地下车位 / 非主楼纯地库", group: "暖通及防排烟设备", targetSubject: "地库送风机", detailSubject: "地库送风机", location: "地库暖通防排烟", measureBasis: "风机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 157, code: "05.94", product: "地下车位 / 非主楼纯地库", group: "暖通及防排烟设备", targetSubject: "地库排烟风机", detailSubject: "地库排烟风机", location: "地库暖通防排烟", measureBasis: "风机数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 158, code: "05.95", product: "地下车位 / 非主楼纯地库", group: "暖通及防排烟设备", targetSubject: "防火阀/排烟阀执行机构", detailSubject: "防火阀/排烟阀执行机构", location: "地库暖通防排烟", measureBasis: "阀门数量", unit: "个", tax: "13%", remark: "" },
+  { sourceRow: 161, code: "05.96", product: "地下车位 / 非主楼纯地库", group: "弱电智能化设备", targetSubject: "地库监控摄像机", detailSubject: "地库监控摄像机", location: "地库智能化及停车", measureBasis: "摄像机点位", unit: "点", tax: "13%", remark: "" },
+  { sourceRow: 162, code: "05.97", product: "地下车位 / 非主楼纯地库", group: "弱电智能化设备", targetSubject: "停车管理服务器", detailSubject: "停车管理服务器", location: "地库智能化及停车", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 163, code: "05.98", product: "地下车位 / 非主楼纯地库", group: "弱电智能化设备", targetSubject: "车牌识别摄像机", detailSubject: "车牌识别摄像机", location: "地库智能化及停车", measureBasis: "出入口数量", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 164, code: "05.99", product: "地下车位 / 非主楼纯地库", group: "弱电智能化设备", targetSubject: "道闸设备", detailSubject: "道闸设备", location: "地库智能化及停车", measureBasis: "出入口数量", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 165, code: "05.100", product: "地下车位 / 非主楼纯地库", group: "弱电智能化设备", targetSubject: "车位引导屏", detailSubject: "车位引导屏", location: "地库智能化及停车", measureBasis: "分区数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 166, code: "05.101", product: "地下车位 / 非主楼纯地库", group: "弱电智能化设备", targetSubject: "车位检测器", detailSubject: "车位检测器", location: "地库智能化及停车", measureBasis: "车位数量", unit: "个", tax: "13%", remark: "" },
+  { sourceRow: 169, code: "05.102", product: "地下车库-非主楼纯车位", group: "停车及充电设备", targetSubject: "充电桩设备", detailSubject: "充电桩设备", location: "地库停车及充电", measureBasis: "充电桩数量", unit: "台", tax: "13%", remark: "充电桩设备本体，按充电桩数量测算" },
+  { sourceRow: 170, code: "05.103", product: "地下车库-非主楼纯车位", group: "停车及充电设备", targetSubject: "充电管理系统", detailSubject: "充电管理系统", location: "地库停车及充电", measureBasis: "固定金额/手工输入", unit: "套", tax: "13%", remark: "充电管理系统，默认1套，可按项目实际调整" },
+  { sourceRow: 171, code: "05.104", product: "地下车位 / 非主楼纯地库", group: "停车及充电设备", targetSubject: "机械车位设备", detailSubject: "机械车位设备", location: "地库停车及充电", measureBasis: "机械车位数量", unit: "个", tax: "13%", remark: "" },
+  { sourceRow: 172, code: "05.105", product: "地下车位 / 非主楼纯地库", group: "停车及充电设备", targetSubject: "机械车库控制系统", detailSubject: "机械车库控制系统", location: "地库停车及充电", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 176, code: "05.106", product: "人防", group: "人防设备", targetSubject: "人防风机", detailSubject: "人防风机", location: "人防通风设备", measureBasis: "设备数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 177, code: "05.107", product: "人防", group: "人防设备", targetSubject: "过滤吸收器", detailSubject: "过滤吸收器", location: "人防通风设备", measureBasis: "防护单元数量", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 178, code: "05.108", product: "人防", group: "人防设备", targetSubject: "油网滤尘器", detailSubject: "油网滤尘器", location: "人防通风设备", measureBasis: "防护单元数量", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 179, code: "05.109", product: "人防", group: "人防设备", targetSubject: "手电动密闭阀", detailSubject: "手电动密闭阀", location: "人防通风设备", measureBasis: "阀门数量", unit: "个", tax: "13%", remark: "" },
+  { sourceRow: 180, code: "05.110", product: "人防", group: "人防设备", targetSubject: "防爆波阀", detailSubject: "防爆波阀", location: "人防通风设备", measureBasis: "阀门数量", unit: "个", tax: "13%", remark: "" },
+  { sourceRow: 181, code: "05.111", product: "人防", group: "人防设备", targetSubject: "超压排气活门", detailSubject: "超压排气活门", location: "人防通风设备", measureBasis: "阀门数量", unit: "个", tax: "13%", remark: "" },
+  { sourceRow: 184, code: "05.112", product: "人防", group: "人防设备", targetSubject: "人防排污泵", detailSubject: "人防排污泵", location: "人防给排水设备", measureBasis: "设备数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 185, code: "05.113", product: "人防", group: "人防设备", targetSubject: "人防水箱", detailSubject: "人防水箱", location: "人防给排水设备", measureBasis: "水箱容积", unit: "m³", tax: "13%", remark: "" },
+  { sourceRow: 186, code: "05.114", product: "人防", group: "人防设备", targetSubject: "人防给水设备", detailSubject: "人防给水设备", location: "人防给排水设备", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 189, code: "05.115", product: "人防", group: "人防设备", targetSubject: "人防配电箱", detailSubject: "人防配电箱", location: "人防电气通信设备", measureBasis: "配电箱数量", unit: "台", tax: "13%", remark: "" },
+  { sourceRow: 190, code: "05.116", product: "人防", group: "人防设备", targetSubject: "人防应急电源", detailSubject: "人防应急电源", location: "人防电气通信设备", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 191, code: "05.117", product: "人防", group: "人防设备", targetSubject: "人防通信设备", detailSubject: "人防通信设备", location: "人防电气通信设备", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 194, code: "05.118", product: "人防", group: "人防设备", targetSubject: "人防门", detailSubject: "人防门", location: "人防防护设备", measureBasis: "人防门数量", unit: "樘", tax: "13%", remark: "" },
+  { sourceRow: 195, code: "05.119", product: "人防", group: "人防设备", targetSubject: "防护密闭门", detailSubject: "防护密闭门", location: "人防防护设备", measureBasis: "人防门数量", unit: "樘", tax: "13%", remark: "" },
+  { sourceRow: 196, code: "05.120", product: "人防", group: "人防设备", targetSubject: "密闭门", detailSubject: "密闭门", location: "人防防护设备", measureBasis: "人防门数量", unit: "樘", tax: "13%", remark: "" },
+  { sourceRow: 197, code: "05.121", product: "人防", group: "人防设备", targetSubject: "防爆波活门", detailSubject: "防爆波活门", location: "人防防护设备", measureBasis: "设备数量", unit: "个", tax: "13%", remark: "" },
+  { sourceRow: 201, code: "05.122", product: "物业/社区/配套用房", group: "给排水设备", targetSubject: "配套用房给排水设备", detailSubject: "配套用房给排水设备", location: "配套用房给排水", measureBasis: "配套用房面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 204, code: "05.123", product: "物业/社区/配套用房", group: "强电设备", targetSubject: "配套用房配电设备", detailSubject: "配套用房配电设备", location: "配套用房强电", measureBasis: "配套用房面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 207, code: "05.124", product: "物业/社区/配套用房", group: "弱电智能化设备", targetSubject: "监控设备", detailSubject: "监控设备", location: "配套用房智能化", measureBasis: "点位数量", unit: "点", tax: "13%", remark: "" },
+  { sourceRow: 208, code: "05.125", product: "物业/社区/配套用房", group: "弱电智能化设备", targetSubject: "门禁设备", detailSubject: "门禁设备", location: "配套用房智能化", measureBasis: "门禁点数量", unit: "点", tax: "13%", remark: "" },
+  { sourceRow: 209, code: "05.126", product: "物业/社区/配套用房", group: "弱电智能化设备", targetSubject: "信息发布设备", detailSubject: "信息发布设备", location: "配套用房智能化", measureBasis: "套数", unit: "套", tax: "13%", remark: "" },
+  { sourceRow: 212, code: "05.127", product: "物业/社区/配套用房", group: "消防设备", targetSubject: "配套用房消防设备", detailSubject: "配套用房消防设备", location: "配套用房消防", measureBasis: "配套用房面积", unit: "㎡", tax: "13%", remark: "" },
+  { sourceRow: 213, code: "05.128", product: "物业/社区/配套用房", group: "电梯及垂直交通设备", targetSubject: "配套用房电梯", detailSubject: "配套用房电梯", location: "配套用房电梯", measureBasis: "电梯台数", unit: "台", tax: "13%", remark: "" }
 ];
-
-const productElevatorGroups: GroupInput[] = [
-  { scope: '', section: '垂直交通设备', group: '电梯设备', code: '03.08.10', details: [
-    { name: '客梯设备', unit: '台', measureBasis: '单元数量/电梯台数' },
-    { name: '消防电梯/担架电梯', unit: '台', measureBasis: '单元数量/电梯台数' },
-    { name: '无障碍电梯', unit: '台', measureBasis: '电梯台数' },
-    { name: '电梯轿厢装修', unit: '台', measureBasis: '电梯台数' },
-    { name: '电梯门套及配套设备', unit: '台', measureBasis: '电梯台数' },
-    { name: '电梯五方通话设备', unit: '台', measureBasis: '电梯台数' }
-  ], measureBasis: '单元数量/电梯台数/固定金额', unit: '按末级科目', tax: '13%' }
-];
-
-const commercialEquipmentGroups: GroupInput[] = [
-  { scope: '商业', section: '商业垂直交通设备', group: '商业电梯扶梯设备', code: '03.08.20', details: [
-    { name: '商业客梯设备', unit: '台' },
-    { name: '商业货梯设备', unit: '台' },
-    { name: '商业扶梯设备', unit: '台' },
-    { name: '商业观光梯设备', unit: '台' },
-    { name: '商业电梯轿厢装修', unit: '台' },
-    { name: '扶梯装饰及附属设备', unit: '台' }
-  ], measureBasis: '商业电梯/扶梯台数/固定金额', unit: '按末级科目', tax: '13%' },
-  { scope: '商业', section: '商业暖通及专项设备', group: '商业空调新风及排油烟设备', code: '03.08.21', details: [
-    { name: '商业新风机组', unit: '台' },
-    { name: '商业空调室外机/主机', unit: '台' },
-    { name: '商业排油烟风机', unit: '台' },
-    { name: '商业油烟净化设备', unit: '套' },
-    { name: '商业补风设备', unit: '台' },
-    { name: '商业厨房排烟配套设备', unit: '套' }
-  ], measureBasis: '商业面积/设备清单/固定金额', unit: '按末级科目', tax: '13%' }
-];
-
-const basementEquipmentGroups: GroupInput[] = [
-  { scope: '地下车位 / 非主楼纯地下车库', section: '地库通风及防排烟设备', group: '地库通风防排烟设备', code: '03.08.30', details: [
-    { name: '地库送风机', unit: '台' },
-    { name: '地库排风机', unit: '台' },
-    { name: '地库排烟风机', unit: '台' },
-    { name: '地库补风机', unit: '台' },
-    { name: '风机控制箱', unit: '台' },
-    { name: '防排烟阀门执行机构', unit: '套' }
-  ], measureBasis: '地库面积/风机数量/设备清单/固定金额', unit: '按末级科目', tax: '13%' },
-  { scope: '地下车位 / 非主楼纯地下车库', section: '地库排水设备', group: '地库排水及集水坑设备', code: '03.08.31', details: [
-    { name: '地库潜污泵', unit: '台' },
-    { name: '集水坑排水泵', unit: '台' },
-    { name: '排水泵控制柜', unit: '台' },
-    { name: '液位控制器', unit: '套' },
-    { name: '排水设备配套附件', unit: '套' }
-  ], measureBasis: '集水坑数量/排水泵数量/固定金额', unit: '按末级科目', tax: '13%' },
-  { scope: '地下车位 / 非主楼纯地下车库', section: '停车场及车库智能化设备', group: '地库停车场设备', code: '03.08.32', details: [
-    { name: '车牌识别设备', unit: '套' },
-    { name: '道闸设备', unit: '套' },
-    { name: '停车场管理主机', unit: '套' },
-    { name: '车位引导设备', unit: '套' },
-    { name: '寻车系统设备', unit: '套' },
-    { name: '地库监控摄像机', unit: '点' },
-    { name: '地库门禁设备', unit: '套' }
-  ], measureBasis: '出入口数量/车位数量/点位数量/固定金额', unit: '按末级科目', tax: '13%' },
-  { scope: '地下车位 / 非主楼纯地下车库', section: '充电桩设备', group: '充电桩设备本体', code: '03.09.01', details: [
-    { name: '慢充设备本体', unit: '台', measureBasis: '慢充数量' },
-    { name: '快充设备本体', unit: '台', measureBasis: '快充数量' },
-    { name: '充电控制箱', unit: '台', measureBasis: '控制箱数量' },
-    { name: '计量表箱', unit: '台', measureBasis: '计量表箱数量' },
-    { name: '充电后台管理设备', unit: '套', measureBasis: '系统数量' },
-    { name: '充电桩通信网关', unit: '套', measureBasis: '系统数量' },
-    { name: '其他充电设备', unit: '项', measureBasis: '固定金额' }
-  ], measureBasis: '快充数量/慢充数量/车位数量/固定金额', unit: '按末级科目', tax: '13%', remark: '充电桩设备本体进设备明细表；管线、桥架、配电接入和安装调试进安装明细表。' }
-];
-
-const civilDefenseEquipmentGroups: GroupInput[] = [
-  { scope: '人防', section: '人防设备', group: '人防专用设备', code: '03.08.40', details: [
-    { name: '人防风机设备', unit: '台' },
-    { name: '滤毒设备', unit: '套' },
-    { name: '防爆波阀门', unit: '个' },
-    { name: '人防给排水设备', unit: '套' },
-    { name: '人防电气控制箱', unit: '台' },
-    { name: '三防控制箱', unit: '台' },
-    { name: '人防通信报警设备', unit: '套' },
-    { name: '人防通风方式信号设备', unit: '套' },
-    { name: '人防设备调试', unit: '项' }
-  ], measureBasis: '人防面积/人防设备清单/固定金额', unit: '按末级科目', tax: '13%' }
-];
-
-function prefixedProductEquipmentGroups(scope: string, prefix: string): GroupInput[] {
-  return productElevatorGroups.map((item) => ({ ...item, scope, details: item.details.map((detail) => prefixDetail(detail, prefix)) }));
-}
 
 export function buildV60EquipmentRows(offset: number): CostDictionaryPresetRow[] {
-  const result: CostDictionaryPresetRow[] = [];
-  const sequence = new Map<string, number>();
-  let rowIndex = offset;
-
-  function addGroup(input: GroupInput) {
-    for (const detailInput of input.details) {
-      const detail = normalizeDetail(detailInput);
-      const sequenceKey = `${input.scope}__${input.code}__${input.section}`;
-      const next = (sequence.get(sequenceKey) || 0) + 1;
-      sequence.set(sequenceKey, next);
-      result.push({
-        rowIndex: rowIndex++,
-        costCode: `${input.code}.${String(next).padStart(2, '0')}`,
-        parentCode: input.code,
-        subjectLevel: '4',
-        firstSubject: '建安工程费',
-        secondSubject: input.section,
-        thirdSubject: input.group,
-        detailSubject: detail.name,
-        subjectDefinition: `${detail.name}，来源于V60设备明细表B列明细项目，用于目标成本明细测算。`,
-        targetMappingCode: input.code,
-        measureBasis: detail.measureBasis || input.measureBasis || '设备数量/固定金额',
-        unit: detail.unit || input.unit || '台/套',
-        defaultTaxRate: input.tax || '13%',
-        applicableProductType: input.scope,
-        remark: detail.remark || input.remark || 'V60定稿设备明细科目。',
-        costAttributionMethod: input.scope,
-        ...common
-      });
-    }
-  }
-
-  [
-    ...overallEquipmentGroups,
-    ...prefixedProductEquipmentGroups('高层住宅', '高层'),
-    ...prefixedProductEquipmentGroups('洋房', '洋房'),
-    ...commercialEquipmentGroups,
-    ...basementEquipmentGroups,
-    ...civilDefenseEquipmentGroups
-  ].forEach(addGroup);
-
-  return result;
+  return v60EquipmentRows.map((input, index) => ({
+    rowIndex: offset + index,
+    costCode: input.code,
+    parentCode: input.code.includes('.') ? input.code.split('.').slice(0, -1).join('.') : undefined,
+    subjectLevel: '4',
+    firstSubject: '建安工程费',
+    secondSubject: input.group,
+    thirdSubject: input.location || input.targetSubject,
+    detailSubject: input.detailSubject,
+    subjectDefinition: `${input.detailSubject}，来源于V60设备明细表第${input.sourceRow}行B列明细项目，用于目标成本明细测算。`,
+    targetMappingCode: input.code,
+    measureBasis: input.measureBasis || '设备数量/固定金额',
+    unit: input.unit || '台/套',
+    defaultTaxRate: input.tax || '13%',
+    applicableProductType: input.product,
+    remark: input.remark || 'V60定稿设备明细科目。',
+    costAttributionMethod: input.product,
+    ...common
+  }));
 }
