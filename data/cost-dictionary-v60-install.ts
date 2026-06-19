@@ -164,7 +164,6 @@ export function buildV60InstallationRows(offset: number): CostDictionaryPresetRo
         thirdSubject: input.group,
         detailSubject: detail.name,
         subjectDefinition: `${detail.name}，来源于V60安装明细表B列明细项目，用于目标成本明细测算。`,
-        sourceTable: common.sourceTable,
         targetMappingCode: input.code,
         measureBasis: detail.measureBasis || input.measureBasis || '建筑面积/固定金额',
         unit: detail.unit || input.unit || '项',
