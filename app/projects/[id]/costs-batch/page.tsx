@@ -69,8 +69,8 @@ function fmt(value: unknown) {
   return num(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-function single(amount: number, area: number) {
-  return area ? amount / area : 0;
+function single(amountWan: number, area: number) {
+  return area ? (amountWan * 10000) / area : 0;
 }
 
 function productName(value: any) {
@@ -226,7 +226,7 @@ export default async function TargetCostBatchPage({ params }: { params: { id: st
           <div>
             <p className="eyebrow">目标成本测算表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">各专业明细页负责录入；本页按V60横向大表结构自动汇总，左侧科目树固定，右侧展示全项目及各业态不含税、含税、税额和单方。</p>
+            <p className="subtitle">金额单位统一为万元；单价单位统一为元/单位；单方统一为元/㎡。各专业明细页负责录入，本页自动汇总。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总表</Link>
@@ -239,13 +239,14 @@ export default async function TargetCostBatchPage({ params }: { params: { id: st
         <section className="card" style={{ marginBottom: 12, borderColor: '#d0ebff', background: '#f8fbff' }}>
           <b>V60口径说明</b>
           <p className="meta" style={{ margin: '6px 0 0' }}>目标成本测算表不是重复录入页，而是把土地费、前期费、各专业明细、销售/管理/财务费用按科目树和业态汇总展示。</p>
+          <p className="meta" style={{ margin: '6px 0 0' }}>价格规则：工程量 × 含税单价（元） ÷ 10000 = 含税合价（万元）；不含税、税额也按万元保存和汇总。</p>
           <p className="meta" style={{ margin: '6px 0 0' }}>顺序：{v60OrderNote}</p>
         </section>
 
         <div className="summary-strip" style={{ marginBottom: 12 }}>
-          <div className="stat"><div className="stat-label">含税目标成本</div><div className="stat-value">{fmt(total)}</div></div>
-          <div className="stat"><div className="stat-label">建面单方</div><div className="stat-value">{fmt(single(total, buildingArea))}</div></div>
-          <div className="stat"><div className="stat-label">可售单方</div><div className="stat-value">{fmt(single(total, saleableArea))}</div></div>
+          <div className="stat"><div className="stat-label">含税目标成本（万元）</div><div className="stat-value">{fmt(total)}</div></div>
+          <div className="stat"><div className="stat-label">建面单方（元/㎡）</div><div className="stat-value">{fmt(single(total, buildingArea))}</div></div>
+          <div className="stat"><div className="stat-label">可售单方（元/㎡）</div><div className="stat-value">{fmt(single(total, saleableArea))}</div></div>
           <div className="stat"><div className="stat-label">已填末级科目</div><div className="stat-value">{filledLeafRows}/{leafCount}</div></div>
         </div>
 
