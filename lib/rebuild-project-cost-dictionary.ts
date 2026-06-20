@@ -12,6 +12,7 @@ import { buildV60LandscapeRows } from '@/data/cost-dictionary-v60-landscape';
 import { buildV60RoadRows } from '@/data/cost-dictionary-v60-road';
 import { buildV60WallGateRows } from '@/data/cost-dictionary-v60-wall-gate';
 import { buildV60SalesExpenseRows } from '@/data/cost-dictionary-v60-sales-expense';
+import { buildV60AdminExpenseRows } from '@/data/cost-dictionary-v60-admin-expense';
 
 function clean(value: unknown) {
   return String(value || '').trim();
@@ -92,7 +93,8 @@ export async function rebuildProjectCostDictionary(projectId: string) {
     row.sourceTable !== '景观工程明细表' &&
     row.sourceTable !== '道路总平明细表' &&
     row.sourceTable !== '围墙出入口明细表' &&
-    row.sourceTable !== '销售费用明细表'
+    row.sourceTable !== '销售费用明细表' &&
+    row.sourceTable !== '管理费用明细表'
   );
 
   const landOffset = Math.max(0, ...baseRows.map((row) => row.rowIndex || 0)) + 1;
@@ -119,8 +121,10 @@ export async function rebuildProjectCostDictionary(projectId: string) {
   const wallGateRows = buildV60WallGateRows(wallGateOffset);
   const salesExpenseOffset = wallGateOffset + wallGateRows.length;
   const salesExpenseRows = buildV60SalesExpenseRows(salesExpenseOffset);
+  const adminExpenseOffset = salesExpenseOffset + salesExpenseRows.length;
+  const adminExpenseRows = buildV60AdminExpenseRows(adminExpenseOffset);
 
-  const presetRows = applyConfig(project, [...baseRows, ...landRows, ...preCostRows, ...prefabricatedRows, ...installRows, ...equipmentRows, ...fitoutRows, ...heatingRows, ...outdoorPipeRows, ...landscapeRows, ...roadRows, ...wallGateRows, ...salesExpenseRows])
+  const presetRows = applyConfig(project, [...baseRows, ...landRows, ...preCostRows, ...prefabricatedRows, ...installRows, ...equipmentRows, ...fitoutRows, ...heatingRows, ...outdoorPipeRows, ...landscapeRows, ...roadRows, ...wallGateRows, ...salesExpenseRows, ...adminExpenseRows])
     .map((row) => ({ ...row, projectId }));
 
   await prisma.$transaction([
