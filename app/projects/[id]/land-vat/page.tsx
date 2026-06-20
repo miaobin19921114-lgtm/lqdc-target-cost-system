@@ -10,19 +10,12 @@ import { getProductTaxLiquidationObjectMap } from '@/lib/product-tax-liquidation
 
 export const dynamic = 'force-dynamic';
 
-function fmt(value: unknown) {
-  return n(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
+const cell = { padding: 9, borderBottom: '1px solid var(--border)' };
+const money = { ...cell, textAlign: 'right' as const };
 
-function pct(value: number) {
-  return `${(value * 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
-}
-
-function includes(text: string | null | undefined, words: string[]) {
-  const value = text || '';
-  return words.some((word) => value.includes(word));
-}
-
+function fmt(value: unknown) { return n(value).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+function pct(value: number) { return `${(value * 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`; }
+function includes(text: string | null | undefined, words: string[]) { const value = text || ''; return words.some((word) => value.includes(word)); }
 function allocationBase(product: any, method: string | null | undefined) {
   const weight = n(product.allocationWeight || 1) || 1;
   const methodText = method || '';
@@ -33,41 +26,20 @@ function allocationBase(product: any, method: string | null | undefined) {
   if (includes(methodText, ['销售收入', '收入'])) return n(product.saleableArea) * n(product.salePrice) * weight;
   return (n(product.saleableArea) || n(product.buildingArea) || n(product.capacityArea)) * weight;
 }
-
-function productCostGroupName(product: any) {
-  const setting = getCostSettings(product);
-  return setting.standalone ? product.name : setting.groupName;
-}
-
+function productCostGroupName(product: any) { const setting = getCostSettings(product); return setting.standalone ? product.name : setting.groupName; }
 function regionMatchesProduct(region: string, product: any) {
   const productName = product.name || '';
   const costGroup = productCostGroupName(product);
-  if (!region || region.includes('全项目') || region.includes('项目整体') || region.includes('Excel导入')) return true;
-  if (region === productName || region === costGroup) return true;
-  if (region.includes(productName) || productName.includes(region)) return true;
-  if (region.includes(costGroup) || costGroup.includes(region)) return true;
-  return false;
+  return !region || region.includes('全项目') || region.includes('项目整体') || region.includes('Excel导入') || region === productName || region === costGroup || region.includes(productName) || productName.includes(region) || region.includes(costGroup) || costGroup.includes(region);
 }
-
-function blankObject(product: any, costGroup = '') {
-  return { product, costGroup, revenueInclusive: 0, revenueExclusive: 0, outputVat: 0, inputVat: 0, landCost: 0, devCost: 0, saleManageFinance: 0, costExclusive: 0 };
-}
-
-function addRevenue(target: ReturnType<typeof blankObject>, row: { taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown }) {
-  target.revenueInclusive += n(row.taxInclusiveRevenue);
-  target.revenueExclusive += n(row.taxExclusiveRevenue);
-  target.outputVat += n(row.taxAmount);
-}
+function blankObject(product: any, costGroup = '') { return { product, costGroup, revenueInclusive: 0, revenueExclusive: 0, outputVat: 0, inputVat: 0, landCost: 0, devCost: 0, saleManageFinance: 0, costExclusive: 0 }; }
+function addRevenue(target: ReturnType<typeof blankObject>, row: { taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown }) { target.revenueInclusive += n(row.taxInclusiveRevenue); target.revenueExclusive += n(row.taxExclusiveRevenue); target.outputVat += n(row.taxAmount); }
 
 export default async function LandVatPage({ params }: { params: { id: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
 
-  const version = await prisma.projectVersion.findFirst({
-    where: activeVersionWhere(project),
-    orderBy: activeVersionOrder(project),
-    include: { taxes: true, products: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true }
-  });
+  const version = await prisma.projectVersion.findFirst({ where: activeVersionWhere(project), orderBy: activeVersionOrder(project), include: { taxes: true, products: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true } });
   if (version) await normalizeProjectVersionCostLineAmounts(version.id);
 
   const taxObjectMap = version ? await getProductTaxLiquidationObjectMap(version.id) : new Map<string, string | null>();
@@ -86,7 +58,6 @@ export default async function LandVatPage({ params }: { params: { id: string } }
   const saleableProducts = activeProducts.filter((item) => item.isSaleable);
   const objectMap = new Map<string, ReturnType<typeof blankObject>>();
   activeProducts.forEach((product) => objectMap.set(product.id, blankObject(product, productCostGroupName(product))));
-
   const revenueProductIds = new Set<string>((version?.revenues || []).map((row) => row.productTypeId).filter((id): id is string => Boolean(id)));
   activeProducts.filter((product) => product.isSaleable && !revenueProductIds.has(product.id)).forEach((product) => addRevenue(objectMap.get(product.id)!, calculateRevenueLine(n(product.saleableArea), n(product.salePrice), vatRate)));
   (version?.revenues || []).forEach((row) => { const item = objectMap.get(row.productTypeId); if (item) addRevenue(item, row); });
@@ -112,34 +83,30 @@ export default async function LandVatPage({ params }: { params: { id: string } }
     });
   });
 
-  const objectRows = Array.from(objectMap.values()).filter((item) => item.product.isSaleable || item.revenueInclusive || item.costExclusive).map((item) => {
+  const productRows = Array.from(objectMap.values()).filter((item) => item.product.isSaleable || item.revenueInclusive || item.costExclusive).map((item) => ({ ...item, liquidationObject: getTaxLiquidationObject({ name: item.product.name, isSaleable: item.product.isSaleable, taxLiquidationObject: taxObjectMap.get(item.product.id) }) }));
+  const groupMap = new Map<string, any>();
+  productRows.forEach((row) => {
+    const current = groupMap.get(row.liquidationObject) || { liquidationObject: row.liquidationObject, productNames: [], revenueInclusive: 0, revenueExclusive: 0, outputVat: 0, inputVat: 0, landCost: 0, devCost: 0, saleManageFinance: 0, costExclusive: 0 };
+    current.productNames.push(row.product.name);
+    ['revenueInclusive', 'revenueExclusive', 'outputVat', 'inputVat', 'landCost', 'devCost', 'saleManageFinance', 'costExclusive'].forEach((key) => { current[key] += n((row as any)[key]); });
+    groupMap.set(row.liquidationObject, current);
+  });
+  const clearingRows = Array.from(groupMap.values()).map((item) => {
     const payableVat = Math.max(item.outputVat - item.inputVat, 0);
     const lv = landVatSummary({ revenueExclusive: item.revenueExclusive, outputVat: payableVat, landCost: item.landCost, devCost: item.devCost, saleManageFinance: item.saleManageFinance, surchargeRate });
     const surcharge = payableVat * surchargeRate;
     const taxableIncome = item.revenueExclusive - item.costExclusive - surcharge - lv.landVat;
     const incomeTax = Math.max(taxableIncome * incomeTaxRate, 0);
     const netProfit = taxableIncome - incomeTax;
-    const liquidationObject = getTaxLiquidationObject({ name: item.product.name, isSaleable: item.product.isSaleable, taxLiquidationObject: taxObjectMap.get(item.product.id) });
-    return { ...item, payableVat, landVat: lv, surcharge, taxableIncome, incomeTax, netProfit, liquidationObject };
+    return { ...item, payableVat, landVat: lv, surcharge, taxableIncome, incomeTax, netProfit };
   });
+  const formalTotals = clearingRows.reduce((sum, row) => ({ deduction: sum.deduction + row.landVat.deductionTotal, valueAdded: sum.valueAdded + row.landVat.valueAdded, landVat: sum.landVat + row.landVat.landVat }), { deduction: 0, valueAdded: 0, landVat: 0 });
 
-  const processRows = [
-    ['不含税总收入', revenue.taxExclusive, '销售收入剔除销项税'],
-    ['土地成本', cost.landCost, '土地成本'],
-    ['开发成本', cost.devCost, '前期+建安'],
-    ['销售/管理/财务费用', cost.saleManageFinance, '期间费用'],
-    ['税金及附加', tax.landVat.taxAndSurcharge, '应缴增值税×附加税率'],
-    ['加计扣除', tax.landVat.additionalDeduction, '土地成本+开发成本的20%'],
-    ['扣除项目合计', tax.landVat.deductionTotal, '自动汇总'],
-    ['增值额', tax.landVat.valueAdded, '不含税收入-扣除项目'],
-    ['增值率', tax.landVat.valueAddedRatio * 100, '增值额/扣除项目'],
-    ['土地增值税', tax.landVat.landVat, '按超率累进口径暂估']
-  ] as const;
-
-  return <main className="page"><div className="container" style={{ maxWidth: 1400 }}>
-    <div className="page-header"><div><p className="eyebrow">土地增值税清算测算表</p><h1 className="title">{project.name}</h1><p className="subtitle">金额单位统一为万元；按业态维护里的税务清算对象汇总，未维护时才按名称兜底判断。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/product-maintenance`} className="btn btn-primary">业态维护</Link><Link href={`/projects/${project.id}/cost-allocation`} className="btn">成本分摊</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税费测算总表</Link><Link href={`/projects/${project.id}/summary`} className="btn">目标成本汇总</Link></div></div>
-    <div className="summary-strip"><div className="stat"><div className="stat-label">不含税收入（万元）</div><div className="stat-value">{fmt(revenue.taxExclusive)}</div></div><div className="stat"><div className="stat-label">扣除项目（万元）</div><div className="stat-value">{fmt(tax.landVat.deductionTotal)}</div></div><div className="stat"><div className="stat-label">增值率</div><div className="stat-value">{fmt(tax.landVat.valueAddedRatio * 100)}%</div></div><div className="stat"><div className="stat-label">土增税（万元）</div><div className="stat-value">{fmt(tax.landVat.landVat)}</div></div></div>
-    <section className="card" style={{ marginBottom: 18 }}><h2>按清算对象/业态测算</h2><p className="meta">清算对象来自业态维护；支持普通住宅、非普通住宅、非住宅、车位等对象。</p><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1640, borderCollapse: 'collapse', fontSize: 12 }}><thead><tr>{['业态', '成本归属组', '清算对象', '含税收入(万元)', '不含税收入(万元)', '分摊不含税成本(万元)', '扣除项目(万元)', '增值率', '土增税(万元)', '所得税应税所得(万元)', '所得税(万元)', '税后净利(万元)', '净利率'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 9, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{objectRows.length ? objectRows.map((row) => <tr key={row.product.id}><td style={{ padding: 9, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{row.product.name}</td><td style={{ padding: 9, borderBottom: '1px solid var(--border)' }}>{row.costGroup}</td><td style={{ padding: 9, borderBottom: '1px solid var(--border)' }}>{row.liquidationObject}</td><td style={{ padding: 9, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(row.revenueInclusive)}</td><td style={{ padding: 9, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(row.revenueExclusive)}</td><td style={{ padding: 9, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(row.costExclusive)}</td><td style={{ padding: 9, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(row.landVat.deductionTotal)}</td><td style={{ padding: 9, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{pct(row.landVat.valueAddedRatio)}</td><td style={{ padding: 9, borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 800 }}>{fmt(row.landVat.landVat)}</td><td style={{ padding: 9, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(row.taxableIncome)}</td><td style={{ padding: 9, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(row.incomeTax)}</td><td style={{ padding: 9, borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 800 }}>{fmt(row.netProfit)}</td><td style={{ padding: 9, borderBottom: '1px solid var(--border)' }}>{pct(row.revenueInclusive ? row.netProfit / row.revenueInclusive : 0)}</td></tr>) : <tr><td colSpan={13} style={{ padding: 12, color: 'var(--muted)' }}>暂无可售业态，先维护业态指标。</td></tr>}</tbody></table></div></section>
-    <section className="card"><h2>项目整体土增税过程</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse' }}><thead><tr>{['项目', '金额(万元)/比例', '说明'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{processRows.map(([name, value, remark]) => <tr key={name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 800 }}>{name.includes('率') ? `${fmt(value)}%` : fmt(value)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{remark}</td></tr>)}</tbody></table></div></section>
+  return <main className="page"><div className="container" style={{ maxWidth: 1500 }}>
+    <div className="page-header"><div><p className="eyebrow">土地增值税清算测算表</p><h1 className="title">{project.name}</h1><p className="subtitle">正式测算口径：先按业态维护中的税务清算对象分组，每个清算对象单独计算增值额、增值率、适用税率和土增税，最后汇总。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/product-maintenance`} className="btn btn-primary">业态维护</Link><Link href={`/projects/${project.id}/cost-allocation`} className="btn">成本分摊</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税费测算总表</Link><Link href={`/projects/${project.id}/summary`} className="btn">目标成本汇总</Link></div></div>
+    <div className="summary-strip"><div className="stat"><div className="stat-label">不含税收入（万元）</div><div className="stat-value">{fmt(revenue.taxExclusive)}</div></div><div className="stat"><div className="stat-label">扣除项目合计（万元）</div><div className="stat-value">{fmt(formalTotals.deduction)}</div></div><div className="stat"><div className="stat-label">综合增值率</div><div className="stat-value">{fmt(formalTotals.deduction ? formalTotals.valueAdded / formalTotals.deduction * 100 : 0)}%</div></div><div className="stat"><div className="stat-label">土增税合计（万元）</div><div className="stat-value">{fmt(formalTotals.landVat)}</div></div></div>
+    <section className="card" style={{ marginBottom: 18 }}><h2>按清算对象正式测算</h2><p className="meta">金额单位为万元；各清算对象分别适用四级超率累进，不能只按项目整体快速估算。</p><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1660, borderCollapse: 'collapse', fontSize: 12 }}><thead><tr>{['清算对象', '包含业态', '不含税收入', '土地成本', '开发成本', '开发费用', '税金及附加', '加计扣除', '扣除项目', '增值额', '增值率', '适用税率', '速算扣除系数', '土地增值税'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 9, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{clearingRows.length ? clearingRows.map((row) => <tr key={row.liquidationObject}><td style={{ ...cell, fontWeight: 800 }}>{row.liquidationObject}</td><td style={cell}>{row.productNames.join('、')}</td><td style={money}>{fmt(row.revenueExclusive)}</td><td style={money}>{fmt(row.landCost)}</td><td style={money}>{fmt(row.devCost)}</td><td style={money}>{fmt(row.saleManageFinance)}</td><td style={money}>{fmt(row.landVat.taxAndSurcharge)}</td><td style={money}>{fmt(row.landVat.additionalDeduction)}</td><td style={money}>{fmt(row.landVat.deductionTotal)}</td><td style={money}>{fmt(row.landVat.valueAdded)}</td><td style={money}>{pct(row.landVat.valueAddedRatio)}</td><td style={money}>{pct(row.landVat.ladder.rate)}</td><td style={money}>{pct(row.landVat.ladder.deduction)}</td><td style={{ ...money, fontWeight: 800 }}>{fmt(row.landVat.landVat)}</td></tr>) : <tr><td colSpan={14} style={{ padding: 12, color: 'var(--muted)' }}>暂无清算对象数据。</td></tr>}</tbody></table></div></section>
+    <section className="card" style={{ marginBottom: 18 }}><h2>业态分摊明细</h2><p className="meta">用于追溯每个业态进入哪个清算对象，以及收入、成本、所得税口径。</p><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1320, borderCollapse: 'collapse', fontSize: 12 }}><thead><tr>{['业态', '清算对象', '含税收入', '不含税收入', '分摊不含税成本', '所得税应税所得', '所得税', '税后净利'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 9, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{productRows.map((row) => { const payableVat = Math.max(row.outputVat - row.inputVat, 0); const lv = landVatSummary({ revenueExclusive: row.revenueExclusive, outputVat: payableVat, landCost: row.landCost, devCost: row.devCost, saleManageFinance: row.saleManageFinance, surchargeRate }); const surcharge = payableVat * surchargeRate; const taxableIncome = row.revenueExclusive - row.costExclusive - surcharge - lv.landVat; const incomeTax = Math.max(taxableIncome * incomeTaxRate, 0); return <tr key={row.product.id}><td style={{ ...cell, fontWeight: 800 }}>{row.product.name}</td><td style={cell}>{row.liquidationObject}</td><td style={money}>{fmt(row.revenueInclusive)}</td><td style={money}>{fmt(row.revenueExclusive)}</td><td style={money}>{fmt(row.costExclusive)}</td><td style={money}>{fmt(taxableIncome)}</td><td style={money}>{fmt(incomeTax)}</td><td style={{ ...money, fontWeight: 800 }}>{fmt(taxableIncome - incomeTax)}</td></tr>; })}</tbody></table></div></section>
+    <section className="card"><h2>项目整体快速校验</h2><p className="meta">仅作为校验参考，正式结果以上方“按清算对象正式测算”的合计为准。</p><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse' }}><thead><tr>{['项目', '金额(万元)/比例', '说明'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{[['项目整体扣除项目', tax.landVat.deductionTotal, '快速校验'], ['项目整体增值额', tax.landVat.valueAdded, '快速校验'], ['项目整体增值率', tax.landVat.valueAddedRatio * 100, '快速校验'], ['项目整体土增税', tax.landVat.landVat, '快速校验']].map(([name, value, remark]) => <tr key={name as string}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 800 }}>{String(name).includes('率') ? `${fmt(value)}%` : fmt(value)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{remark}</td></tr>)}</tbody></table></div></section>
   </div></main>;
 }
