@@ -4,7 +4,8 @@ export function round2(value: number) {
 }
 
 export function calculateRevenueLine(saleableArea: number, salePrice: number, rate: number) {
-  const taxInclusiveRevenue = round2(saleableArea * salePrice);
+  // 全系统经营口径：单价为“元/㎡”，合价统一保存为“万元”。
+  const taxInclusiveRevenue = round2((saleableArea * salePrice) / 10000);
   const taxExclusiveRevenue = round2(taxInclusiveRevenue / (1 + rate));
   const taxAmount = round2(taxInclusiveRevenue - taxExclusiveRevenue);
 
@@ -25,7 +26,8 @@ export function calculateCostLine(input: {
   const rate = input.taxRate;
 
   if (input.taxInclusiveUnitPrice !== undefined) {
-    const taxInclusiveAmount = round2(quantity * input.taxInclusiveUnitPrice);
+    // 全系统成本口径：单价为“元/单位”，合价统一保存为“万元”。
+    const taxInclusiveAmount = round2((quantity * input.taxInclusiveUnitPrice) / 10000);
     const taxExclusiveAmount = round2(taxInclusiveAmount / (1 + rate));
     const taxAmount = round2(taxInclusiveAmount - taxExclusiveAmount);
     const taxExclusiveUnitPrice = round2(input.taxInclusiveUnitPrice / (1 + rate));
@@ -40,7 +42,8 @@ export function calculateCostLine(input: {
   }
 
   const taxExclusiveUnitPrice = input.taxExclusiveUnitPrice ?? 0;
-  const taxExclusiveAmount = round2(quantity * taxExclusiveUnitPrice);
+  // 全系统成本口径：单价为“元/单位”，合价统一保存为“万元”。
+  const taxExclusiveAmount = round2((quantity * taxExclusiveUnitPrice) / 10000);
   const taxAmount = round2(taxExclusiveAmount * rate);
   const taxInclusiveAmount = round2(taxExclusiveAmount + taxAmount);
   const taxInclusiveUnitPrice = round2(taxExclusiveUnitPrice * (1 + rate));
