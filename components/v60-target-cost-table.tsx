@@ -33,6 +33,7 @@ type DisplayRow = {
   amount: Amount;
 };
 
+const amountHeads = ['不含税(万元)', '含税(万元)', '税额(万元)', '建面单方(元/㎡)', '可售单方(元/㎡)'];
 const cell = { padding: 8, borderBottom: '1px solid #eef2f6', borderRight: '1px solid #eef2f6', whiteSpace: 'nowrap' as const };
 const stickyLevel = { ...cell, position: 'sticky' as const, left: 0, zIndex: 4, background: '#fff', minWidth: 56, textAlign: 'center' as const };
 const stickyCode = { ...cell, position: 'sticky' as const, left: 56, zIndex: 4, background: '#fff', minWidth: 112, fontWeight: 800, color: '#0f4c5c' };
@@ -46,8 +47,8 @@ function fmt(value: unknown) {
   return num(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-function single(amount: number, area: number) {
-  return area ? amount / area : 0;
+function single(amountWan: number, area: number) {
+  return area ? (amountWan * 10000) / area : 0;
 }
 
 function levelStyle(level: number, amount: number) {
@@ -61,16 +62,16 @@ function amountCells(amount: AmountValue, keyPrefix: string, cellStyle: any, are
   const buildingArea = area?.buildingArea || fallbackBuildingArea;
   const saleableArea = area?.saleableArea || fallbackSaleableArea;
   return [
-    <td key={`${keyPrefix}-excl`} style={{ ...cellStyle, textAlign: 'right' }} title={`${labelPrefix}不含税`}>{fmt(amount.excl)}</td>,
-    <td key={`${keyPrefix}-incl`} style={{ ...cellStyle, textAlign: 'right', fontWeight: 800 }} title={`${labelPrefix}含税`}>{fmt(amount.incl)}</td>,
-    <td key={`${keyPrefix}-tax`} style={{ ...cellStyle, textAlign: 'right' }} title={`${labelPrefix}税额`}>{fmt(amount.tax)}</td>,
-    <td key={`${keyPrefix}-building`} style={{ ...cellStyle, textAlign: 'right' }} title={`${labelPrefix}建面单方`}>{fmt(single(amount.incl, buildingArea))}</td>,
-    <td key={`${keyPrefix}-saleable`} style={{ ...cellStyle, textAlign: 'right' }} title={`${labelPrefix}可售单方`}>{fmt(single(amount.incl, saleableArea))}</td>
+    <td key={`${keyPrefix}-excl`} style={{ ...cellStyle, textAlign: 'right' }} title={`${labelPrefix}不含税(万元)`}>{fmt(amount.excl)}</td>,
+    <td key={`${keyPrefix}-incl`} style={{ ...cellStyle, textAlign: 'right', fontWeight: 800 }} title={`${labelPrefix}含税(万元)`}>{fmt(amount.incl)}</td>,
+    <td key={`${keyPrefix}-tax`} style={{ ...cellStyle, textAlign: 'right' }} title={`${labelPrefix}税额(万元)`}>{fmt(amount.tax)}</td>,
+    <td key={`${keyPrefix}-building`} style={{ ...cellStyle, textAlign: 'right' }} title={`${labelPrefix}建面单方(元/㎡)`}>{fmt(single(amount.incl, buildingArea))}</td>,
+    <td key={`${keyPrefix}-saleable`} style={{ ...cellStyle, textAlign: 'right' }} title={`${labelPrefix}可售单方(元/㎡)`}>{fmt(single(amount.incl, saleableArea))}</td>
   ];
 }
 
 function collapsedAmountCell(amount: AmountValue, keyPrefix: string, cellStyle: any, label: string) {
-  return <td key={`${keyPrefix}-collapsed`} style={{ ...cellStyle, textAlign: 'right', minWidth: 118, fontWeight: 900 }} title={`${label}｜含税合计`}>{fmt(amount.incl)}</td>;
+  return <td key={`${keyPrefix}-collapsed`} style={{ ...cellStyle, textAlign: 'right', minWidth: 118, fontWeight: 900 }} title={`${label}｜含税合计(万元)`}>{fmt(amount.incl)}</td>;
 }
 
 export function V60TargetCostTable({ rows, products, buildingArea, saleableArea }: { rows: DisplayRow[]; products: ProductColumn[]; buildingArea: number; saleableArea: number }) {
@@ -148,7 +149,7 @@ export function V60TargetCostTable({ rows, products, buildingArea, saleableArea 
       <div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <div>
           <b>目标成本测算表｜V60横向分业态大表</b>
-          <div className="meta">折叠规则：折叠到一级/二级/三级时，下级全部收起；业态列也可以逐个折叠。</div>
+          <div className="meta">金额单位：万元；单价单位：元/单位；单方单位：元/㎡。折叠到一级/二级/三级时，下级全部收起。</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" className="btn" onClick={showLevelOne}>折叠到一级</button>
@@ -165,8 +166,8 @@ export function V60TargetCostTable({ rows, products, buildingArea, saleableArea 
           <thead>
             <tr style={{ background: '#dff3f6' }}>
               <th colSpan={7} style={{ ...cell, position: 'sticky', left: 0, zIndex: 6, background: '#dff3f6', textAlign: 'center', fontWeight: 900 }}>科目区</th>
-              <th colSpan={5} style={{ ...cell, textAlign: 'center', fontWeight: 900 }}>目标成本汇总</th>
-              {productNames.length ? <th colSpan={productColumnCount} style={{ ...cell, textAlign: 'center', fontWeight: 900 }}>各业态汇总 / 分业态汇总</th> : null}
+              <th colSpan={5} style={{ ...cell, textAlign: 'center', fontWeight: 900 }}>目标成本汇总（万元）</th>
+              {productNames.length ? <th colSpan={productColumnCount} style={{ ...cell, textAlign: 'center', fontWeight: 900 }}>各业态汇总 / 分业态汇总（万元、元/㎡）</th> : null}
               <th style={{ ...cell, textAlign: 'center', fontWeight: 900 }}>来源</th>
             </tr>
             <tr style={{ background: '#eef7f9' }}>
@@ -189,10 +190,10 @@ export function V60TargetCostTable({ rows, products, buildingArea, saleableArea 
               <th style={{ ...cell, textAlign: 'left', minWidth: 70 }}>单位</th>
               <th style={{ ...cell, textAlign: 'left', minWidth: 70 }}>税率</th>
               <th style={{ ...cell, textAlign: 'left', minWidth: 260 }}>说明/计算口径</th>
-              {['不含税', '含税', '税额', '建面单方', '可售单方'].map((head) => <th key={`all-${head}`} style={{ ...cell, textAlign: 'right', minWidth: 96 }}>全项目｜{head}</th>)}
+              {amountHeads.map((head) => <th key={`all-${head}`} style={{ ...cell, textAlign: 'right', minWidth: 110 }}>全项目｜{head}</th>)}
               {productNames.flatMap((name) => {
-                if (collapsedProducts.has(name)) return [<th key={`${name}-collapsed`} style={{ ...cell, textAlign: 'right', minWidth: 118, background: '#fff9db' }}>{name}｜含税</th>];
-                return ['不含税', '含税', '税额', '建面单方', '可售单方'].map((head) => <th key={`${name}-${head}`} style={{ ...cell, textAlign: 'right', minWidth: 118 }}>{name}｜{head}</th>);
+                if (collapsedProducts.has(name)) return [<th key={`${name}-collapsed`} style={{ ...cell, textAlign: 'right', minWidth: 118, background: '#fff9db' }}>{name}｜含税(万元)</th>];
+                return amountHeads.map((head) => <th key={`${name}-${head}`} style={{ ...cell, textAlign: 'right', minWidth: 128 }}>{name}｜{head}</th>);
               })}
               <th style={{ ...cell, textAlign: 'left', minWidth: 110 }}>来源</th>
             </tr>
