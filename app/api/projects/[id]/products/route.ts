@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
+import { inferTaxLiquidationObject } from '@/lib/tax-liquidation-object';
 
 const toNumber = (form: FormData, name: string) => Number(form.get(name) || 0);
 
@@ -54,6 +55,10 @@ async function saveCustomProductToPersonalTemplate(request: Request, input: { na
   return true;
 }
 
+async function saveTaxLiquidationObject(productId: string, value: string) {
+  await prisma.$executeRawUnsafe('UPDATE "ProductType" SET "taxLiquidationObject" = $1 WHERE "id" = $2', value, productId);
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
   const { version, locked } = await getEditableActiveVersion(params.id);
@@ -69,8 +74,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const existing = await prisma.productType.findFirst({ where: { projectVersionId: version.id, name } });
   const rawRemark = String(form.get('remark') || '');
   const remark = category && !rawRemark.includes('模板业态｜') ? `${rawRemark ? `${rawRemark}；` : ''}模板业态｜${category}` : rawRemark;
+  const isSaleable = form.get('isSaleable') === 'on';
+  const taxLiquidationObject = String(form.get('taxLiquidationObject') || '').trim() || inferTaxLiquidationObject({ name, isSaleable });
 
-  const data: any = { buildingArea: toNumber(form, 'buildingArea'), saleableArea: toNumber(form, 'saleableArea'), capacityArea: toNumber(form, 'capacityArea'), nonSaleableArea: toNumber(form, 'nonSaleableArea'), isSaleable: form.get('isSaleable') === 'on', participateAllocation: form.get('participateAllocation') === 'on', allocationWeight: toNumber(form, 'allocationWeight') || 1, remark };
+  const data: any = { buildingArea: toNumber(form, 'buildingArea'), saleableArea: toNumber(form, 'saleableArea'), capacityArea: toNumber(form, 'capacityArea'), nonSaleableArea: toNumber(form, 'nonSaleableArea'), isSaleable, participateAllocation: form.get('participateAllocation') === 'on', allocationWeight: toNumber(form, 'allocationWeight') || 1, remark };
   if (form.has('salePrice')) data.salePrice = toNumber(form, 'salePrice');
 
   const templateSaved = customName && saveToTemplate ? await saveCustomProductToPersonalTemplate(request, { name, category, ...data }) : false;
@@ -81,8 +88,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
       return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${duplicateTarget}`, 303);
     }
     await prisma.productType.update({ where: { id: existing.id }, data });
+    await saveTaxLiquidationObject(existing.id, taxLiquidationObject);
   } else {
-    await prisma.productType.create({ data: { projectVersionId: version.id, name, ...data } });
+    const created = await prisma.productType.create({ data: { projectVersionId: version.id, name, ...data } });
+    await saveTaxLiquidationObject(created.id, taxLiquidationObject);
   }
 
   const templateParam = templateSaved ? '&templateSaved=1' : '';
