@@ -1,15 +1,11 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { ProjectTopNav } from '@/components/project-navigation';
+import { V60TargetCostTable } from '@/components/v60-target-cost-table';
 import { rebuildProjectCostDictionary } from '@/lib/rebuild-project-cost-dictionary';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 
 export const dynamic = 'force-dynamic';
-
-const cell = { padding: 8, borderBottom: '1px solid #eef2f6', borderRight: '1px solid #eef2f6', whiteSpace: 'nowrap' as const };
-const stickyLevel = { ...cell, position: 'sticky' as const, left: 0, zIndex: 4, background: '#fff', minWidth: 56, textAlign: 'center' as const };
-const stickyCode = { ...cell, position: 'sticky' as const, left: 56, zIndex: 4, background: '#fff', minWidth: 112, fontWeight: 800, color: '#0f4c5c' };
-const stickySubject = { ...cell, position: 'sticky' as const, left: 168, zIndex: 4, background: '#fff', minWidth: 280, fontWeight: 800 };
 
 const tableOrder: Record<string, number> = {
   土地费用明细表: 10,
@@ -26,6 +22,43 @@ const tableOrder: Record<string, number> = {
   管理费用明细表: 120,
   财务费用明细表: 130,
   税金明细表: 140
+};
+
+const tableMajorName: Record<string, string> = {
+  土地费用明细表: '土地费',
+  前期费用明细表: '前期费',
+  土建明细表: '土建',
+  安装明细表: '安装',
+  设备明细表: '设备',
+  精装修明细表: '精装',
+  室外管网明细表: '室外管网',
+  景观工程明细表: '景观工程',
+  道路总平明细表: '道路总平',
+  围墙出入口明细表: '围墙出入口',
+  销售费用明细表: '销售费用',
+  管理费用明细表: '管理费用',
+  财务费用明细表: '财务费用',
+  税金明细表: '税金'
+};
+
+type AmountValue = { excl: number; incl: number; tax: number };
+type Amount = AmountValue & { byProduct: Record<string, AmountValue> };
+
+type DisplayRow = {
+  id: string;
+  parentId: string | null;
+  level: number;
+  rank: number;
+  rowIndex: number;
+  code: string;
+  name: string;
+  measureBasis: string;
+  unit: string;
+  taxRate: string;
+  remark: string;
+  sourceTable: string;
+  isLeaf: boolean;
+  amount: Amount;
 };
 
 function num(value: unknown) {
@@ -73,61 +106,30 @@ function sourceRank(row: any) {
   return 999;
 }
 
-type Amount = { excl: number; incl: number; tax: number; byProduct: Map<string, { excl: number; incl: number; tax: number }> };
-type DisplayRow = {
-  id: string;
-  level: number;
-  rank: number;
-  rowIndex: number;
-  code: string;
-  name: string;
-  measureBasis: string;
-  unit: string;
-  taxRate: string;
-  remark: string;
-  sourceTable: string;
-  isLeaf: boolean;
-  amount: Amount;
-};
-
-function emptyAmount(): Amount {
-  return { excl: 0, incl: 0, tax: 0, byProduct: new Map() };
+function majorName(row: any) {
+  const table = String(row.sourceTable || '');
+  return tableMajorName[table] || row.firstSubject || '未分类';
 }
 
-function addToAmount(target: Amount, amount: { excl: number; incl: number; tax: number }, product?: string) {
+function emptyAmount(): Amount {
+  return { excl: 0, incl: 0, tax: 0, byProduct: {} };
+}
+
+function addToAmount(target: Amount, amount: AmountValue, product?: string) {
   target.excl += amount.excl;
   target.incl += amount.incl;
   target.tax += amount.tax;
   if (product) {
-    const existing = target.byProduct.get(product) || { excl: 0, incl: 0, tax: 0 };
+    const existing = target.byProduct[product] || { excl: 0, incl: 0, tax: 0 };
     existing.excl += amount.excl;
     existing.incl += amount.incl;
     existing.tax += amount.tax;
-    target.byProduct.set(product, existing);
+    target.byProduct[product] = existing;
   }
 }
 
 function codePrefix(code: string, length: number) {
   return code.split('.').slice(0, length).join('.');
-}
-
-function levelStyle(level: number, amount: number) {
-  if (level === 1) return { background: '#e9f7f8', fontWeight: 900 };
-  if (level === 2) return { background: '#f8fafc', fontWeight: 800 };
-  if (level === 3) return { background: '#fcfdff', fontWeight: 700 };
-  return { background: amount > 0 ? '#f8fff9' : '#fff' };
-}
-
-function amountCells(amount: Amount, keyPrefix: string, cellStyle: any, area?: { buildingArea?: number; saleableArea?: number }, fallbackBuildingArea = 0, fallbackSaleableArea = 0) {
-  const buildingArea = area?.buildingArea || fallbackBuildingArea;
-  const saleableArea = area?.saleableArea || fallbackSaleableArea;
-  return [
-    <td key={`${keyPrefix}-excl`} style={{ ...cellStyle, textAlign: 'right' }}>{fmt(amount.excl)}</td>,
-    <td key={`${keyPrefix}-incl`} style={{ ...cellStyle, textAlign: 'right', fontWeight: 800 }}>{fmt(amount.incl)}</td>,
-    <td key={`${keyPrefix}-tax`} style={{ ...cellStyle, textAlign: 'right' }}>{fmt(amount.tax)}</td>,
-    <td key={`${keyPrefix}-building`} style={{ ...cellStyle, textAlign: 'right' }}>{fmt(single(amount.incl, buildingArea))}</td>,
-    <td key={`${keyPrefix}-saleable`} style={{ ...cellStyle, textAlign: 'right' }}>{fmt(single(amount.incl, saleableArea))}</td>
-  ];
 }
 
 export default async function TargetCostBatchPage({ params }: { params: { id: string } }) {
@@ -145,17 +147,15 @@ export default async function TargetCostBatchPage({ params }: { params: { id: st
     }
   });
 
-  const productList = (version?.products || [])
+  const products = (version?.products || [])
     .filter((item: any) => item.isActive)
     .map((item: any) => ({
       name: productName(item),
       buildingArea: productBuildingArea(item),
       saleableArea: productSaleableArea(item)
     }));
-  const productNames = productList.map((item) => item.name);
+  const productNames = products.map((item) => item.name);
   const productSet = new Set(productNames);
-  const productAreaMap = new Map(productList.map((item) => [item.name, item]));
-
   const buildingArea = num(project.totalBuildingArea);
   const saleableArea = num(project.saleableArea);
 
@@ -163,6 +163,7 @@ export default async function TargetCostBatchPage({ params }: { params: { id: st
     where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } },
     orderBy: [{ rowIndex: 'asc' }]
   });
+
   const leafRows = dictionaryRows
     .filter((row) => row.detailSubject)
     .sort((a: any, b: any) => sourceRank(a) - sourceRank(b) || num(a.rowIndex) - num(b.rowIndex) || String(a.costCode || '').localeCompare(String(b.costCode || '')));
@@ -194,10 +195,11 @@ export default async function TargetCostBatchPage({ params }: { params: { id: st
     const code = row.costCode || '';
     const rank = sourceRank(row);
     const rowIndex = num(row.rowIndex);
-    const l1 = ensureRow({ id: `1-${rank}-${row.firstSubject}`, level: 1, rank, rowIndex, code: codePrefix(code, 1), name: row.firstSubject || '未分类', measureBasis: '', unit: '', taxRate: '', remark: '', sourceTable: row.sourceTable || '', isLeaf: false });
-    const l2 = ensureRow({ id: `2-${rank}-${row.firstSubject}-${row.secondSubject}`, level: 2, rank, rowIndex, code: codePrefix(code, 2), name: row.secondSubject || '未分类', measureBasis: '', unit: '', taxRate: '', remark: '', sourceTable: row.sourceTable || '', isLeaf: false });
-    const l3 = ensureRow({ id: `3-${rank}-${row.firstSubject}-${row.secondSubject}-${row.thirdSubject}`, level: 3, rank, rowIndex, code: row.parentCode || codePrefix(code, 3), name: row.thirdSubject || row.secondSubject || '未分类', measureBasis: '', unit: '', taxRate: '', remark: '', sourceTable: row.sourceTable || '', isLeaf: false });
-    const leaf = ensureRow({ id: `4-${code}-${row.detailSubject}`, level: 4, rank, rowIndex, code, name: row.detailSubject || '未命名科目', measureBasis: row.measureBasis || '', unit: row.unit || '', taxRate: row.defaultTaxRate || '', remark: row.remark || '', sourceTable: row.sourceTable || '', isLeaf: true });
+    const major = majorName(row);
+    const l1 = ensureRow({ id: `1-${rank}-${major}`, parentId: null, level: 1, rank, rowIndex, code: codePrefix(code, 1), name: major, measureBasis: '', unit: '', taxRate: '', remark: '', sourceTable: row.sourceTable || '', isLeaf: false });
+    const l2 = ensureRow({ id: `2-${rank}-${major}-${row.secondSubject}`, parentId: l1.id, level: 2, rank, rowIndex, code: codePrefix(code, 2), name: row.secondSubject || '未分类', measureBasis: '', unit: '', taxRate: '', remark: '', sourceTable: row.sourceTable || '', isLeaf: false });
+    const l3 = ensureRow({ id: `3-${rank}-${major}-${row.secondSubject}-${row.thirdSubject}`, parentId: l2.id, level: 3, rank, rowIndex, code: row.parentCode || codePrefix(code, 3), name: row.thirdSubject || row.secondSubject || '未分类', measureBasis: '', unit: '', taxRate: '', remark: '', sourceTable: row.sourceTable || '', isLeaf: false });
+    const leaf = ensureRow({ id: `4-${code}-${row.detailSubject}`, parentId: l3.id, level: 4, rank, rowIndex, code, name: row.detailSubject || '未命名科目', measureBasis: row.measureBasis || '', unit: row.unit || '', taxRate: row.defaultTaxRate || '', remark: row.remark || '', sourceTable: row.sourceTable || '', isLeaf: true });
 
     const costs = code ? costByCode.get(code) || [] : [];
     for (const cost of costs) {
@@ -214,7 +216,6 @@ export default async function TargetCostBatchPage({ params }: { params: { id: st
   const total = displayRows.filter((row) => row.level === 1).reduce((sum, row) => sum + row.amount.incl, 0);
   const filledLeafRows = displayRows.filter((row) => row.isLeaf && row.amount.incl > 0).length;
   const leafCount = displayRows.filter((row) => row.isLeaf).length;
-
   const v60OrderNote = '土地费 → 前期费 → 土建 → 安装 → 设备 → 精装 → 室外管网 → 景观 → 道路总平 → 围墙出入口 → 销售费用 → 管理费用 → 财务费用 → 税金';
 
   return (
@@ -248,62 +249,7 @@ export default async function TargetCostBatchPage({ params }: { params: { id: st
           <div className="stat"><div className="stat-label">已填末级科目</div><div className="stat-value">{filledLeafRows}/{leafCount}</div></div>
         </div>
 
-        <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc' }}>
-            <b>目标成本测算表｜V60横向分业态大表</b>
-            <div className="meta">左侧固定：级次、编码、科目、测算依据、单位、税率、说明；右侧：目标成本汇总 + 各业态汇总 + 各业态五列。</div>
-          </div>
-          <div style={{ overflow: 'auto', maxHeight: '74vh' }}>
-            <table style={{ width: '100%', minWidth: Math.max(1720, 980 + (productNames.length + 1) * 520), borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: '#dff3f6' }}>
-                  <th colSpan={7} style={{ ...cell, position: 'sticky', left: 0, zIndex: 6, background: '#dff3f6', textAlign: 'center', fontWeight: 900 }}>科目区</th>
-                  <th colSpan={5} style={{ ...cell, textAlign: 'center', fontWeight: 900 }}>目标成本汇总</th>
-                  {productNames.length ? <th colSpan={productNames.length * 5} style={{ ...cell, textAlign: 'center', fontWeight: 900 }}>各业态汇总 / 分业态汇总</th> : null}
-                  <th style={{ ...cell, textAlign: 'center', fontWeight: 900 }}>来源</th>
-                </tr>
-                <tr style={{ background: '#eef7f9' }}>
-                  <th colSpan={7} style={{ ...cell, position: 'sticky', left: 0, zIndex: 5, background: '#eef7f9', textAlign: 'center' }}>级次 / 编码 / 科目 / 测算依据</th>
-                  <th colSpan={5} style={{ ...cell, textAlign: 'center', fontWeight: 900 }}>全项目合计</th>
-                  {productNames.map((name) => <th key={name} colSpan={5} style={{ ...cell, textAlign: 'center', fontWeight: 900 }}>{name}</th>)}
-                  <th style={{ ...cell, textAlign: 'center' }}>明细表</th>
-                </tr>
-                <tr style={{ background: '#fff' }}>
-                  <th style={stickyLevel}>级次</th>
-                  <th style={stickyCode}>编码</th>
-                  <th style={stickySubject}>目标成本科目</th>
-                  <th style={{ ...cell, textAlign: 'left', minWidth: 220 }}>测算依据</th>
-                  <th style={{ ...cell, textAlign: 'left', minWidth: 70 }}>单位</th>
-                  <th style={{ ...cell, textAlign: 'left', minWidth: 70 }}>税率</th>
-                  <th style={{ ...cell, textAlign: 'left', minWidth: 260 }}>说明/计算口径</th>
-                  {['不含税', '含税', '税额', '建面单方', '可售单方'].map((head) => <th key={`all-${head}`} style={{ ...cell, textAlign: 'right', minWidth: 96 }}>{head}</th>)}
-                  {productNames.flatMap((name) => ['不含税', '含税', '税额', '建面单方', '可售单方'].map((head) => <th key={`${name}-${head}`} style={{ ...cell, textAlign: 'right', minWidth: 96 }}>{head}</th>))}
-                  <th style={{ ...cell, textAlign: 'left', minWidth: 110 }}>来源</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayRows.map((item) => {
-                  const style = levelStyle(item.level, item.amount.incl);
-                  return <tr key={item.id} style={style}>
-                    <td style={{ ...stickyLevel, ...style }}>{item.level}</td>
-                    <td style={{ ...stickyCode, ...style }}>{item.code}</td>
-                    <td style={{ ...stickySubject, ...style, paddingLeft: 8 + (item.level - 1) * 18 }}>{item.name}</td>
-                    <td style={{ ...cell, whiteSpace: 'normal' }}>{item.measureBasis || (item.isLeaf ? '-' : '自动汇总')}</td>
-                    <td style={{ ...cell }}>{item.unit}</td>
-                    <td style={{ ...cell }}>{item.taxRate}</td>
-                    <td style={{ ...cell, whiteSpace: 'normal', color: '#667085' }}>{item.remark || (item.isLeaf ? '-' : '汇总下级末级科目，不重复计入')}</td>
-                    {amountCells(item.amount, `${item.id}-all`, cell, undefined, buildingArea, saleableArea)}
-                    {productNames.flatMap((name) => {
-                      const amount = item.amount.byProduct.get(name) || { excl: 0, incl: 0, tax: 0 };
-                      return amountCells({ excl: amount.excl, incl: amount.incl, tax: amount.tax, byProduct: new Map() }, `${item.id}-${name}`, cell, productAreaMap.get(name), buildingArea, saleableArea);
-                    })}
-                    <td style={{ ...cell }}>{item.sourceTable}</td>
-                  </tr>;
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <V60TargetCostTable rows={displayRows} products={products} buildingArea={buildingArea} saleableArea={saleableArea} />
       </div>
     </main>
   );
