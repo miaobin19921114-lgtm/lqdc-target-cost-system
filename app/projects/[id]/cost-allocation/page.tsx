@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { effectiveCostRows, n } from '@/lib/tax-summary';
 import { getCostSettings } from '@/lib/cost-product-settings';
+import { getTaxLiquidationObject } from '@/lib/tax-liquidation-object';
+import { getProductTaxLiquidationObjectMap } from '@/lib/product-tax-liquidation-object-values';
+import { normalizeProjectVersionCostLineAmounts } from '@/lib/normalize-cost-line-amounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,11 +37,12 @@ function allocationMethodName(method: string | null | undefined) {
   return method || '按可售面积占比';
 }
 
-function taxObjectName(product: any) {
-  if (!product.isSaleable) return '不可售/配套成本对象';
-  if (includes(product.name, ['车位', '车库', '地库'])) return '车位成本对象';
-  if (includes(product.name, ['商业', '底商', '商铺'])) return '商业成本对象';
-  return '住宅/可售成本对象';
+function taxObjectName(product: any, taxObjectMap: Map<string, string | null>) {
+  return getTaxLiquidationObject({
+    name: product.name,
+    isSaleable: product.isSaleable,
+    taxLiquidationObject: taxObjectMap.get(product.id)
+  });
 }
 
 function productCostGroupName(product: any) {
@@ -67,6 +71,20 @@ function rowAttributionType(cost: any, poolSize: number, hasDirectProduct: boole
   return '共同分摊';
 }
 
+type ProductTotal = {
+  product: any;
+  costGroup: string;
+  taxObject: string;
+  inclusive: number;
+  exclusive: number;
+  tax: number;
+  directInclusive: number;
+  groupInclusive: number;
+  sharedInclusive: number;
+  buildingArea: number;
+  saleableArea: number;
+};
+
 export default async function CostAllocationPage({ params }: { params: { id: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
@@ -80,6 +98,10 @@ export default async function CostAllocationPage({ params }: { params: { id: str
     }
   });
 
+  if (version) await normalizeProjectVersionCostLineAmounts(version.id);
+  const costsForVersion = version ? await prisma.costLine.findMany({ where: { projectVersionId: version.id }, include: { costSubject: true, productType: true } }) : [];
+  const taxObjectMap = version ? await getProductTaxLiquidationObjectMap(version.id) : new Map<string, string | null>();
+
   const dictRows = await prisma.costDictionaryRow.findMany({
     where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } },
     select: { costCode: true }
@@ -89,17 +111,18 @@ export default async function CostAllocationPage({ params }: { params: { id: str
   const disabledProductCount = allProducts.filter((item) => !item.isActive).length;
   const products = allProducts.filter((item) => item.isActive && item.participateAllocation);
   const activeProducts = allProducts.filter((item) => item.isActive);
-  const effective = effectiveCostRows(version?.costs || [], leafCodes);
+  const effective = effectiveCostRows(costsForVersion, leafCodes);
   const costs = effective.effective;
   const saleableProducts = products.filter((item) => item.isSaleable);
   const totalInclusiveCost = costs.reduce((sum, row) => sum + n(row.taxInclusiveAmount), 0);
   const totalExclusiveCost = costs.reduce((sum, row) => sum + n(row.taxExclusiveAmount), 0);
   const totalTax = costs.reduce((sum, row) => sum + n(row.taxAmount), 0);
 
-  const productTotals = new Map<string, { product: any; costGroup: string; inclusive: number; exclusive: number; tax: number; directInclusive: number; groupInclusive: number; sharedInclusive: number; buildingArea: number; saleableArea: number }>();
+  const productTotals = new Map<string, ProductTotal>();
   products.forEach((product) => productTotals.set(product.id, {
     product,
     costGroup: productCostGroupName(product),
+    taxObject: taxObjectName(product, taxObjectMap),
     inclusive: 0,
     exclusive: 0,
     tax: 0,
@@ -178,6 +201,18 @@ export default async function CostAllocationPage({ params }: { params: { id: str
   const allocatedInclusive = Array.from(productTotals.values()).reduce((sum, item) => sum + item.inclusive, 0);
   const diff = totalInclusiveCost - allocatedInclusive;
   const costGroupCount = new Set(Array.from(productTotals.values()).map((item) => item.costGroup)).size;
+  const taxObjectTotals = new Map<string, { name: string; count: number; inclusive: number; exclusive: number; tax: number; directInclusive: number; groupInclusive: number; sharedInclusive: number }>();
+  Array.from(productTotals.values()).forEach((item) => {
+    const current = taxObjectTotals.get(item.taxObject) || { name: item.taxObject, count: 0, inclusive: 0, exclusive: 0, tax: 0, directInclusive: 0, groupInclusive: 0, sharedInclusive: 0 };
+    current.count += 1;
+    current.inclusive += item.inclusive;
+    current.exclusive += item.exclusive;
+    current.tax += item.tax;
+    current.directInclusive += item.directInclusive;
+    current.groupInclusive += item.groupInclusive;
+    current.sharedInclusive += item.sharedInclusive;
+    taxObjectTotals.set(item.taxObject, current);
+  });
 
   return (
     <main className="page">
@@ -186,13 +221,13 @@ export default async function CostAllocationPage({ params }: { params: { id: str
           <div>
             <p className="eyebrow">成本分摊测算表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">按“启用业态 + 成本测算归属设置”分摊：收入业态不一定等于工程成本对象，地下车位、储藏室、物业社区用房等按业态维护中的归属规则处理。</p>
+            <p className="subtitle">按“启用业态 + 成本测算归属设置 + 税务清算对象”分摊。分摊结果供土地增值税、税费测算总表、税务报告和业态利润表引用。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/product-maintenance`} className="btn btn-primary">业态维护</Link>
             <Link href={`/projects/${project.id}/costs-batch`} className="btn">目标成本编制</Link>
             <Link href={`/projects/${project.id}/land-vat`} className="btn">土地增值税</Link>
-            <Link href={`/projects/${project.id}/tax-details`} className="btn">税金明细</Link>
+            <Link href={`/projects/${project.id}/tax-details`} className="btn">税费测算总表</Link>
             <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
           </div>
         </div>
@@ -200,27 +235,51 @@ export default async function CostAllocationPage({ params }: { params: { id: str
         {disabledProductCount || effective.ignoredDisabled || effective.ignoredNonLeaf ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已排除停用业态 {disabledProductCount} 个、停用业态成本行 {effective.ignoredDisabled} 行、非末级历史成本行 {effective.ignoredNonLeaf} 行。</div> : null}
         {effective.importedLeafRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb', background: '#f0fff4' }}>已计入 {effective.importedLeafRows} 条 Excel 导入/临时四级成本科目，建议通过“导入科目映射”归入标准科目。</div> : null}
         {fallbackRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>有 {fallbackRows} 行成本未匹配到明确成本归属分组，已暂按共同成本分摊。建议回到业态维护或专业明细页检查“成本归属/区域”。</div> : null}
-        {Math.abs(diff) > 1 ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffc9c9', background: '#fff5f5' }}>分摊差异 {fmt(diff)} 元，请检查是否没有参与分摊的启用业态或分摊基数为 0。</div> : null}
+        {Math.abs(diff) > 1 ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffc9c9', background: '#fff5f5' }}>分摊差异 {fmt(diff)} 万元，请检查是否没有参与分摊的启用业态或分摊基数为 0。</div> : null}
 
         <div className="summary-strip">
           <div className="stat"><div className="stat-label">参与分摊业态</div><div className="stat-value">{products.length}/{activeProducts.length}</div></div>
           <div className="stat"><div className="stat-label">成本归属分组</div><div className="stat-value">{costGroupCount}</div></div>
+          <div className="stat"><div className="stat-label">清算对象</div><div className="stat-value">{taxObjectTotals.size}</div></div>
           <div className="stat"><div className="stat-label">有效成本行</div><div className="stat-value">{costs.length}</div></div>
           <div className="stat"><div className="stat-label">含税/不含税成本</div><div className="stat-value">{fmt(totalInclusiveCost)} / {fmt(totalExclusiveCost)}</div></div>
           <div className="stat"><div className="stat-label">分摊差异</div><div className="stat-value">{fmt(diff)}</div></div>
         </div>
 
         <section className="card" style={{ marginBottom: 18 }}>
+          <h2>按税务清算对象汇总</h2>
+          <p className="meta">用于复核土增税和业态利润的上游成本口径。税务清算对象优先读取“业态维护”中的手动选择。</p>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead><tr>{['税务清算对象', '业态数', '含税分摊成本', '不含税分摊成本', '进项税额', '直接归属', '归属组分摊', '共同分摊', '占比'].map((head) => <th key={head} style={{ textAlign: head === '税务清算对象' ? 'left' : 'right', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead>
+              <tbody>
+                {Array.from(taxObjectTotals.values()).map((item) => <tr key={item.name}>
+                  <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{item.name}</td>
+                  <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{item.count}</td>
+                  <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 800 }}>{fmt(item.inclusive)}</td>
+                  <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(item.exclusive)}</td>
+                  <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(item.tax)}</td>
+                  <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(item.directInclusive)}</td>
+                  <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(item.groupInclusive)}</td>
+                  <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{fmt(item.sharedInclusive)}</td>
+                  <td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{pct(totalInclusiveCost ? item.inclusive / totalInclusiveCost : 0)}</td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="card" style={{ marginBottom: 18 }}>
           <h2>业态计税成本对象</h2>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 1280, borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead><tr>{['业态', '成本归属组', '成本对象', '建筑面积', '可售面积', '含税分摊成本', '不含税分摊成本', '进项税额', '直接归属', '归属组分摊', '共同分摊', '建面单方', '可售单方', '占比'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead>
+            <table style={{ width: '100%', minWidth: 1320, borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead><tr>{['业态', '成本归属组', '税务清算对象', '建筑面积', '可售面积', '含税分摊成本', '不含税分摊成本', '进项税额', '直接归属', '归属组分摊', '共同分摊', '建面单方', '可售单方', '占比'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead>
               <tbody>
-                {Array.from(productTotals.values()).map(({ product, costGroup, inclusive, exclusive, tax, directInclusive, groupInclusive, sharedInclusive, buildingArea, saleableArea }) => (
+                {Array.from(productTotals.values()).map(({ product, costGroup, taxObject, inclusive, exclusive, tax, directInclusive, groupInclusive, sharedInclusive, buildingArea, saleableArea }) => (
                   <tr key={product.id}>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 700 }}>{product.name}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{costGroup}</td>
-                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{taxObjectName(product)}</td>
+                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{taxObject}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(buildingArea)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(saleableArea)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{fmt(inclusive)}</td>
