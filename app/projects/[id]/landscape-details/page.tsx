@@ -8,14 +8,14 @@ export default async function LandscapeDetailsPage({ params, searchParams }: { p
     saved={searchParams?.saved}
     title="景观工程明细"
     eyebrow="景观工程明细表"
-    subtitle="硬景、软景、水景、小品、照明等景观工程科目从成本词典预设。"
+    subtitle="硬景铺装、软景绿化、水景、儿童活动、架空层景观、小品构筑物、景观照明、标识导视等科目从V60词典预设。"
     professionalGroup="景观工程明细"
     returnPath="landscape-details"
-    dictionaryKeywords={['景观', '硬景', '软景', '绿化', '小品']}
+    dictionaryKeywords={['景观', '硬景', '软景', '绿化', '水景', '儿童', '架空层', '小品', '照明', '导视']}
     emptyText="暂无景观工程明细。"
     selectPlaceholder="请选择景观工程科目"
     detailPlaceholder="自动带出四级/明细科目"
-    measurePlaceholder="如景观面积、硬景面积、软景面积"
-    note="景观工程按词典预设自动带出硬景、软景、综合景观等测算依据、单位、税率和分摊口径。"
+    measurePlaceholder="如景观面积、硬景面积、软景面积、水景面积、儿童活动场地面积"
+    note="景观工程原则上项目整体共用；硬景按硬景面积、软景按软景面积、水景按水景面积、儿童活动按活动场地面积测算。"
   />;
 }
