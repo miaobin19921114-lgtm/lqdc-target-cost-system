@@ -8,14 +8,14 @@ export default async function OutdoorPipeDetailsPage({ params, searchParams }: {
     saved={searchParams?.saved}
     title="室外管网明细"
     eyebrow="室外管网明细表"
-    subtitle="室外给排水、电气外网、弱电外网等科目从词典预设。"
+    subtitle="室外综合管网、给水、雨污水、消防管网、强弱电外线、燃气、海绵城市等科目从V60词典预设。"
     professionalGroup="室外管网明细"
     returnPath="outdoor-pipe-details"
-    dictionaryKeywords={['室外管网', '管网', '给水', '排水', '外网']}
+    dictionaryKeywords={['室外管网', '综合管网', '给水', '雨水', '污水', '消防', '强电', '弱电', '燃气', '海绵城市']}
     emptyText="暂无室外管网明细。"
     selectPlaceholder="请选择室外管网科目"
     detailPlaceholder="自动带出四级/明细科目"
-    measurePlaceholder="如景观面积、管线长度、建筑面积、固定金额"
-    note="选择成本科目后，自动带出测算依据、单位、税率、适用业态和分摊口径。"
+    measurePlaceholder="如景观面积、红线面积、管线长度、户数、固定金额"
+    note="室外管网原则上项目整体共用；能明确服务对象的可直接归属，不能直接归属时按建筑面积或可售面积分摊。"
   />;
 }
