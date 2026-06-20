@@ -41,7 +41,8 @@ function taxRateFrom(inputValue: FormDataEntryValue | null, fallback = 0.09) {
 
 function round2(amount: number) { return Math.round((amount + Number.EPSILON) * 100) / 100; }
 function calc(quantity: number, taxInclusiveUnitPrice: number, taxRate: number) {
-  const taxInclusiveAmount = round2(quantity * taxInclusiveUnitPrice);
+  // 全系统成本口径：单价为“元/单位”，合价统一保存为“万元”。
+  const taxInclusiveAmount = round2((quantity * taxInclusiveUnitPrice) / 10000);
   const taxExclusiveAmount = round2(taxInclusiveAmount / (1 + taxRate));
   const taxAmount = round2(taxInclusiveAmount - taxExclusiveAmount);
   const taxExclusiveUnitPrice = taxInclusiveUnitPrice ? round2(taxInclusiveUnitPrice / (1 + taxRate)) : 0;
