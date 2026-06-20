@@ -58,7 +58,7 @@ export function resolveAllocationRule(
   const subjectDefault = clean(cost.costSubject.defaultAllocationMethod);
   const operatingRule = clean(dict?.targetAllocationMethod) || clean(dict?.costAttributionMethod);
   const landVatRule = clean(dict?.landVatAllocationMethod) || clean(dict?.targetAllocationMethod) || clean(dict?.costAttributionMethod);
-  const incomeTaxRule = clean(dict?.targetAllocationMethod) || clean(dict?.costAttributionMethod) || clean(dict?.landVatAllocationMethod);
+  const incomeTaxRule = clean(dict?.incomeTaxDeductionCategory) || clean(dict?.targetAllocationMethod) || clean(dict?.costAttributionMethod) || clean(dict?.landVatAllocationMethod);
   const templateMethod = purpose === 'landVat' ? landVatRule : purpose === 'incomeTax' ? incomeTaxRule : operatingRule;
 
   if (projectMethod) return { method: projectMethod, source: '项目调整' };
