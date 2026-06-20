@@ -8,6 +8,7 @@ import { buildV60HeatingRows } from '@/data/cost-dictionary-v60-heating';
 import { buildV60OutdoorPipeRows } from '@/data/cost-dictionary-v60-outdoor-pipe';
 import { buildV60LandscapeRows } from '@/data/cost-dictionary-v60-landscape';
 import { buildV60RoadRows } from '@/data/cost-dictionary-v60-road';
+import { buildV60WallGateRows } from '@/data/cost-dictionary-v60-wall-gate';
 
 function clean(value: unknown) {
   return String(value || '').trim();
@@ -84,7 +85,8 @@ export async function rebuildProjectCostDictionary(projectId: string) {
     row.sourceTable !== '精装修明细表' &&
     row.sourceTable !== '室外管网明细表' &&
     row.sourceTable !== '景观工程明细表' &&
-    row.sourceTable !== '道路总平明细表'
+    row.sourceTable !== '道路总平明细表' &&
+    row.sourceTable !== '围墙出入口明细表'
   );
 
   const prefabricatedOffset = Math.max(0, ...baseRows.map((row) => row.rowIndex || 0)) + 1;
@@ -103,8 +105,10 @@ export async function rebuildProjectCostDictionary(projectId: string) {
   const landscapeRows = buildV60LandscapeRows(landscapeOffset);
   const roadOffset = landscapeOffset + landscapeRows.length;
   const roadRows = buildV60RoadRows(roadOffset);
+  const wallGateOffset = roadOffset + roadRows.length;
+  const wallGateRows = buildV60WallGateRows(wallGateOffset);
 
-  const presetRows = applyConfig(project, [...baseRows, ...prefabricatedRows, ...installRows, ...equipmentRows, ...fitoutRows, ...heatingRows, ...outdoorPipeRows, ...landscapeRows, ...roadRows])
+  const presetRows = applyConfig(project, [...baseRows, ...prefabricatedRows, ...installRows, ...equipmentRows, ...fitoutRows, ...heatingRows, ...outdoorPipeRows, ...landscapeRows, ...roadRows, ...wallGateRows])
     .map((row) => ({ ...row, projectId }));
 
   await prisma.$transaction([
