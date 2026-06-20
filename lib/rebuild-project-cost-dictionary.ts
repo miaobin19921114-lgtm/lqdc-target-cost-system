@@ -13,6 +13,7 @@ import { buildV60RoadRows } from '@/data/cost-dictionary-v60-road';
 import { buildV60WallGateRows } from '@/data/cost-dictionary-v60-wall-gate';
 import { buildV60SalesExpenseRows } from '@/data/cost-dictionary-v60-sales-expense';
 import { buildV60AdminExpenseRows } from '@/data/cost-dictionary-v60-admin-expense';
+import { buildV60FinanceExpenseRows } from '@/data/cost-dictionary-v60-finance-expense';
 
 function clean(value: unknown) {
   return String(value || '').trim();
@@ -94,7 +95,8 @@ export async function rebuildProjectCostDictionary(projectId: string) {
     row.sourceTable !== '道路总平明细表' &&
     row.sourceTable !== '围墙出入口明细表' &&
     row.sourceTable !== '销售费用明细表' &&
-    row.sourceTable !== '管理费用明细表'
+    row.sourceTable !== '管理费用明细表' &&
+    row.sourceTable !== '财务费用明细表'
   );
 
   const landOffset = Math.max(0, ...baseRows.map((row) => row.rowIndex || 0)) + 1;
@@ -123,8 +125,10 @@ export async function rebuildProjectCostDictionary(projectId: string) {
   const salesExpenseRows = buildV60SalesExpenseRows(salesExpenseOffset);
   const adminExpenseOffset = salesExpenseOffset + salesExpenseRows.length;
   const adminExpenseRows = buildV60AdminExpenseRows(adminExpenseOffset);
+  const financeExpenseOffset = adminExpenseOffset + adminExpenseRows.length;
+  const financeExpenseRows = buildV60FinanceExpenseRows(financeExpenseOffset);
 
-  const presetRows = applyConfig(project, [...baseRows, ...landRows, ...preCostRows, ...prefabricatedRows, ...installRows, ...equipmentRows, ...fitoutRows, ...heatingRows, ...outdoorPipeRows, ...landscapeRows, ...roadRows, ...wallGateRows, ...salesExpenseRows, ...adminExpenseRows])
+  const presetRows = applyConfig(project, [...baseRows, ...landRows, ...preCostRows, ...prefabricatedRows, ...installRows, ...equipmentRows, ...fitoutRows, ...heatingRows, ...outdoorPipeRows, ...landscapeRows, ...roadRows, ...wallGateRows, ...salesExpenseRows, ...adminExpenseRows, ...financeExpenseRows])
     .map((row) => ({ ...row, projectId }));
 
   await prisma.$transaction([
