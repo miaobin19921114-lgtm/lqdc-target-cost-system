@@ -5,6 +5,7 @@ import { buildV60InstallationRows } from '@/data/cost-dictionary-v60-install';
 import { buildV60EquipmentRows } from '@/data/cost-dictionary-v60-equipment';
 import { buildV60FitoutRows } from '@/data/cost-dictionary-v60-fitout';
 import { buildV60HeatingRows } from '@/data/cost-dictionary-v60-heating';
+import { buildV60OutdoorPipeRows } from '@/data/cost-dictionary-v60-outdoor-pipe';
 
 function clean(value: unknown) {
   return String(value || '').trim();
@@ -78,7 +79,8 @@ export async function rebuildProjectCostDictionary(projectId: string) {
   const baseRows = getV60CostDictionaryRows().filter((row) =>
     row.sourceTable !== '安装明细表' &&
     row.sourceTable !== '设备明细表' &&
-    row.sourceTable !== '精装修明细表'
+    row.sourceTable !== '精装修明细表' &&
+    row.sourceTable !== '室外管网明细表'
   );
 
   const prefabricatedOffset = Math.max(0, ...baseRows.map((row) => row.rowIndex || 0)) + 1;
@@ -91,8 +93,10 @@ export async function rebuildProjectCostDictionary(projectId: string) {
   const fitoutRows = buildV60FitoutRows(fitoutOffset);
   const heatingOffset = fitoutOffset + fitoutRows.length;
   const heatingRows = buildV60HeatingRows(heatingOffset);
+  const outdoorPipeOffset = heatingOffset + heatingRows.length;
+  const outdoorPipeRows = buildV60OutdoorPipeRows(outdoorPipeOffset);
 
-  const presetRows = applyConfig(project, [...baseRows, ...prefabricatedRows, ...installRows, ...equipmentRows, ...fitoutRows, ...heatingRows])
+  const presetRows = applyConfig(project, [...baseRows, ...prefabricatedRows, ...installRows, ...equipmentRows, ...fitoutRows, ...heatingRows, ...outdoorPipeRows])
     .map((row) => ({ ...row, projectId }));
 
   await prisma.$transaction([
