@@ -101,6 +101,7 @@ export function buildV60LandRows(offset: number): CostDictionaryPresetRow[] {
       const next = (sequence.get(sequenceKey) || 0) + 1;
       sequence.set(sequenceKey, next);
       result.push({
+        ...common,
         rowIndex: rowIndex++,
         costCode: `${input.code}.${String(next).padStart(2, '0')}`,
         parentCode: input.code,
@@ -117,8 +118,7 @@ export function buildV60LandRows(offset: number): CostDictionaryPresetRow[] {
         applicableProductType: '项目整体',
         remark: detail.remark || input.remark || 'V60土地费明细科目，按合同、票据、付款凭证和财税审核复核。',
         landVatAllocationMethod: detail.landVatMethod || input.landVatMethod || '取得土地使用权相关成本',
-        incomeTaxDeductionCategory: detail.incomeTaxCategory || input.incomeTaxCategory || '土地成本',
-        ...common
+        incomeTaxDeductionCategory: detail.incomeTaxCategory || input.incomeTaxCategory || '土地成本'
       });
     }
   }
