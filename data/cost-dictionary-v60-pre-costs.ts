@@ -154,6 +154,7 @@ export function buildV60PreCostRows(offset: number): CostDictionaryPresetRow[] {
       const next = (sequence.get(sequenceKey) || 0) + 1;
       sequence.set(sequenceKey, next);
       result.push({
+        ...common,
         rowIndex: rowIndex++,
         costCode: `${input.code}.${String(next).padStart(2, '0')}`,
         parentCode: input.code,
@@ -170,8 +171,7 @@ export function buildV60PreCostRows(offset: number): CostDictionaryPresetRow[] {
         applicableProductType: '项目整体共用',
         remark: detail.remark || input.remark || 'V60前期费明细科目，按合同、政府文件、专项成果和财税审核复核。',
         landVatAllocationMethod: detail.landVatMethod || input.landVatMethod || common.landVatAllocationMethod,
-        incomeTaxDeductionCategory: detail.incomeTaxCategory || input.incomeTaxCategory || common.incomeTaxDeductionCategory,
-        ...common
+        incomeTaxDeductionCategory: detail.incomeTaxCategory || input.incomeTaxCategory || common.incomeTaxDeductionCategory
       });
     }
   }
