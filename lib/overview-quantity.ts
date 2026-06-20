@@ -12,10 +12,13 @@ export function suggestQuantityFromOverview(project: any, row: any) {
   if (/水景|水系/.test(text)) return pick(project.waterFeatureArea, '㎡', '概况表：水景面积');
   if (/儿童|活动场地/.test(text)) return pick(project.childrenActivityArea, '㎡', '概况表：儿童活动场地面积');
   if (/架空层/.test(text)) return pick(project.elevatedFloorLandscapeArea, '㎡', '概况表：架空层景观面积');
-  if (/硬景|铺装/.test(text)) return pick(project.hardscapeArea, '㎡', '概况表：硬景面积');
-  if (/软景/.test(text)) return pick(project.softscapeArea, '㎡', '概况表：软景面积');
+  if (/硬景|铺装|透水铺装/.test(text)) return pick(project.hardscapeArea, '㎡', '概况表：硬景面积');
+  if (/软景|下凹绿地|雨水花园/.test(text)) return pick(project.softscapeArea, '㎡', '概况表：软景面积');
   if (/绿化|绿地/.test(text)) return pick(project.greenArea || project.softscapeArea, '㎡', '概况表：绿地/软景面积');
-  if (/景观|园林|综合管网|室外管网|管线/.test(text)) return pick(project.landscapeArea, '㎡', '概况表：景观面积');
+  if (/井室数量|检查井|阀门井|水表井|电缆井|弱电井|井室|雨水口|消火栓|水泵接合器|调压箱|调压柜|化粪池|隔油池/.test(text)) return pick(0, row.unit || '个', '需按总图/专项数量输入');
+  if (/管线长度|管沟长度|电缆长度|管道长度|长度/.test(text)) return pick(0, row.unit || 'm', '需按总图管线长度输入');
+  if (/供电容量/.test(text)) return pick(project.parkingPowerCapacity, 'kVA', '概况表：车库/项目供电容量');
+  if (/景观|园林|综合管网|室外管网|管线|海绵城市/.test(text)) return pick(project.landscapeArea || project.redLineArea || project.landArea, '㎡', '概况表：景观面积/红线面积');
   if (/消防道路/.test(text)) return pick(project.fireRoadArea, '㎡', '概况表：消防道路面积');
   if (/沥青/.test(text)) return pick(project.asphaltRoadArea || project.roadArea, '㎡', '概况表：沥青/道路面积');
   if (/道路|总平|交安|标识/.test(text)) return pick(project.roadArea, '㎡', '概况表：道路面积');
