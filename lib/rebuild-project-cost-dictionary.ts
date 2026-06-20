@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { getV60CostDictionaryRows } from '@/data/cost-dictionary-v60';
+import { buildV60LandRows } from '@/data/cost-dictionary-v60-land';
+import { buildV60PreCostRows } from '@/data/cost-dictionary-v60-pre-costs';
 import { buildV60PrefabricatedRows } from '@/data/cost-dictionary-v60-prefabricated';
 import { buildV60InstallationRows } from '@/data/cost-dictionary-v60-install';
 import { buildV60EquipmentRows } from '@/data/cost-dictionary-v60-equipment';
@@ -80,6 +82,8 @@ export async function rebuildProjectCostDictionary(projectId: string) {
   if (!project) return;
 
   const baseRows = getV60CostDictionaryRows().filter((row) =>
+    row.sourceTable !== '土地费用明细表' &&
+    row.sourceTable !== '前期费用明细表' &&
     row.sourceTable !== '安装明细表' &&
     row.sourceTable !== '设备明细表' &&
     row.sourceTable !== '精装修明细表' &&
@@ -89,7 +93,11 @@ export async function rebuildProjectCostDictionary(projectId: string) {
     row.sourceTable !== '围墙出入口明细表'
   );
 
-  const prefabricatedOffset = Math.max(0, ...baseRows.map((row) => row.rowIndex || 0)) + 1;
+  const landOffset = Math.max(0, ...baseRows.map((row) => row.rowIndex || 0)) + 1;
+  const landRows = buildV60LandRows(landOffset);
+  const preCostOffset = landOffset + landRows.length;
+  const preCostRows = buildV60PreCostRows(preCostOffset);
+  const prefabricatedOffset = preCostOffset + preCostRows.length;
   const prefabricatedRows = buildV60PrefabricatedRows(prefabricatedOffset);
   const installOffset = prefabricatedOffset + prefabricatedRows.length;
   const installRows = buildV60InstallationRows(installOffset);
@@ -108,7 +116,7 @@ export async function rebuildProjectCostDictionary(projectId: string) {
   const wallGateOffset = roadOffset + roadRows.length;
   const wallGateRows = buildV60WallGateRows(wallGateOffset);
 
-  const presetRows = applyConfig(project, [...baseRows, ...prefabricatedRows, ...installRows, ...equipmentRows, ...fitoutRows, ...heatingRows, ...outdoorPipeRows, ...landscapeRows, ...roadRows, ...wallGateRows])
+  const presetRows = applyConfig(project, [...baseRows, ...landRows, ...preCostRows, ...prefabricatedRows, ...installRows, ...equipmentRows, ...fitoutRows, ...heatingRows, ...outdoorPipeRows, ...landscapeRows, ...roadRows, ...wallGateRows])
     .map((row) => ({ ...row, projectId }));
 
   await prisma.$transaction([
