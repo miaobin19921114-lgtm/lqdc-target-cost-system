@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ProjectTopNav } from '@/components/project-navigation';
 import { V60TargetCostTable } from '@/components/v60-target-cost-table';
 import { rebuildProjectCostDictionary } from '@/lib/rebuild-project-cost-dictionary';
+import { normalizeProjectVersionCostLineAmounts } from '@/lib/normalize-cost-line-amounts';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 
 export const dynamic = 'force-dynamic';
@@ -61,29 +62,12 @@ type DisplayRow = {
   amount: Amount;
 };
 
-function num(value: unknown) {
-  return Number(value || 0);
-}
-
-function fmt(value: unknown) {
-  return num(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
-
-function single(amountWan: number, area: number) {
-  return area ? (amountWan * 10000) / area : 0;
-}
-
-function productName(value: any) {
-  return value?.name || value?.productType || value?.productName || value?.typeName || value?.id || '未分业态';
-}
-
-function productBuildingArea(value: any) {
-  return num(value?.buildingArea || value?.totalBuildingArea || value?.aboveGroundBuildingArea || value?.grossFloorArea);
-}
-
-function productSaleableArea(value: any) {
-  return num(value?.saleableArea || value?.sellableArea || value?.saleArea);
-}
+function num(value: unknown) { return Number(value || 0); }
+function fmt(value: unknown) { return num(value).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+function single(amountWan: number, area: number) { return area ? (amountWan * 10000) / area : 0; }
+function productName(value: any) { return value?.name || value?.productType || value?.productName || value?.typeName || value?.id || '未分业态'; }
+function productBuildingArea(value: any) { return num(value?.buildingArea || value?.totalBuildingArea || value?.aboveGroundBuildingArea || value?.grossFloorArea); }
+function productSaleableArea(value: any) { return num(value?.saleableArea || value?.sellableArea || value?.saleArea); }
 
 function sourceRank(row: any) {
   const table = String(row.sourceTable || '');
@@ -111,10 +95,7 @@ function majorName(row: any) {
   return tableMajorName[table] || row.firstSubject || '未分类';
 }
 
-function emptyAmount(): Amount {
-  return { excl: 0, incl: 0, tax: 0, byProduct: {} };
-}
-
+function emptyAmount(): Amount { return { excl: 0, incl: 0, tax: 0, byProduct: {} }; }
 function addToAmount(target: Amount, amount: AmountValue, product?: string) {
   target.excl += amount.excl;
   target.incl += amount.incl;
@@ -128,9 +109,7 @@ function addToAmount(target: Amount, amount: AmountValue, product?: string) {
   }
 }
 
-function codePrefix(code: string, length: number) {
-  return code.split('.').slice(0, length).join('.');
-}
+function codePrefix(code: string, length: number) { return code.split('.').slice(0, length).join('.'); }
 
 export default async function TargetCostBatchPage({ params }: { params: { id: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
@@ -141,35 +120,28 @@ export default async function TargetCostBatchPage({ params }: { params: { id: st
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: {
-      products: true,
-      costs: { include: { costSubject: true, productType: true }, orderBy: { sortOrder: 'asc' } }
-    }
+    include: { products: true }
   });
 
-  const products = (version?.products || [])
-    .filter((item: any) => item.isActive)
-    .map((item: any) => ({
-      name: productName(item),
-      buildingArea: productBuildingArea(item),
-      saleableArea: productSaleableArea(item)
-    }));
+  if (version) await normalizeProjectVersionCostLineAmounts(version.id);
+
+  const costRows = version ? await prisma.costLine.findMany({
+    where: { projectVersionId: version.id },
+    include: { costSubject: true, productType: true },
+    orderBy: { sortOrder: 'asc' }
+  }) : [];
+
+  const products = (version?.products || []).filter((item: any) => item.isActive).map((item: any) => ({ name: productName(item), buildingArea: productBuildingArea(item), saleableArea: productSaleableArea(item) }));
   const productNames = products.map((item) => item.name);
   const productSet = new Set(productNames);
   const buildingArea = num(project.totalBuildingArea);
   const saleableArea = num(project.saleableArea);
 
-  const dictionaryRows = await prisma.costDictionaryRow.findMany({
-    where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } },
-    orderBy: [{ rowIndex: 'asc' }]
-  });
-
-  const leafRows = dictionaryRows
-    .filter((row) => row.detailSubject)
-    .sort((a: any, b: any) => sourceRank(a) - sourceRank(b) || num(a.rowIndex) - num(b.rowIndex) || String(a.costCode || '').localeCompare(String(b.costCode || '')));
+  const dictionaryRows = await prisma.costDictionaryRow.findMany({ where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } }, orderBy: [{ rowIndex: 'asc' }] });
+  const leafRows = dictionaryRows.filter((row) => row.detailSubject).sort((a: any, b: any) => sourceRank(a) - sourceRank(b) || num(a.rowIndex) - num(b.rowIndex) || String(a.costCode || '').localeCompare(String(b.costCode || '')));
 
   const costByCode = new Map<string, any[]>();
-  for (const cost of version?.costs || []) {
+  for (const cost of costRows) {
     const code = (cost as any).costSubject?.code;
     if (!code) continue;
     const name = productName((cost as any).productType);
@@ -204,11 +176,7 @@ export default async function TargetCostBatchPage({ params }: { params: { id: st
     const costs = code ? costByCode.get(code) || [] : [];
     for (const cost of costs) {
       const product = (cost as any).productTypeId ? productName((cost as any).productType) : undefined;
-      const amount = {
-        excl: num((cost as any).taxExclusiveAmount),
-        incl: num((cost as any).taxInclusiveAmount),
-        tax: num((cost as any).taxAmount)
-      };
+      const amount = { excl: num((cost as any).taxExclusiveAmount), incl: num((cost as any).taxInclusiveAmount), tax: num((cost as any).taxAmount) };
       [l1, l2, l3, leaf].forEach((target) => addToAmount(target.amount, amount, product));
     }
   }
@@ -226,7 +194,7 @@ export default async function TargetCostBatchPage({ params }: { params: { id: st
           <div>
             <p className="eyebrow">目标成本测算表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">金额单位统一为万元；单价单位统一为元/单位；单方统一为元/㎡。各专业明细页负责录入，本页自动汇总。</p>
+            <p className="subtitle">金额单位统一为万元；单价单位统一为元/单位；单方统一为元/㎡。各专业明细页负责录入，本页自动汇总并自动重算旧成本行。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总表</Link>
