@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { costTotals, effectiveCostRows, fullTaxSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
 import { normalizeProjectVersionCostLineAmounts } from '@/lib/normalize-cost-line-amounts';
+import { ProjectTopNav } from '@/components/project-navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,10 +134,10 @@ export default async function DecisionPage({ params }: { params: { id: string } 
     '若评级为谨慎推进或暂缓推进，先形成成本压降和售价复核动作清单。'
   ];
 
-  return <main className="page"><div className="container" style={{ maxWidth: 1180 }}>
-    <div className="page-header"><div><p className="eyebrow">投资决策评审表</p><h1 className="title">{project.name}</h1><p className="subtitle">投决结论页：判断是否推进，集中展示财务指标、风险、安全垫和上会确认事项。金额单位为万元，单方为元/㎡。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/dashboard-lite`} className="btn btn-primary">经营总控</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税费总表</Link><Link href={`/projects/${project.id}/sensitivity-report`} className="btn">敏感性报告</Link><Link href={`/projects/${project.id}/report-print`} className="btn">打印报告</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+  return <main className="page"><ProjectTopNav projectId={project.id} projectName={project.name} current="投决评审" /><div className="container" style={{ maxWidth: 1180 }}>
+    <div className="page-header"><div><p className="eyebrow">投资决策评审表</p><h1 className="title">{project.name}</h1><p className="subtitle">投决结论页：判断是否推进，集中展示财务指标、风险、安全垫和上会确认事项。金额单位为万元，单方为元/㎡。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/tax-details`} className="btn">税费测算总表</Link><Link href={`/projects/${project.id}/sensitivity`} className="btn">敏感性分析</Link><Link href={`/projects/${project.id}/report-print`} className="btn">打印经营报告</Link></div></div>
 
-    <section className="card" style={{ borderColor: decision.color, marginBottom: 16 }}><div className="meta">一、投决建议</div><div style={{ fontSize: 34, fontWeight: 900, color: decision.color, marginTop: 8 }}>{decision.level}</div><p style={{ fontWeight: 800, lineHeight: 1.8 }}>{decision.reason}</p><p className="meta">建议动作：{decision.action}</p><div className="actions"><Link href={`/projects/${project.id}/tax-details`} className="btn">复核税费</Link><Link href={`/projects/${project.id}/profit-analysis`} className="btn">复核业态利润</Link><Link href={`/projects/${project.id}/sensitivity-report`} className="btn">复核敏感性</Link></div></section>
+    <section className="card" style={{ borderColor: decision.color, marginBottom: 16 }}><div className="meta">一、投决建议</div><div style={{ fontSize: 34, fontWeight: 900, color: decision.color, marginTop: 8 }}>{decision.level}</div><p style={{ fontWeight: 800, lineHeight: 1.8 }}>{decision.reason}</p><p className="meta">建议动作：{decision.action}</p><div className="actions"><Link href={`/projects/${project.id}/tax-details`} className="btn">复核税费测算总表</Link><Link href={`/projects/${project.id}/profit-analysis`} className="btn">复核业态利润分析</Link><Link href={`/projects/${project.id}/sensitivity`} className="btn">复核敏感性分析</Link></div></section>
 
     <section className="card" style={{ marginBottom: 16 }}><h2>二、核心投决指标</h2><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 10 }}>{metrics.map(([label, value, unit]) => <div key={label} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 14 }}><div className="meta">{label}</div><div style={{ fontSize: 22, fontWeight: 900, marginTop: 8, color: String(label).includes('净利') || String(label).includes('毛利') ? color(Number(value || 0)) : undefined }}>{value === null ? '无法测算' : unit === 'percent' ? pct(Number(value)) : fmt(value)}</div><div className="meta">{unit === 'percent' ? '比例' : unit}</div></div>)}</div></section>
 
