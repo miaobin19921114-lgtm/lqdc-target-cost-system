@@ -35,14 +35,14 @@ export default async function CostMappingPage({ params, searchParams }: { params
         <div className="page-header">
           <div>
             <p className="eyebrow">导入与配置</p>
-            <h1 className="title">{project?.name || '项目'} · 导入科目映射</h1>
+            <h1 className="title">{project?.name || '项目'} · 科目映射</h1>
             <p className="subtitle">把外部 Excel 里的科目名称、科目路径或科目编码，映射到系统标准成本科目。标准成本科目本身在模板中心维护。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
-            <Link href={`/projects/${params.id}/export`} className="btn btn-primary">返回 Excel 导入</Link>
+            <Link href={`/projects/${params.id}/export`} className="btn btn-primary">返回 Excel 导入 / 导出</Link>
             <Link href={`/projects/${params.id}/check`} className="btn">系统自检</Link>
             <Link href="/templates" className="btn">模板中心</Link>
-            <Link href={`/projects/${params.id}`} className="btn">项目测算中心</Link>
+            <Link href={`/projects/${params.id}`} className="btn">返回项目测算中心</Link>
           </div>
         </div>
 
@@ -52,7 +52,7 @@ export default async function CostMappingPage({ params, searchParams }: { params
         {searchParams?.targetMissing === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffc9c9' }}>未找到选择的系统标准科目。</div> : null}
 
         <section className="card" style={{ marginBottom: 16, borderColor: '#c5eef3', background: '#f8fbff' }}>
-          <b>导入科目映射的作用</b>
+          <b>科目映射的作用</b>
           <p className="meta" style={{ margin: '6px 0 0' }}>它只解决 Excel 叫法不统一的问题，不在这里新增标准成本科目。标准成本科目、科目层级、默认测算依据和税率，统一放在模板中心。</p>
         </section>
 
@@ -114,7 +114,7 @@ export default async function CostMappingPage({ params, searchParams }: { params
           <div style={{ overflowX: 'auto', marginTop: 12 }}>
             <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
               <thead>
-                <tr>{['工作表/分组', '当前明细科目', '当前系统科目', '科目路径'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr>
+                <tr>{['工作表 / 分组', '当前明细科目', '当前系统科目', '科目路径'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr>
               </thead>
               <tbody>
                 {recentLines.map((line) => (
