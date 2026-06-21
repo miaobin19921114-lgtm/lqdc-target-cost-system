@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { writeTemplateAllocationRemark } from '@/lib/template-allocation-rules';
 
 const clean = (form: FormData, name: string) => String(form.get(name) || '').trim();
 const toNumber = (form: FormData, name: string) => Number(form.get(name) || 0);
@@ -29,6 +30,19 @@ function taxRateFrom(raw: string, fallback = 0.09) {
   const num = Number(raw.replace('%', ''));
   if (!Number.isFinite(num)) return fallback;
   return raw.includes('%') || num > 1 ? num / 100 : num;
+}
+
+function operatingMethod(form: FormData) {
+  return clean(form, 'operatingAllocationMethod') || clean(form, 'allocationMethod') || null;
+}
+
+function remarkWithAllocationRules(form: FormData, existingRemark?: string | null) {
+  const remark = clean(form, 'remark') || existingRemark || null;
+  return writeTemplateAllocationRemark(remark, {
+    operatingAllocationMethod: operatingMethod(form),
+    landVatAllocationMethod: clean(form, 'landVatAllocationMethod') || null,
+    incomeTaxAllocationMethod: clean(form, 'incomeTaxAllocationMethod') || null
+  });
 }
 
 async function copyTemplateToUser(templateId: string, userId: string) {
@@ -96,9 +110,9 @@ export async function POST(request: Request) {
       measureBasis: clean(form, 'measureBasis') || null,
       unit: clean(form, 'unit') || null,
       defaultTaxRate: taxRateFrom(clean(form, 'defaultTaxRate'), 0.09),
-      allocationMethod: clean(form, 'allocationMethod') || null,
+      allocationMethod: operatingMethod(form),
       sortOrder: toNumber(form, 'sortOrder') || 0,
-      remark: clean(form, 'remark') || null
+      remark: remarkWithAllocationRules(form)
     };
     await prisma.templateCostRule.create({ data: { templateId: template.id, ...data } });
     return redirectTo(request, template.id, template.id === templateId ? 'costRuleSaved' : 'personalTemplate');
@@ -118,9 +132,9 @@ export async function POST(request: Request) {
         measureBasis: clean(form, 'measureBasis') || null,
         unit: clean(form, 'unit') || null,
         defaultTaxRate: taxRateFrom(clean(form, 'defaultTaxRate'), Number(rule.defaultTaxRate || 0.09)),
-        allocationMethod: clean(form, 'allocationMethod') || null,
+        allocationMethod: operatingMethod(form),
         sortOrder: toNumber(form, 'sortOrder') || rule.sortOrder,
-        remark: clean(form, 'remark') || null
+        remark: remarkWithAllocationRules(form, rule.remark)
       }
     });
     return redirectTo(request, rule.templateId, 'costRuleUpdated');
