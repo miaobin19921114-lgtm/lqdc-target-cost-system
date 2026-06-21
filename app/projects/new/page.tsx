@@ -41,6 +41,7 @@ export default async function NewProjectPage() {
       unit: rule.unit,
       defaultTaxRate: Number(rule.defaultTaxRate || 0),
       allocationMethod: rule.allocationMethod,
+      remark: rule.remark,
       sortOrder: rule.sortOrder
     }))
   }));
