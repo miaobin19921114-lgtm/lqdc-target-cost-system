@@ -1,5 +1,3 @@
-import Link from 'next/link';
-
 export const projectNavGroups = [
   { title: '经营决策', items: [['经营总控', 'dashboard-lite', 'done'], ['投决评审', 'decision', 'done'], ['经营报告', 'report', 'done'], ['敏感性分析', 'sensitivity', 'done'], ['老板汇报版', '', 'planned'], ['经营方案对比', '', 'planned']] },
   { title: '项目基础', items: [['项目概况', 'overview', 'done'], ['业态维护/税务清算对象', 'product-maintenance', 'done'], ['版本管理', 'versions', 'done'], ['指标校验', 'indicator-check', 'done'], ['产品强排指标库', '', 'planned'], ['地块边界/红线资料', '', 'planned']] },
@@ -24,13 +22,9 @@ export const projectNavLabelMap = {
   ...projectOutputLabelMap
 } as Record<string, string>;
 
-const topActionStyle = { minHeight: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' };
-
 export function ProjectTopNav({ projectId, projectName, current }: { projectId: string; projectName: string; current: string }) {
-  return <div className="no-print" style={{ maxWidth: 1280, margin: '0 auto 14px', display: 'grid', gap: 10 }}>
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-      <div style={{ color: '#667085', fontSize: 13 }}><Link href="/projects" style={{ color: '#0b7285', fontWeight: 800 }}>项目中心</Link><span> › </span><Link href={`/projects/${projectId}`} style={{ color: '#0b7285', fontWeight: 800 }}>{projectName}</Link><span> › </span><b style={{ color: '#102033' }}>{current}</b></div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Link href={`/projects/${projectId}`} className="btn" style={topActionStyle}>项目测算中心</Link><Link href={`/projects/${projectId}/dashboard-lite`} className="btn" style={topActionStyle}>经营总控</Link><Link href="/projects" className="btn" style={topActionStyle}>项目中心</Link></div>
-    </div>
-  </div>;
+  void projectId;
+  void projectName;
+  void current;
+  return null;
 }
