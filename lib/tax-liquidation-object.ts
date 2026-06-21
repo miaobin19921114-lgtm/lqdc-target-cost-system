@@ -26,6 +26,16 @@ export function inferTaxLiquidationObject(product: { name?: string | null; isSal
   return '普通住宅≤140㎡';
 }
 
+export function normalizeTaxLiquidationObject(value: string | null | undefined, product: { name?: string | null; isSaleable?: boolean | null }) {
+  const text = String(value || '').trim();
+  if (taxLiquidationObjects.includes(text as TaxLiquidationObject)) return text as TaxLiquidationObject;
+  if (!text) return inferTaxLiquidationObject(product);
+  if (includes(text, ['普通住宅≤140', '普通住宅', '住宅≤140', '小于140', '小于等于140'])) return '普通住宅≤140㎡';
+  if (includes(text, ['非普通住宅', '住宅＞140', '大于140', '改善住宅'])) return '非普通住宅＞140㎡';
+  if (includes(text, ['非住宅'])) return inferTaxLiquidationObject(product);
+  return inferTaxLiquidationObject(product);
+}
+
 export function getTaxLiquidationObject(product: { name?: string | null; isSaleable?: boolean | null; taxLiquidationObject?: string | null }) {
-  return product.taxLiquidationObject || inferTaxLiquidationObject(product);
+  return normalizeTaxLiquidationObject(product.taxLiquidationObject, product);
 }
