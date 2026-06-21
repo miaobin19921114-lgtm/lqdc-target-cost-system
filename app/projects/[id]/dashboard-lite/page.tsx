@@ -21,6 +21,10 @@ function unitCost(amountWan: number, area: number) {
   return area ? (amountWan * 10000) / area : 0;
 }
 
+function barWidth(amount: number, total: number) {
+  return `${Math.min(100, total ? Math.max((amount / total) * 100, 2) : 0)}%`;
+}
+
 function resultLevel(netMargin: number, netProfit: number) {
   if (netProfit < 0) return { name: '暂缓推进', color: '#e03131', text: '基准方案为亏损状态，优先复核售价、成本和税费。' };
   if (netMargin >= 0.08) return { name: '建议推进', color: '#2f9e44', text: '净利率达到较好水平，可进入投决深化。' };
