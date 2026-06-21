@@ -1,18 +1,19 @@
 'use client';
 
-import { type CSSProperties, type ReactNode, type SyntheticEvent, useEffect, useState } from 'react';
+import { type DetailsHTMLAttributes, type ReactNode, type SyntheticEvent, useEffect, useState } from 'react';
+
+type PersistedDetailsProps = Omit<DetailsHTMLAttributes<HTMLDetailsElement>, 'open' | 'onToggle'> & {
+  storageKey: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+};
 
 export function PersistedDetails({
   storageKey,
   defaultOpen = true,
-  style,
-  children
-}: {
-  storageKey: string;
-  defaultOpen?: boolean;
-  style?: CSSProperties;
-  children: ReactNode;
-}) {
+  children,
+  ...detailsProps
+}: PersistedDetailsProps) {
   const [open, setOpen] = useState(defaultOpen);
 
   useEffect(() => {
@@ -35,5 +36,5 @@ export function PersistedDetails({
     }
   }
 
-  return <details open={open} onToggle={handleToggle} style={style}>{children}</details>;
+  return <details {...detailsProps} open={open} onToggle={handleToggle}>{children}</details>;
 }
