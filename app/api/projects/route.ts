@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { parseTemplateAllocationRules, writeTemplateAllocationRemark } from '@/lib/template-allocation-rules';
 
 const toNumber = (value: FormDataEntryValue | null) => Number(value || 0);
 
@@ -108,18 +109,26 @@ export async function POST(request: Request) {
     allocationWeight: Number(item.allocationWeight || 1),
     remark: item.remark || ''
   }));
-  const projectCostRuleCreates = selectedCostRules.map((rule) => ({
-    costCode: rule.costCode,
-    category: rule.category,
-    subjectName: rule.subjectName,
-    sourceTable: rule.sourceTable,
-    measureBasis: rule.measureBasis,
-    unit: rule.unit,
-    defaultTaxRate: toNumber(form.get(`costRuleTaxRate-${rule.id}`)) || Number(rule.defaultTaxRate || 0.09),
-    allocationMethod: clean(form, `costRuleAllocationMethod-${rule.id}`) || rule.allocationMethod || '建筑面积分摊',
-    sortOrder: rule.sortOrder,
-    remark: rule.remark
-  }));
+  const projectCostRuleCreates = selectedCostRules.map((rule) => {
+    const parsed = parseTemplateAllocationRules(rule.allocationMethod, rule.remark);
+    const operating = clean(form, `costRuleAllocationMethod-${rule.id}`) || parsed.operatingAllocationMethod || rule.allocationMethod || '按建筑面积占比';
+    return {
+      costCode: rule.costCode,
+      category: rule.category,
+      subjectName: rule.subjectName,
+      sourceTable: rule.sourceTable,
+      measureBasis: rule.measureBasis,
+      unit: rule.unit,
+      defaultTaxRate: toNumber(form.get(`costRuleTaxRate-${rule.id}`)) || Number(rule.defaultTaxRate || 0.09),
+      allocationMethod: operating,
+      sortOrder: rule.sortOrder,
+      remark: writeTemplateAllocationRemark(rule.remark, {
+        operatingAllocationMethod: operating,
+        landVatAllocationMethod: parsed.landVatAllocationMethod,
+        incomeTaxAllocationMethod: parsed.incomeTaxAllocationMethod
+      })
+    };
+  });
   if (customProductName) {
     const customIsSaleable = form.get('customIsSaleable') === 'on';
     const customParticipateAllocation = form.get('customParticipateAllocation') === 'on';
