@@ -3,4 +3,7 @@ Railway deploy trigger
 Latest required commit after dashboard barWidth fix:
 103af51 fix dashboard bar width helper
 
-If Railway still reports Cannot find name 'barWidth', it is building an older deployment snapshot.
+Latest forced deploy trigger:
+force redeploy latest fixed dashboard code
+
+If Railway still reports Cannot find name 'barWidth', it is building an older deployment snapshot instead of the latest main branch.
