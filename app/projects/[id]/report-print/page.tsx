@@ -36,7 +36,7 @@ export default async function PrintableOperatingReport({ params }: { params: { i
   if (!project) return <main className="page">项目不存在</main>;
 
   const version = await prisma.projectVersion.findFirst({
-    where: activeVersionOrder(project) && activeVersionWhere(project),
+    where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
     include: {
       products: true,
