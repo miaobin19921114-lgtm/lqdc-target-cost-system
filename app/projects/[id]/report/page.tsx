@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { costTotals, effectiveCostRows, fullTaxSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
 import { normalizeProjectVersionCostLineAmounts } from '@/lib/normalize-cost-line-amounts';
+import { ProjectTopNav } from '@/components/project-navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,8 +93,8 @@ export default async function ProjectOperatingReport({ params }: { params: { id:
     ['税费合计', tax.totalTax, '万元']
   ] as const;
 
-  return <main className="page report-page"><div className="container" style={{ maxWidth: 1180 }}>
-    <div className="page-header no-print"><div><p className="eyebrow">项目经营测算报告</p><h1 className="title">{project.name}</h1><p className="subtitle">当前版本：{version?.name || '当前版本'}｜阶段：{version?.stage || '投拓阶段'}｜金额单位：万元，单方：元/㎡。</p></div><div className="actions" style={{ marginTop: 0 }}><span className="btn btn-primary">打印：Ctrl/Cmd + P</span><Link href={`/projects/${project.id}/decision`} className="btn">投决评审</Link><Link href={`/projects/${project.id}/dashboard-lite`} className="btn">经营总控</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税费总表</Link><Link href={`/projects/${project.id}`} className="btn">返回工作台</Link></div></div>
+  return <main className="page report-page"><ProjectTopNav projectId={project.id} projectName={project.name} current="经营报告" /><div className="container" style={{ maxWidth: 1180 }}>
+    <div className="page-header no-print"><div><p className="eyebrow">项目经营测算报告</p><h1 className="title">{project.name}</h1><p className="subtitle">当前版本：{version?.name || '当前版本'}｜阶段：{version?.stage || '投拓阶段'}｜金额单位：万元，单方：元/㎡。</p></div><div className="actions" style={{ marginTop: 0 }}><span className="btn btn-primary">打印：Ctrl/Cmd + P</span><Link href={`/projects/${project.id}/decision`} className="btn">投决评审</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税费测算总表</Link><Link href={`/projects/${project.id}/report-print`} className="btn">打印经营报告</Link></div></div>
 
     <section className="card report-cover"><div className="eyebrow">源信达地产目标成本测算系统</div><h1 style={{ margin: '8px 0 4px', fontSize: 30 }}>{project.name}</h1><p className="meta">城市/区域：{project.city || '-'} / {project.district || '-'}</p><div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}><div><span className="meta">税后净利</span><div style={{ fontWeight: 900, color: statusColor(tax.netProfit) }}>{fmt(tax.netProfit)} 万元</div></div><div><span className="meta">销售净利率</span><div style={{ fontWeight: 900 }}>{pct(netMargin)}</div></div><div><span className="meta">含税收入</span><div style={{ fontWeight: 900 }}>{fmt(revenue.taxInclusive)} 万元</div></div><div><span className="meta">含税成本</span><div style={{ fontWeight: 900 }}>{fmt(cost.taxInclusive)} 万元</div></div></div></section>
 
@@ -101,7 +102,7 @@ export default async function ProjectOperatingReport({ params }: { params: { id:
 
     <section className="card" style={{ marginTop: 16 }}><h2>二、核心经营指标</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 820, borderCollapse: 'collapse' }}><tbody>{rows.map(([name, value, unit]) => <tr key={name}><td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{name}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)', textAlign: 'right', fontWeight: 900, color: String(name).includes('利润') || String(name).includes('净利') ? statusColor(Number(value)) : undefined }}>{unit === 'percent' ? pct(Number(value)) : fmt(value)}</td><td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{unit === 'percent' ? '' : unit}</td></tr>)}</tbody></table></div></section>
 
-    <section className="card" style={{ marginTop: 16 }}><h2>三、正式明细入口</h2><p className="meta">本报告为汇报摘要，正式明细以税费测算总表、土地增值税清算测算表、业态利润分析为准。</p><div className="actions no-print"><Link href={`/projects/${project.id}/tax-details`} className="btn btn-primary">税费测算总表</Link><Link href={`/projects/${project.id}/land-vat`} className="btn">土地增值税清算</Link><Link href={`/projects/${project.id}/profit-analysis`} className="btn">业态利润分析</Link></div></section>
+    <section className="card" style={{ marginTop: 16 }}><h2>三、正式明细入口</h2><p className="meta">本报告为汇报摘要，正式明细以税费测算总表、土地增值税清算测算表、业态利润分析为准。</p><div className="actions no-print"><Link href={`/projects/${project.id}/tax-details`} className="btn btn-primary">税费测算总表</Link><Link href={`/projects/${project.id}/land-vat`} className="btn">土地增值税清算测算表</Link><Link href={`/projects/${project.id}/profit-analysis`} className="btn">业态利润分析</Link></div></section>
 
     <section className="card" style={{ marginTop: 16 }}><h2>四、数据口径提示</h2><p className="meta">本报告按当前启用版本、启用业态、完整收入明细、末级成本及 Excel 导入四级科目统计；税费口径建议同步复核税费测算总表。</p>{effective.importedLeafRows ? <div style={{ marginTop: 12, border: '1px solid #b2f2bb', background: '#f0fff4', borderRadius: 10, padding: 10 }}>已计入 {effective.importedLeafRows} 条 Excel 导入/临时四级成本科目。</div> : null}</section>
 
