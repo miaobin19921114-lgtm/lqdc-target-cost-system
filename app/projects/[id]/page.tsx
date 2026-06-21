@@ -51,28 +51,28 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
     ['投决评审', 'decision'],
     ['经营报告', 'report'],
     ['敏感性分析', 'sensitivity'],
-    ['税费总表', 'tax-details'],
-    ['业态利润', 'profit-analysis']
+    ['税费测算总表', 'tax-details'],
+    ['业态利润分析', 'profit-analysis']
   ] as const;
   const flow = [
     ['1 项目概况', 'overview', '维护地块、指标、面积、车位等基础数据', 'done'],
     ['2 收入测算', 'revenue', '维护可售面积、销售单价、含税收入', 'done'],
     ['3 目标成本', 'costs-batch', '录入目标成本并归集到科目和业态', 'done'],
     ['4 成本明细', 'building-details', '录入土建、安装、设备、精装、景观等专业明细', 'done'],
-    ['5 税费测算', 'tax-details', '检查增值税、附加税、土增税和所得税', 'done'],
-    ['6 土增税清算', 'land-vat', '按税务清算对象复核扣除项目与增值率', 'done'],
-    ['7 业态利润', 'profit-analysis', '按业态复核收入、成本、税费和净利率', 'done'],
+    ['5 税费测算总表', 'tax-details', '检查增值税、附加税、土增税和所得税', 'done'],
+    ['6 土地增值税清算测算表', 'land-vat', '按税务清算对象复核扣除项目与增值率', 'done'],
+    ['7 业态利润分析', 'profit-analysis', '按业态复核收入、成本、税费和净利率', 'done'],
     ['8 投决与报告输出', 'decision', '输出投决评审、经营报告、打印报告和敏感性报告', 'done'],
     ['9 合约招采', '', '预留合约规划、招采计划、合同台账、付款计划', 'planned'],
     ['10 动态成本', '', '预留变更签证、结算管理、动态成本跟踪和预警', 'planned'],
     ['11 模板沉淀', '/templates', '把项目规则沉淀为个人模板或系统模板', 'done']
   ] as const;
   const tools = [
-    ['Excel导入导出', 'export'],
+    ['Excel导入/导出', 'export'],
     ['导入批次', 'import-batches'],
     ['科目映射', 'cost-mapping'],
     ['汇总校验', 'summary-check'],
-    ['模板中心', '/templates']
+    ['模板中心/规则管理', '/templates']
   ] as const;
 
   return (
@@ -101,7 +101,7 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
           <div style={{ background: '#fff', border: '1px solid #ffd8a8', borderRadius: 10, padding: 14 }}><b>已规划但待接入功能</b><p className="meta">预留位置不删除，后续按模块逐步开发；左侧灰色入口代表已规划但未接入。</p><div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{plannedItems.map((name) => <span key={name} style={{ border: '1px solid #ffd8a8', background: '#fff9db', borderRadius: 999, padding: '6px 10px', fontSize: 12, color: '#8a6d00' }}>{name}</span>)}</div></div>
         </section>
 
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #ffd8a8', borderRadius: 10, padding: 14 }}><b>报告输出</b><p className="meta">打印版和输出件集中在这里，不放左侧一级目录。</p><div className="actions"><Link className="btn btn-primary" href={`/projects/${project.id}/decision`}>投决评审</Link><Link className="btn" href={`/projects/${project.id}/report-print`}>打印经营报告</Link><Link className="btn" href={`/projects/${project.id}/sensitivity-report`}>打印敏感性报告</Link><Link className="btn" href={`/projects/${project.id}/tax-report`}>税务报告</Link></div></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本控制</b><p className="meta">当前阶段：{version?.stage || '投拓阶段'}；当前版本：{version?.name || '初始版本'}；状态：草稿。</p><Link className="btn btn-primary" href={`/projects/${project.id}/versions`}>进入版本管理</Link></div><div style={{ background: '#fff', border: '1px solid #b2f2bb', borderRadius: 10, padding: 14 }}><b>沉淀为个人模板</b><p className="meta">把当前项目的启用业态、项目科目规则和税率规则保存为个人模板，后续新项目可复用。</p><form action={`/api/projects/${project.id}/save-template`} method="post" style={{ display: 'grid', gap: 8 }}><input name="name" defaultValue={defaultTemplateName} style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><input name="type" defaultValue="项目沉淀模板" style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><input name="description" placeholder="模板说明，可不填" style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><button className="btn btn-primary">一键保存为模板</button></form></div><div style={{ background: '#fff', border: '1px solid #d0ebff', borderRadius: 10, padding: 14 }}><b>模板来源</b><p className="meta">{sourceTemplateLabel}</p>{project.sourceTemplateId ? <Link className="btn" href="/templates">查看模板中心</Link> : null}</div></aside>
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #ffd8a8', borderRadius: 10, padding: 14 }}><b>报告输出</b><p className="meta">打印版和输出件集中在这里，不放左侧一级目录。</p><div className="actions"><Link className="btn btn-primary" href={`/projects/${project.id}/decision`}>投决评审</Link><Link className="btn" href={`/projects/${project.id}/report-print`}>打印经营报告</Link><Link className="btn" href={`/projects/${project.id}/sensitivity-report`}>打印敏感性报告</Link><Link className="btn" href={`/projects/${project.id}/tax-report`}>税务报告</Link></div></div><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本管理</b><p className="meta">当前阶段：{version?.stage || '投拓阶段'}；当前版本：{version?.name || '初始版本'}；状态：草稿。</p><Link className="btn btn-primary" href={`/projects/${project.id}/versions`}>进入版本管理</Link></div><div style={{ background: '#fff', border: '1px solid #b2f2bb', borderRadius: 10, padding: 14 }}><b>项目规则沉淀</b><p className="meta">把当前项目的启用业态、项目科目规则和税率规则保存为个人模板，后续新项目可复用。</p><form action={`/api/projects/${project.id}/save-template`} method="post" style={{ display: 'grid', gap: 8 }}><input name="name" defaultValue={defaultTemplateName} style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><input name="type" defaultValue="项目沉淀模板" style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><input name="description" placeholder="模板说明，可不填" style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px' }} /><button className="btn btn-primary">一键保存为模板</button></form></div><div style={{ background: '#fff', border: '1px solid #d0ebff', borderRadius: 10, padding: 14 }}><b>模板来源</b><p className="meta">{sourceTemplateLabel}</p>{project.sourceTemplateId ? <Link className="btn" href="/templates">查看模板中心/规则管理</Link> : null}</div></aside>
       </div>
       <style>{`@media (max-width: 1100px){.sys-shell,.sys-kpis,.sys-flow{grid-template-columns:1fr!important}.sys-shell{padding:8px!important}}`}</style>
     </main>
