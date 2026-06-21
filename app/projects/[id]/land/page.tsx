@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { projectNavGroups } from '@/components/project-navigation';
+import { PersistedDetails } from '@/components/persisted-details';
 import { rebuildProjectCostDictionary } from '@/lib/rebuild-project-cost-dictionary';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 
@@ -162,25 +163,25 @@ export default async function LandCostPage({ params, searchParams }: { params: {
 
           <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <div><b>土地费用明细｜V60 科目树填报</b><div className="meta">费率类科目输入 1% 就按 1% 计算；保存后仍显示为 1%。普通科目单价按万元/单位输入。</div></div>
+              <div><b>土地费用明细｜V60 科目树填报</b><div className="meta">费率类科目输入 1% 就按 1% 计算；保存后仍显示为 1%。普通科目单价按万元/单位输入。分组展开/折叠状态会自动保存。</div></div>
               <button form="land-cost-batch" className="btn btn-primary">整表批量保存</button>
             </div>
             <form id="land-cost-batch" action={`/api/projects/${project.id}/land/batch`} method="post" />
             <div style={{ maxHeight: '72vh', overflow: 'auto', padding: 12 }}>
               {levelOneRows.length === 0 ? <p className="meta">暂无土地费用科目。</p> : levelOneRows.map((level1) => (
-                <details key={level1.name} open style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 10, overflow: 'hidden', background: '#fff' }}>
+                <PersistedDetails key={level1.name} storageKey={`land:${project.id}:level1:${level1.name}`} defaultOpen style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 10, overflow: 'hidden', background: '#fff' }}>
                   <summary style={{ cursor: 'pointer', padding: 12, background: '#e9f7f8', display: 'grid', gridTemplateColumns: '1fr 130px 140px 130px 130px', gap: 10, alignItems: 'center', fontWeight: 900 }}>
                     <span>一级｜{level1.name}</span><span>已填 {level1.filled}/{level1.rows}</span><span style={{ textAlign: 'right' }}>{fmt(level1.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level1.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level1.amount, saleableArea))}</span>
                   </summary>
                   <div style={{ padding: 10 }}>
                     {Array.from(level1.children.values()).map((level2) => (
-                      <details key={level2.name} open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
+                      <PersistedDetails key={level2.name} storageKey={`land:${project.id}:level2:${level1.name}:${level2.name}`} defaultOpen style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
                         <summary style={{ cursor: 'pointer', padding: 10, background: '#f8fafc', display: 'grid', gridTemplateColumns: '1fr 120px 140px 130px 130px', gap: 10, alignItems: 'center', fontWeight: 800 }}>
                           <span>二级｜{level2.name}</span><span>已填 {level2.filled}/{level2.rows}</span><span style={{ textAlign: 'right' }}>{fmt(level2.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level2.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level2.amount, saleableArea))}</span>
                         </summary>
                         <div style={{ padding: 8 }}>
                           {Array.from(level2.children.values()).map((level3) => (
-                            <details key={level3.name} open style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
+                            <PersistedDetails key={level3.name} storageKey={`land:${project.id}:level3:${level1.name}:${level2.name}:${level3.name}`} defaultOpen style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
                               <summary style={{ cursor: 'pointer', padding: 10, background: '#fcfdff', display: 'grid', gridTemplateColumns: '1fr 120px 140px 130px 130px', gap: 10, alignItems: 'center' }}>
                                 <b>三级｜{level3.name}</b><span>已填 {level3.filled}/{level3.rows}</span><span style={{ textAlign: 'right', fontWeight: 800 }}>{fmt(level3.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level3.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level3.amount, saleableArea))}</span>
                               </summary>
@@ -212,13 +213,13 @@ export default async function LandCostPage({ params, searchParams }: { params: {
                                   </tr>;
                                 })}</tbody>
                               </table></div>
-                            </details>
+                            </PersistedDetails>
                           ))}
                         </div>
-                      </details>
+                      </PersistedDetails>
                     ))}
                   </div>
-                </details>
+                </PersistedDetails>
               ))}
             </div>
           </section>
