@@ -13,8 +13,24 @@ export const projectNavGroups = [
   { title: '智能与系统', items: [['AI测算助手', '', 'planned'], ['PDF/Word导出', '', 'planned'], ['系统健康检查', '/health', 'done'], ['环境变量检查', '', 'planned'], ['上传目录检查', '', 'planned'], ['数据库连接检查', '', 'planned']] }
 ] as const;
 
-export const projectNavLabelMap = Object.fromEntries(projectNavGroups.flatMap((group) => group.items.filter(([, href]) => href).map(([name, href]) => [href, name]))) as Record<string, string>;
+export const projectOutputLabelMap = {
+  'report-print': '打印经营报告',
+  'sensitivity-report': '打印敏感性报告',
+  'tax-report': '税务报告'
+} as const;
+
+export const projectNavLabelMap = {
+  ...Object.fromEntries(projectNavGroups.flatMap((group) => group.items.filter(([, href]) => href).map(([name, href]) => [href, name]))),
+  ...projectOutputLabelMap
+} as Record<string, string>;
+
+const topActionStyle = { minHeight: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' };
 
 export function ProjectTopNav({ projectId, projectName, current }: { projectId: string; projectName: string; current: string }) {
-  return <div className="no-print" style={{ maxWidth: 1280, margin: '0 auto 14px', display: 'grid', gap: 10 }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}><div style={{ color: '#667085', fontSize: 13 }}><Link href="/projects" style={{ color: '#0b7285', fontWeight: 800 }}>项目中心</Link><span> › </span><Link href={`/projects/${projectId}`} style={{ color: '#0b7285', fontWeight: 800 }}>{projectName}</Link><span> › </span><b style={{ color: '#102033' }}>{current}</b></div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Link href={`/projects/${projectId}`} className="btn">项目测算中心</Link><Link href={`/projects/${projectId}/dashboard-lite`} className="btn">经营总控</Link><Link href="/projects" className="btn">项目中心</Link></div></div></div>;
+  return <div className="no-print" style={{ maxWidth: 1280, margin: '0 auto 14px', display: 'grid', gap: 10 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ color: '#667085', fontSize: 13 }}><Link href="/projects" style={{ color: '#0b7285', fontWeight: 800 }}>项目中心</Link><span> › </span><Link href={`/projects/${projectId}`} style={{ color: '#0b7285', fontWeight: 800 }}>{projectName}</Link><span> › </span><b style={{ color: '#102033' }}>{current}</b></div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Link href={`/projects/${projectId}`} className="btn" style={topActionStyle}>项目测算中心</Link><Link href={`/projects/${projectId}/dashboard-lite`} className="btn" style={topActionStyle}>经营总控</Link><Link href="/projects" className="btn" style={topActionStyle}>项目中心</Link></div>
+    </div>
+  </div>;
 }
