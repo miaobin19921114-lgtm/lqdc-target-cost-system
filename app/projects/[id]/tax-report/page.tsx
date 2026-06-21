@@ -7,6 +7,7 @@ import { getCostSettings } from '@/lib/cost-product-settings';
 import { normalizeProjectVersionCostLineAmounts } from '@/lib/normalize-cost-line-amounts';
 import { getTaxLiquidationObject } from '@/lib/tax-liquidation-object';
 import { getProductTaxLiquidationObjectMap } from '@/lib/product-tax-liquidation-object-values';
+import { buildProjectAllocationRuleMap, readProjectAllocationMethod } from '@/lib/project-allocation-rule-reader';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,6 +82,8 @@ export default async function TaxReportPage({ params }: { params: { id: string }
   if (version) await normalizeProjectVersionCostLineAmounts(version.id);
 
   const costsForVersion = version ? await prisma.costLine.findMany({ where: { projectVersionId: version.id }, include: { costSubject: true, productType: true } }) : [];
+  const projectRules = version ? await prisma.projectCostRule.findMany({ where: { projectVersionId: version.id }, select: { costCode: true, allocationMethod: true, remark: true } }) : [];
+  const ruleMap = buildProjectAllocationRuleMap(projectRules);
   const taxObjectMap = version ? await getProductTaxLiquidationObjectMap(version.id) : new Map<string, string | null>();
   const vatRate = n(version?.taxes?.vatRate || 0.09);
   const surchargeRate = n(version?.taxes?.urbanMaintenanceTaxRate || 0.07) + n(version?.taxes?.educationSurchargeRate || 0.03) + n(version?.taxes?.localEducationSurchargeRate || 0.02);
@@ -104,11 +107,12 @@ export default async function TaxReportPage({ params }: { params: { id: string }
   (version?.commercialRevenueLines || []).forEach((row) => { const item = objectMap.get(row.parentProductTypeId); if (item) addRevenue(item, row); });
 
   effective.effective.forEach((row) => {
+    const method = readProjectAllocationMethod(row.costSubject.code, row.allocationMethod, ruleMap, 'landVat') || row.allocationMethod;
     const directProduct = row.productTypeId ? activeProducts.find((product) => product.id === row.productTypeId) : null;
     const region = row.regionOrProductType || '';
     const matched = directProduct ? [directProduct] : activeProducts.filter((product) => regionMatchesProduct(region, product));
     const pool = matched.length && !includes(region, ['全项目', '项目整体', 'Excel导入']) ? matched : (saleableProducts.length ? saleableProducts : activeProducts);
-    const bases = pool.map((product) => ({ product, base: allocationBase(product, row.allocationMethod) }));
+    const bases = pool.map((product) => ({ product, base: allocationBase(product, method) }));
     const totalBase = bases.reduce((sum, item) => sum + item.base, 0) || pool.length || 1;
     bases.forEach(({ product, base }) => {
       const item = objectMap.get(product.id);
@@ -157,9 +161,10 @@ export default async function TaxReportPage({ params }: { params: { id: string }
     ['不含税成本及费用（万元）', cost.taxExclusive, '有效末级成本行不含税金额合计。'],
     ['应缴增值税（万元）', quickTax.payableVat, '销项税额减进项税额，小于0暂按0。'],
     ['附加税费（万元）', quickTax.surcharge, '按应缴增值税乘以附加税率。'],
-    ['正式土增税（万元）', formalLandVat, '引用土地增值税清算测算表，按清算对象分别计算后汇总。'],
+    ['正式土增税（万元）', formalLandVat, '引用土地增值税清算测算表，按清算对象和土增税清算分摊规则分别计算后汇总。'],
     ['所得税前利润（万元）', formalProfitBeforeIncomeTax, '不含税收入减不含税成本、附加税费和正式土增税。'],
     ['企业所得税（万元）', formalIncomeTax, '按所得税前利润乘以所得税率测算，亏损时暂按0。'],
+    ['税费合计（万元）', formalTotalTax, '增值税+附加税+正式土增税+企业所得税。'],
     ['税后净利（万元）', netProfit, '所得税前利润减企业所得税。'],
     ['销售净利率', pct(salesNetMargin), '税后净利除以含税总收入，仅用于经营测算展示。']
   ];
@@ -177,7 +182,7 @@ export default async function TaxReportPage({ params }: { params: { id: string }
     <div className="no-print toolbar"><Link href={`/projects/${project.id}/tax-details`} className="btn btn-primary">税费测算总表</Link><Link href={`/projects/${project.id}/land-vat`} className="btn">土地增值税清算</Link><Link href={`/projects/${project.id}/report-print`} className="btn">经营报告打印版</Link><Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link><span className="btn">打印：Ctrl/Cmd + P</span></div>
     <section className="cover block"><div className="eyebrow">源信达地产目标成本测算系统</div><h1>{project.name}</h1><h2>税务测算报告</h2><p>当前版本：{version?.name || '当前版本'}　阶段：{version?.stage || '投拓阶段'}　城市/区域：{project.city || '-'} / {project.district || '-'}</p><div className="decision" style={{ color: statusColor(netProfit) }}>{netProfit >= 0 ? '税后盈利' : '税后亏损'}</div><p>税费合计 {fmt(formalTotalTax)} 万元，综合税负率 {pct(taxBurden)}，税后净利 {fmt(netProfit)} 万元</p></section>
     <section className="block"><h2>一、项目税费总览</h2><table><thead><tr><th>指标</th><th>金额/比例</th><th>口径说明</th></tr></thead><tbody>{reportLines.map(([name, value, remark]) => <tr key={name}><td>{name}</td><td style={{ fontWeight: 900 }}>{typeof value === 'number' ? fmt(value) : value}</td><td>{remark}</td></tr>)}</tbody></table></section>
-    <section className="block"><h2>二、土地增值税清算来源</h2><p>以下为土地增值税清算测算表的正式清算对象结果，税费测算总表引用该合计。</p><table><thead><tr><th>清算对象</th><th>包含业态</th><th>不含税收入</th><th>扣除项目</th><th>增值额</th><th>增值率</th><th>土增税</th></tr></thead><tbody>{clearingRows.length ? clearingRows.map((row) => <tr key={row.liquidationObject}><td>{row.liquidationObject}</td><td>{row.productNames.join('、')}</td><td>{fmt(row.revenueExclusive)}</td><td>{fmt(row.landVat.deductionTotal)}</td><td>{fmt(row.landVat.valueAdded)}</td><td>{pct(row.landVat.valueAddedRatio)}</td><td>{fmt(row.landVat.landVat)}</td></tr>) : <tr><td colSpan={7}>暂无清算对象数据。</td></tr>}</tbody></table></section>
+    <section className="block"><h2>二、土地增值税清算来源</h2><p>以下为土地增值税清算测算表的正式清算对象结果，税费测算总表引用该合计。</p><table><thead><tr><th>清算对象</th><th>包含业态</th><th>不含税收入</th><th>扣除项目</th><th>增值额</th><th>增值率</th><th>土增税</th></tr></thead><tbody>{clearingRows.length ? clearingRows.map((row) => <tr key={row.liquidationObject}><td>{row.liquidationObject}</td><td>{row.productNames.join('、')}</td><td>{fmt(row.revenueExclusive)} 万元</td><td>{fmt(row.landVat.deductionTotal)} 万元</td><td>{fmt(row.landVat.valueAdded)} 万元</td><td>{pct(row.landVat.valueAddedRatio)}</td><td>{fmt(row.landVat.landVat)} 万元</td></tr>) : <tr><td colSpan={7}>暂无清算对象数据。</td></tr>}</tbody></table></section>
     <section className="block"><h2>三、企业所得税测算说明</h2><p>企业所得税应纳税所得额 = 不含税收入 - 不含税成本及费用 - 附加税费 - 土地增值税。</p><table><tbody><tr><td>所得税前利润</td><td>{fmt(formalProfitBeforeIncomeTax)} 万元</td></tr><tr><td>所得税率</td><td>{fmt(incomeTaxRate * 100)}%</td></tr><tr><td>企业所得税</td><td>{fmt(formalIncomeTax)} 万元</td></tr><tr><td>税后净利</td><td>{fmt(netProfit)} 万元</td></tr></tbody></table></section>
     <section className="block"><h2>四、税务风险提示</h2><table><thead><tr><th>风险项</th><th>等级</th><th>说明</th></tr></thead><tbody>{risks.map((risk) => <tr key={risk.name}><td>{risk.name}</td><td style={{ color: riskColor(risk.level), fontWeight: 900 }}>{risk.level}</td><td>{risk.text}</td></tr>)}</tbody></table></section>
     <section className="block"><h2>五、复核与签批区</h2><table><tbody><tr><td>复核结论</td><td>□ 通过　□ 需调整　□ 暂缓</td></tr><tr><td>需复核事项</td><td>□ 进项税　□ 土增税扣除　□ 所得税成本对象　□ 发票口径　□ 分摊规则</td></tr><tr><td>税务复核人</td><td></td></tr><tr><td>复核日期</td><td></td></tr><tr><td>备注</td><td style={{ height: 80 }}></td></tr></tbody></table></section>
