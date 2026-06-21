@@ -1,6 +1,6 @@
 'use client';
 
-import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
+import { type CSSProperties, type ReactNode, type SyntheticEvent, useEffect, useState } from 'react';
 
 export function PersistedDetails({
   storageKey,
@@ -25,7 +25,7 @@ export function PersistedDetails({
     }
   }, [storageKey]);
 
-  function handleToggle(event: React.SyntheticEvent<HTMLDetailsElement>) {
+  function handleToggle(event: SyntheticEvent<HTMLDetailsElement>) {
     const nextOpen = event.currentTarget.open;
     setOpen(nextOpen);
     try {
