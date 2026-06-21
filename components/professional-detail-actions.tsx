@@ -104,6 +104,27 @@ function fieldName(entryId: string, field: string) {
   return `${field}-${entryId}`;
 }
 
+function ensureMeasureSource(select: HTMLSelectElement) {
+  const next = select.nextElementSibling as HTMLElement | null;
+  if (next?.dataset?.measureSource === '1') return next;
+  const source = document.createElement('div');
+  source.className = 'meta';
+  source.dataset.measureSource = '1';
+  select.insertAdjacentElement('afterend', source);
+  return source;
+}
+
+function bindMeasureSelect(select: HTMLSelectElement, payload: MetricsPayload) {
+  const entryId = select.dataset.entryId || select.name.replace(/^measureBasis-/, '');
+  select.dataset.entryId = entryId;
+  ensureMeasureSource(select);
+  if (select.dataset.measureBound !== 'true') {
+    select.addEventListener('change', () => updateRow(select, payload));
+    select.dataset.measureBound = 'true';
+  }
+  updateRow(select, payload);
+}
+
 function updateRow(select: HTMLSelectElement, payload: MetricsPayload) {
   const entryId = select.dataset.entryId || select.name.replace(/^measureBasis-/, '');
   const formId = select.getAttribute('form') || '';
@@ -159,14 +180,11 @@ async function enhanceMeasureBasis(scopeId: string) {
       select.appendChild(option);
     }
     select.value = values[0] || '';
-    const source = document.createElement('div');
-    source.className = 'meta';
-    source.dataset.measureSource = '1';
     input.replaceWith(select);
-    select.insertAdjacentElement('afterend', source);
-    select.addEventListener('change', () => updateRow(select, payload));
-    updateRow(select, payload);
+    bindMeasureSelect(select, payload);
   });
+
+  root.querySelectorAll<HTMLSelectElement>('select[name^="measureBasis-"]').forEach((select) => bindMeasureSelect(select, payload));
 
   root.addEventListener('input', (event) => {
     const target = event.target as HTMLInputElement;
