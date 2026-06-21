@@ -69,9 +69,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const products = await prisma.productType.findMany({ where: { projectVersionId: version.id }, select: { name: true, isActive: true } });
   const inactiveProductNames = new Set(products.filter((item) => !item.isActive).map((item) => item.name));
   const rowIds = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
+  const saveGroupId = clean(form.get('saveGroupId'));
   let savedCount = 0;
 
   for (const rowId of rowIds) {
+    if (saveGroupId) {
+      const scopes = form.getAll(`saveScope-${rowId}`).map((item) => clean(item)).filter(Boolean);
+      if (!scopes.includes(saveGroupId)) continue;
+    }
+
     const quantity = numberFrom(form, `quantity-${rowId}`);
     const priceWanPerUnit = numberFrom(form, `priceWanPerUnit-${rowId}`);
     const remark = clean(form.get(`remark-${rowId}`));
