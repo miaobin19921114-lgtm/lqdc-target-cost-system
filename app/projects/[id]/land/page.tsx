@@ -1,14 +1,15 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { getV57CostDictionaryRows } from '@/data/cost-dictionary-v57';
 import { projectNavGroups } from '@/components/project-navigation';
+import { rebuildProjectCostDictionary } from '@/lib/rebuild-project-cost-dictionary';
+import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 
 export const dynamic = 'force-dynamic';
 
 const cell = { padding: 8, borderBottom: '1px solid #eef2f6', borderRight: '1px solid #eef2f6', whiteSpace: 'nowrap' as const };
 const input = { width: '100%', minWidth: 88, height: 32, border: '1px solid #d9e2ec', borderRadius: 6, padding: '4px 6px' };
 function fmt(value: unknown) { return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
-function single(value: unknown, area: number) { return area ? Number(value || 0) / area : 0; }
+function single(valueWan: unknown, area: number) { return area ? (Number(valueWan || 0) * 10000) / area : 0; }
 function round2(value: number) { return Math.round((value + Number.EPSILON) * 100) / 100; }
 
 type TreeNode = { name: string; amount: number; rows: number; filled: number; children: Map<string, TreeNode>; leaves: any[] };
@@ -55,22 +56,13 @@ function defaultFeeRateText(row: { detailSubject?: string | null; measureBasis?:
 function savedFeeRateText(value: unknown) {
   const num = Number(value || 0);
   if (!Number.isFinite(num) || num <= 0) return '';
-  return `${round2(num)}%`;
+  const percent = num > 100 ? num / 100 : num;
+  return `${round2(percent)}%`;
 }
 
 function isLandPriceCost(row: { detailName?: string | null; costSubject?: { name?: string | null } | null }) {
   const name = `${row.detailName || ''}${row.costSubject?.name || ''}`;
   return (name.includes('土地出让金') || name.includes('土地价款')) && !name.includes('契税') && !name.includes('交易') && !name.includes('评估') && !name.includes('咨询') && !name.includes('居间');
-}
-
-async function ensureDictionary(projectId: string) {
-  const count = await prisma.costDictionaryRow.count({ where: { projectId } });
-  if (count >= 100) return;
-  const rows = getV57CostDictionaryRows().map((row) => ({ ...row, projectId }));
-  await prisma.$transaction([
-    prisma.costDictionaryRow.deleteMany({ where: { projectId } }),
-    prisma.costDictionaryRow.createMany({ data: rows })
-  ]);
 }
 
 function renderTopNav(projectId: string, projectName: string) {
@@ -95,11 +87,11 @@ function renderTopNav(projectId: string, projectName: string) {
 export default async function LandCostPage({ params, searchParams }: { params: { id: string }, searchParams?: { saved?: string, batch?: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
-  await ensureDictionary(project.id);
+  await rebuildProjectCostDictionary(project.id);
 
   const version = await prisma.projectVersion.findFirst({
-    where: { projectId: params.id },
-    orderBy: { createdAt: 'asc' },
+    where: activeVersionWhere(project),
+    orderBy: activeVersionOrder(project),
     include: { products: true, costs: { include: { costSubject: true, productType: true }, orderBy: { sortOrder: 'asc' } } }
   });
   const inactiveProductNames = new Set((version?.products || []).filter((item) => !item.isActive).map((item) => item.name));
@@ -119,15 +111,15 @@ export default async function LandCostPage({ params, searchParams }: { params: {
   const costByCode = new Map<string, any>();
   costs.forEach((row) => costByCode.set(row.costSubject.code, row));
   const landPriceCost = activeCosts.find((row) => isLandPriceCost(row));
-  const landPriceBaseWan = landPriceCost ? round2(Number(landPriceCost.taxInclusiveAmount || 0) / 10000) : 0;
+  const landPriceBaseWan = landPriceCost ? round2(Number(landPriceCost.taxInclusiveAmount || 0)) : 0;
 
   const root = node('root');
   leafRows.forEach((row) => {
     const saved = row.costCode ? costByCode.get(row.costCode) : null;
     const amount = Number(saved?.taxInclusiveAmount || 0);
     const filled = amount > 0;
-    const level1 = child(root, row.firstSubject || '土地成本');
-    const level2 = child(level1, row.secondSubject || '土地取得价款及相关税费');
+    const level1 = child(root, row.firstSubject || '土地费');
+    const level2 = child(level1, row.secondSubject || '土地获取费');
     const level3 = child(level2, row.thirdSubject || row.secondSubject || '土地费明细');
     addStat(level1, amount, filled);
     addStat(level2, amount, filled);
@@ -149,12 +141,12 @@ export default async function LandCostPage({ params, searchParams }: { params: {
             <div>
               <p className="eyebrow">土地费用明细表</p>
               <h1 className="title">{project.name}</h1>
-              <p className="subtitle">土地价款按面积×单价；契税、交易服务费、评估费、居间费自动引用土地价款作为计费基数，费率按百分数输入与显示，例如 1%、3%。</p>
+              <p className="subtitle">按 V60 土地费口径展示：土地费 → 土地价款 / 土地相关税费 / 土地交易及中介服务费 → 明细科目。金额单位为万元，单方为元/㎡。</p>
             </div>
             <div className="actions" style={{ marginTop: 0 }}>
-              <Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总表</Link>
+              <Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总</Link>
               <Link href={`/projects/${project.id}/costs-batch`} className="btn">目标成本编制</Link>
-              <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
+              <Link href={`/projects/${project.id}`} className="btn">返回项目测算中心</Link>
             </div>
           </div>
 
@@ -162,15 +154,15 @@ export default async function LandCostPage({ params, searchParams }: { params: {
           {hiddenDictionaryRows || hiddenCostRows ? <div className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}>已隐藏停用业态相关科目 {hiddenDictionaryRows} 行、成本行 {hiddenCostRows} 行。</div> : null}
 
           <div className="summary-strip">
-            <div className="stat"><div className="stat-label">土地费合计</div><div className="stat-value">{fmt(total)}元</div></div>
-            <div className="stat"><div className="stat-label">土地价款基数</div><div className="stat-value">{fmt(landPriceBaseWan)}万元</div></div>
-            <div className="stat"><div className="stat-label">建面单方</div><div className="stat-value">{fmt(single(total, buildingArea))}</div></div>
+            <div className="stat"><div className="stat-label">土地费合计（万元）</div><div className="stat-value">{fmt(total)}</div></div>
+            <div className="stat"><div className="stat-label">土地价款基数（万元）</div><div className="stat-value">{fmt(landPriceBaseWan)}</div></div>
+            <div className="stat"><div className="stat-label">建面单方（元/㎡）</div><div className="stat-value">{fmt(single(total, buildingArea))}</div></div>
             <div className="stat"><div className="stat-label">已填 / 末级行</div><div className="stat-value">{activeCosts.length} / {leafRows.length}</div></div>
           </div>
 
           <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <div><b>土地费用明细｜科目树填报</b><div className="meta">费率类科目输入 1% 就按 1% 计算；保存后仍显示为 1%。</div></div>
+              <div><b>土地费用明细｜V60 科目树填报</b><div className="meta">费率类科目输入 1% 就按 1% 计算；保存后仍显示为 1%。普通科目单价按万元/单位输入。</div></div>
               <button form="land-cost-batch" className="btn btn-primary">整表批量保存</button>
             </div>
             <form id="land-cost-batch" action={`/api/projects/${project.id}/land/batch`} method="post" />
@@ -193,7 +185,7 @@ export default async function LandCostPage({ params, searchParams }: { params: {
                                 <b>三级｜{level3.name}</b><span>已填 {level3.filled}/{level3.rows}</span><span style={{ textAlign: 'right', fontWeight: 800 }}>{fmt(level3.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level3.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level3.amount, saleableArea))}</span>
                               </summary>
                               <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1420, borderCollapse: 'collapse', fontSize: 12 }}>
-                                <thead><tr style={{ background: '#fff' }}>{['编码', '末级科目', '区域/地块', '测算依据', '土地面积/计费基数', '单位', '单价或费率', '税率', '含税金额', '建面单方', '可售单方', '分摊方式', '备注', '状态'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#475467' }}>{head}</th>)}</tr></thead>
+                                <thead><tr style={{ background: '#fff' }}>{['编码', '末级科目', '区域/地块', '测算依据', '土地面积/计费基数', '单位', '单价或费率', '税率', '含税金额(万元)', '建面单方', '可售单方', '分摊方式', '备注', '状态'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#475467' }}>{head}</th>)}</tr></thead>
                                 <tbody>{level3.leaves.map((row, index) => {
                                   const saved = row.costCode ? costByCode.get(row.costCode) : null;
                                   const amount = Number(saved?.taxInclusiveAmount || 0);
