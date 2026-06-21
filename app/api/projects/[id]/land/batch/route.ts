@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -34,7 +35,8 @@ function round2(value: number) {
 }
 
 async function getOrCreateVersion(projectId: string) {
-  const existing = await prisma.projectVersion.findFirst({ where: { projectId }, orderBy: { createdAt: 'asc' } });
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  const existing = project ? await prisma.projectVersion.findFirst({ where: activeVersionWhere(project), orderBy: activeVersionOrder(project) }) : null;
   if (existing) return existing;
   return prisma.projectVersion.create({ data: { projectId, name: '初始版本', status: 'draft' } });
 }
@@ -125,11 +127,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     if (rateBased) {
       const feeRate = rateFromText(form.get(`priceWanPerUnit-${rowId}`), 0);
-      taxInclusiveUnitPrice = round2(feeRate * 100); // 保存为费率百分数，例如 3 表示 3%。
-      taxInclusiveAmount = round2(quantity * 10000 * feeRate); // quantity 为土地价款/计费基数，单位万元。
+      taxInclusiveUnitPrice = round2(feeRate * 10000);
+      taxInclusiveAmount = round2(quantity * feeRate);
     } else {
-      taxInclusiveUnitPrice = round2(priceWanPerUnit * 10000); // priceWanPerUnit 为万元/单位。
-      taxInclusiveAmount = round2(quantity * taxInclusiveUnitPrice);
+      taxInclusiveUnitPrice = round2(priceWanPerUnit * 10000);
+      taxInclusiveAmount = round2((quantity * taxInclusiveUnitPrice) / 10000);
     }
 
     const taxExclusiveAmount = taxRate ? round2(taxInclusiveAmount / (1 + taxRate)) : taxInclusiveAmount;
