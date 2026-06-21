@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { projectNavGroups } from '@/components/project-navigation';
 import { PersistedDetails } from '@/components/persisted-details';
+import { GroupSaveButton, ProfessionalDetailFoldControls } from '@/components/professional-detail-actions';
 import { rebuildProjectCostDictionary } from '@/lib/rebuild-project-cost-dictionary';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 
@@ -12,6 +13,8 @@ const input = { width: '100%', minWidth: 88, height: 32, border: '1px solid #d9e
 function fmt(value: unknown) { return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 function single(valueWan: unknown, area: number) { return area ? (Number(valueWan || 0) * 10000) / area : 0; }
 function round2(value: number) { return Math.round((value + Number.EPSILON) * 100) / 100; }
+function safeKey(value: string) { return value.replace(/\s+/g, '-'); }
+function groupId(...parts: string[]) { return parts.map((part) => safeKey(part)).join('__'); }
 
 type TreeNode = { name: string; amount: number; rows: number; filled: number; children: Map<string, TreeNode>; leaves: any[] };
 
@@ -120,7 +123,7 @@ export default async function LandCostPage({ params, searchParams }: { params: {
     const amount = Number(saved?.taxInclusiveAmount || 0);
     const filled = amount > 0;
     const level1 = child(root, row.firstSubject || '土地费');
-    const level2 = child(level1, row.secondSubject || '土地获取费');
+    const level2 = child(level1, row.secondSubject || '土地费用');
     const level3 = child(level2, row.thirdSubject || row.secondSubject || '土地费明细');
     addStat(level1, amount, filled);
     addStat(level2, amount, filled);
@@ -132,10 +135,12 @@ export default async function LandCostPage({ params, searchParams }: { params: {
   const total = activeCosts.reduce((sum, row) => sum + Number(row.taxInclusiveAmount || 0), 0);
   const buildingArea = Number(project.totalBuildingArea || 0);
   const saleableArea = Number(project.saleableArea || 0);
+  const scopeId = `land-${project.id}`;
+  const formId = 'land-cost-batch';
 
   return (
     <main className="page" style={{ padding: 0 }}>
-      <div style={{ maxWidth: 1840, margin: '0 auto', padding: 12 }}>
+      <div data-detail-scope={scopeId} style={{ maxWidth: 1840, margin: '0 auto', padding: 12 }}>
         {renderTopNav(project.id, project.name)}
         <div className="container" style={{ maxWidth: 'none', width: '100%', padding: 0 }}>
           <div className="page-header">
@@ -164,26 +169,32 @@ export default async function LandCostPage({ params, searchParams }: { params: {
           <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: 12, borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
               <div><b>土地费用明细｜V60 科目树填报</b><div className="meta">费率类科目输入 1% 就按 1% 计算；保存后仍显示为 1%。普通科目单价按万元/单位输入。分组展开/折叠状态会自动保存。</div></div>
-              <button form="land-cost-batch" className="btn btn-primary">整表批量保存</button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <ProfessionalDetailFoldControls scopeId={scopeId} />
+                <button form={formId} className="btn btn-primary" style={{ minHeight: 34 }}>整表批量保存</button>
+              </div>
             </div>
-            <form id="land-cost-batch" action={`/api/projects/${project.id}/land/batch`} method="post" />
+            <form id={formId} action={`/api/projects/${project.id}/land/batch`} method="post" />
             <div style={{ maxHeight: '72vh', overflow: 'auto', padding: 12 }}>
-              {levelOneRows.length === 0 ? <p className="meta">暂无土地费用科目。</p> : levelOneRows.map((level1) => (
-                <PersistedDetails key={level1.name} storageKey={`land:${project.id}:level1:${level1.name}`} defaultOpen style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 10, overflow: 'hidden', background: '#fff' }}>
-                  <summary style={{ cursor: 'pointer', padding: 12, background: '#e9f7f8', display: 'grid', gridTemplateColumns: '1fr 130px 140px 130px 130px', gap: 10, alignItems: 'center', fontWeight: 900 }}>
-                    <span>一级｜{level1.name}</span><span>已填 {level1.filled}/{level1.rows}</span><span style={{ textAlign: 'right' }}>{fmt(level1.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level1.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level1.amount, saleableArea))}</span>
+              {levelOneRows.length === 0 ? <p className="meta">暂无土地费用科目。</p> : levelOneRows.map((level1) => {
+                const level1Id = groupId('land-level1', level1.name);
+                return <PersistedDetails key={level1.name} data-cost-detail-group storageKey={`land:${project.id}:level1:${level1.name}`} defaultOpen style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 10, overflow: 'hidden', background: '#fff' }}>
+                  <summary style={{ cursor: 'pointer', padding: 12, background: '#e9f7f8', display: 'grid', gridTemplateColumns: '1fr 130px 140px 120px 120px 110px', gap: 10, alignItems: 'center', fontWeight: 900 }}>
+                    <span>一级｜{level1.name}</span><span>已填 {level1.filled}/{level1.rows}</span><span style={{ textAlign: 'right' }}>{fmt(level1.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level1.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}><GroupSaveButton formId={formId} groupId={level1Id} label="保存一级" /></span><span style={{ textAlign: 'right' }}>展开/收起</span>
                   </summary>
                   <div style={{ padding: 10 }}>
-                    {Array.from(level1.children.values()).map((level2) => (
-                      <PersistedDetails key={level2.name} storageKey={`land:${project.id}:level2:${level1.name}:${level2.name}`} defaultOpen style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
-                        <summary style={{ cursor: 'pointer', padding: 10, background: '#f8fafc', display: 'grid', gridTemplateColumns: '1fr 120px 140px 130px 130px', gap: 10, alignItems: 'center', fontWeight: 800 }}>
-                          <span>二级｜{level2.name}</span><span>已填 {level2.filled}/{level2.rows}</span><span style={{ textAlign: 'right' }}>{fmt(level2.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level2.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level2.amount, saleableArea))}</span>
+                    {Array.from(level1.children.values()).map((level2) => {
+                      const level2Id = groupId('land-level2', level1.name, level2.name);
+                      return <PersistedDetails key={level2.name} data-cost-detail-group storageKey={`land:${project.id}:level2:${level1.name}:${level2.name}`} defaultOpen style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
+                        <summary style={{ cursor: 'pointer', padding: 10, background: '#f8fafc', display: 'grid', gridTemplateColumns: '1fr 120px 140px 120px 120px 110px', gap: 10, alignItems: 'center', fontWeight: 800 }}>
+                          <span>二级｜{level2.name}</span><span>已填 {level2.filled}/{level2.rows}</span><span style={{ textAlign: 'right' }}>{fmt(level2.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level2.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}><GroupSaveButton formId={formId} groupId={level2Id} label="保存二级" /></span><span style={{ textAlign: 'right' }}>展开/收起</span>
                         </summary>
                         <div style={{ padding: 8 }}>
-                          {Array.from(level2.children.values()).map((level3) => (
-                            <PersistedDetails key={level3.name} storageKey={`land:${project.id}:level3:${level1.name}:${level2.name}:${level3.name}`} defaultOpen style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
-                              <summary style={{ cursor: 'pointer', padding: 10, background: '#fcfdff', display: 'grid', gridTemplateColumns: '1fr 120px 140px 130px 130px', gap: 10, alignItems: 'center' }}>
-                                <b>三级｜{level3.name}</b><span>已填 {level3.filled}/{level3.rows}</span><span style={{ textAlign: 'right', fontWeight: 800 }}>{fmt(level3.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level3.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}>{fmt(single(level3.amount, saleableArea))}</span>
+                          {Array.from(level2.children.values()).map((level3) => {
+                            const level3Id = groupId('land-level3', level1.name, level2.name, level3.name);
+                            return <PersistedDetails key={level3.name} data-cost-detail-group storageKey={`land:${project.id}:level3:${level1.name}:${level2.name}:${level3.name}`} defaultOpen style={{ border: '1px solid #eef2f6', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
+                              <summary style={{ cursor: 'pointer', padding: 10, background: '#fcfdff', display: 'grid', gridTemplateColumns: '1fr 120px 140px 120px 120px 110px', gap: 10, alignItems: 'center' }}>
+                                <b>三级｜{level3.name}</b><span>已填 {level3.filled}/{level3.rows}</span><span style={{ textAlign: 'right', fontWeight: 800 }}>{fmt(level3.amount)}</span><span style={{ textAlign: 'right' }}>{fmt(single(level3.amount, buildingArea))}</span><span style={{ textAlign: 'right' }}><GroupSaveButton formId={formId} groupId={level3Id} label="保存三级" /></span><span style={{ textAlign: 'right' }}>展开/收起</span>
                               </summary>
                               <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1420, borderCollapse: 'collapse', fontSize: 12 }}>
                                 <thead><tr style={{ background: '#fff' }}>{['编码', '末级科目', '区域/地块', '测算依据', '土地面积/计费基数', '单位', '单价或费率', '税率', '含税金额(万元)', '建面单方', '可售单方', '分摊方式', '备注', '状态'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#475467' }}>{head}</th>)}</tr></thead>
@@ -195,32 +206,33 @@ export default async function LandCostPage({ params, searchParams }: { params: {
                                   const shouldUseFormulaPreset = rateBased && landPriceBaseWan > 0 && (!saved || amount <= 0 || savedQuantity <= 0);
                                   const defaultQuantity = shouldUseFormulaPreset ? landPriceBaseWan : savedQuantity;
                                   const priceValue = rateBased ? (savedFeeRateText(saved?.taxInclusiveUnitPrice) || defaultFeeRateText(row)) : Number(saved?.taxInclusiveUnitPrice || 0) / 10000;
+                                  const rowScopes = [level1Id, level2Id, level3Id];
                                   return <tr key={row.id} style={{ background: amount > 0 ? '#f8fff9' : index % 2 ? '#fff' : '#fcfdff' }}>
                                     <td style={{ ...cell, fontWeight: 900, color: '#0f4c5c' }}>{row.costCode}</td>
                                     <td style={{ ...cell, fontWeight: 800 }}>{row.detailSubject}</td>
-                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`regionOrProductType-${row.id}`} defaultValue={saved?.regionOrProductType || '项目整体'} style={{ ...input, minWidth: 110 }} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form={formId} name={`regionOrProductType-${row.id}`} defaultValue={saved?.regionOrProductType || '项目整体'} style={{ ...input, minWidth: 110 }} /></td>
                                     <td style={cell}>{saved?.measureBasis || row.measureBasis || (rateBased ? '土地价款/成交价×费率' : '土地面积/固定金额')}</td>
-                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" type="hidden" name="dictionaryRowId" value={row.id} />{saved ? <input form="land-cost-batch" type="hidden" name={`costLineId-${row.id}`} value={saved.id} /> : null}<input form="land-cost-batch" name={`quantity-${row.id}`} type="number" step="0.01" defaultValue={defaultQuantity || ''} placeholder={rateBased ? '自动取土地价款，可改' : '亩数/工程量'} style={input} /></td>
-                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`unit-${row.id}`} defaultValue={saved?.unit || (rateBased ? '万元基数' : row.unit || '亩')} style={{ ...input, minWidth: 70 }} /></td>
-                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`priceWanPerUnit-${row.id}`} type={rateBased ? 'text' : 'number'} step="0.01" defaultValue={priceValue || ''} placeholder={rateBased ? '费率，如1%' : '万元/单位'} style={input} /></td>
-                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`taxRate-${row.id}`} defaultValue={saved ? `${Number(saved.taxRate || 0) * 100}%` : row.defaultTaxRate || '0%'} style={{ ...input, minWidth: 68 }} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form={formId} type="hidden" name="dictionaryRowId" value={row.id} />{rowScopes.map((scope) => <input key={scope} form={formId} type="hidden" name={`saveScope-${row.id}`} value={scope} />)}{saved ? <input form={formId} type="hidden" name={`costLineId-${row.id}`} value={saved.id} /> : null}<input form={formId} name={`quantity-${row.id}`} type="number" step="0.01" defaultValue={defaultQuantity || ''} placeholder={rateBased ? '自动取土地价款，可改' : '亩数/工程量'} style={input} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form={formId} name={`unit-${row.id}`} defaultValue={saved?.unit || (rateBased ? '万元基数' : row.unit || '亩')} style={{ ...input, minWidth: 70 }} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form={formId} name={`priceWanPerUnit-${row.id}`} type={rateBased ? 'text' : 'number'} step="0.01" defaultValue={priceValue || ''} placeholder={rateBased ? '费率，如1%' : '万元/单位'} style={input} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form={formId} name={`taxRate-${row.id}`} defaultValue={saved ? `${Number(saved.taxRate || 0) * 100}%` : row.defaultTaxRate || '0%'} style={{ ...input, minWidth: 68 }} /></td>
                                     <td style={{ ...cell, textAlign: 'right', fontWeight: 900 }}>{fmt(amount)}</td>
                                     <td style={{ ...cell, textAlign: 'right' }}>{fmt(single(amount, buildingArea))}</td>
                                     <td style={{ ...cell, textAlign: 'right' }}>{fmt(single(amount, saleableArea))}</td>
                                     <td style={cell}>{saved?.allocationMethod || row.targetAllocationMethod || '按可售面积占比'}</td>
-                                    <td style={{ ...cell, padding: 0 }}><input form="land-cost-batch" name={`remark-${row.id}`} defaultValue={saved?.remark || ''} placeholder="备注" style={{ ...input, minWidth: 130 }} /></td>
+                                    <td style={{ ...cell, padding: 0 }}><input form={formId} name={`remark-${row.id}`} defaultValue={saved?.remark || ''} placeholder="备注" style={{ ...input, minWidth: 130 }} /></td>
                                     <td style={{ ...cell, color: amount > 0 ? '#2f9e44' : '#98a2b3', fontWeight: 800 }}>{amount > 0 ? '已填' : (rateBased && landPriceBaseWan ? '已带入公式' : '未填')}</td>
                                   </tr>;
                                 })}</tbody>
                               </table></div>
-                            </PersistedDetails>
-                          ))}
+                            </PersistedDetails>;
+                          })}
                         </div>
-                      </PersistedDetails>
-                    ))}
+                      </PersistedDetails>;
+                    })}
                   </div>
-                </PersistedDetails>
-              ))}
+                </PersistedDetails>;
+              })}
             </div>
           </section>
         </div>
