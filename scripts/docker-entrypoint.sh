@@ -16,6 +16,8 @@ npx prisma migrate deploy
 
 echo "Ensuring database foundation tables..."
 npm run db:ensure:foundation || true
+echo "Ensuring project building table..."
+npm run db:ensure:buildings || true
 
 if [ "${RUN_SEED:-true}" = "true" ]; then
   echo "Running seed..."
