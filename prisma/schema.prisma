@@ -232,6 +232,7 @@ model Project {
   heatingType                     String?
   remark                          String?
   versions                        ProjectVersion[]
+  metricValues                    ProjectMetricValue[]
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @default(now()) @updatedAt
 
@@ -254,6 +255,7 @@ model ProjectVersion {
   salesSchedulePlans     SalesSchedulePlan[]
   taxes                  TaxParameter?
   importBatches          ImportBatch[]
+  metricValues           ProjectMetricValue[]
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @default(now()) @updatedAt
 }
@@ -287,6 +289,7 @@ model ProductType {
   costs                  CostLine[]
   revenues               RevenueLine[]
   commercialRevenueLines CommercialRevenueLine[]
+  metricValues           ProjectMetricValue[]
   createdAt              DateTime @default(now())
   updatedAt              DateTime @default(now()) @updatedAt
 
@@ -338,12 +341,41 @@ model ProjectMetricDefinition {
   description String?
   enabled     Boolean  @default(true)
   sortOrder   Int      @default(0)
+  values      ProjectMetricValue[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
 
   @@index([scope])
   @@index([enabled])
   @@index([metricGroup])
+}
+
+model ProjectMetricValue {
+  id                  String                  @id @default(cuid())
+  projectId           String
+  project             Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectVersionId    String?
+  projectVersion      ProjectVersion?         @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  productTypeId       String?
+  productType         ProductType?            @relation(fields: [productTypeId], references: [id], onDelete: Cascade)
+  metricKey           String
+  metricDefinition    ProjectMetricDefinition @relation(fields: [metricKey], references: [key], onDelete: Restrict)
+  scope               String                  @default("project")
+  value               Decimal                 @default(0)
+  unit                String?
+  source              String                  @default("manual")
+  sourceRef           String?
+  confidence          Decimal?
+  remark              String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @default(now()) @updatedAt
+
+  @@index([projectId])
+  @@index([projectVersionId])
+  @@index([productTypeId])
+  @@index([metricKey])
+  @@index([scope])
+  @@index([source])
 }
 
 model CostDictionaryRow {
