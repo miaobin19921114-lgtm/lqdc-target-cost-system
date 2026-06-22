@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { defaultVersionStage, normalizeVersionStage } from '@/lib/version-stage';
+import { findProductTypePresetKey } from '@/data/product-type-presets';
 import { parseTemplateAllocationRules, writeTemplateAllocationRemark } from '@/lib/template-allocation-rules';
 
 const toNumber = (value: FormDataEntryValue | null) => Number(value || 0);
@@ -104,6 +105,8 @@ export async function POST(request: Request) {
   const selectedCostRules = template?.costRules.filter((item) => selectedCostRuleIds.includes(item.id)) || [];
   const taxRules = template?.taxRules || [];
   const productCreates = selectedProducts.map((item) => ({
+    productTypeKey: findProductTypePresetKey(item.name, item.category),
+    category: item.category,
     name: item.name,
     isSaleable: item.isSaleable,
     participateAllocation: item.participateAllocation,
@@ -134,6 +137,8 @@ export async function POST(request: Request) {
     const customIsSaleable = form.get('customIsSaleable') === 'on';
     const customParticipateAllocation = form.get('customParticipateAllocation') === 'on';
     productCreates.push({
+      productTypeKey: findProductTypePresetKey(customProductName, customCategory),
+      category: customCategory || '其他',
       name: customProductName,
       isSaleable: customIsSaleable,
       participateAllocation: customParticipateAllocation,
