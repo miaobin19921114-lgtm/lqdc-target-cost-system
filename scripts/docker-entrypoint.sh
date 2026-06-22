@@ -29,6 +29,7 @@ npm run db:ensure:price-indicators-extra || true
 echo "Ensuring revenue tax extra fields..."
 npm run db:ensure:revenue-tax-extra || true
 npm run db:ensure:procurement-contract-extra || true
+npm run db:ensure:dc-extra || true
 
 if [ "${RUN_SEED:-true}" = "true" ]; then
   echo "Running seed..."
