@@ -22,6 +22,8 @@ echo "Ensuring product type extra fields..."
 npm run db:ensure:product-types-extra || true
 echo "Ensuring cost extra fields..."
 npm run db:ensure:cost-extra || true
+echo "Ensuring measure rule extra fields..."
+npm run db:ensure:measure-rules-extra || true
 
 if [ "${RUN_SEED:-true}" = "true" ]; then
   echo "Running seed..."
