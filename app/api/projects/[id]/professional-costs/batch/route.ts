@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
 import { calculateRuleDrivenQuantity } from '@/lib/rule-driven-quantity';
+import { recommendPriceIndicator } from '@/lib/price-indicator-matcher';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -31,8 +32,8 @@ function boolFrom(form: FormData, name: string) {
   return value === '1' || value === 'true' || value === 'on';
 }
 
-function taxRateFrom(inputValue: FormDataEntryValue | null, fallback = 0.09) {
-  const raw = clean(inputValue);
+function taxRateFrom(inputValue: FormDataEntryValue | string | null, fallback = 0.09) {
+  const raw = clean(inputValue as FormDataEntryValue | null);
   if (!raw) return fallback;
   const num = Number(raw.replace('%', ''));
   if (!Number.isFinite(num)) return fallback;
@@ -78,6 +79,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const rowEntries = saveGroupId ? allRowEntries.filter((entryId) => entryMatchesSaveScope(form, entryId, saveGroupId)) : allRowEntries;
   let savedCount = 0;
   let ruleAppliedCount = 0;
+  let priceAppliedCount = 0;
 
   for (const rowEntryId of rowEntries) {
     const rowId = dictionaryIdFromEntry(rowEntryId);
@@ -88,7 +90,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const quantityOverride = boolFrom(form, entryKey(rowEntryId, 'quantityOverride'));
     const formulaQuantity = measureValue ? round2(measureValue * coefficient) : 0;
     let quantity = quantityOverride || !formulaQuantity ? quantityInput : formulaQuantity;
-    const taxInclusiveUnitPrice = numberFrom(form, entryKey(rowEntryId, 'taxInclusiveUnitPrice'));
+    let taxInclusiveUnitPrice = numberFrom(form, entryKey(rowEntryId, 'taxInclusiveUnitPrice'));
     const remarkInput = clean(form.get(entryKey(rowEntryId, 'remark')));
     let unitInput = clean(form.get(entryKey(rowEntryId, 'unit')));
     const taxRateInput = clean(form.get(entryKey(rowEntryId, 'taxRate')));
@@ -136,11 +138,25 @@ export async function POST(request: Request, { params }: { params: { id: string 
       ruleAppliedCount += 1;
     }
 
-    const taxRate = taxRateFrom(taxRateInput || dict.defaultTaxRate, 0.09);
+    const price = !taxInclusiveUnitPrice ? await recommendPriceIndicator(prisma, {
+      projectId: params.id,
+      costCode: code,
+      regionOrProductType: regionOrProductTypeInput || existingCostLine?.regionOrProductType || dict.applicableProductType || '',
+      fallbackUnit: unitInput || dict.unit || '项'
+    }) : null;
+    if (price?.applied) {
+      taxInclusiveUnitPrice = price.taxInclusiveUnitPrice;
+      unitInput = unitInput || price.quantityUnit || '';
+      priceAppliedCount += 1;
+    }
+
+    const taxRate = taxRateInput ? taxRateFrom(taxRateInput, price?.taxRate || 0.09) : (price?.applied ? price.taxRate : taxRateFrom(dict.defaultTaxRate, 0.09));
     const amounts = calc(quantity, taxInclusiveUnitPrice, taxRate);
-    const remark = ruleQuantity.applied && ruleQuantity.source
-      ? [remarkInput, `后端${ruleQuantity.source}自动计算工程量`].filter(Boolean).join('；')
-      : remarkInput;
+    const remark = [
+      remarkInput,
+      ruleQuantity.applied && ruleQuantity.source ? `后端${ruleQuantity.source}自动计算工程量` : '',
+      price?.applied && price.source ? `后端${price.source}自动推荐单价` : ''
+    ].filter(Boolean).join('；');
     const data = {
       projectVersionId: version.id,
       costSubjectId: costSubject.id,
@@ -170,6 +186,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
     savedCount += 1;
   }
 
-  const query = saveGroupId ? `saved=1&groupSaved=1&batch=${savedCount}&rules=${ruleAppliedCount}` : `saved=1&batch=${savedCount}&rules=${ruleAppliedCount}`;
+  const query = saveGroupId ? `saved=1&groupSaved=1&batch=${savedCount}&rules=${ruleAppliedCount}&prices=${priceAppliedCount}` : `saved=1&batch=${savedCount}&rules=${ruleAppliedCount}&prices=${priceAppliedCount}`;
   return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?${query}`, 303);
 }
