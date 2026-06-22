@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { defaultVersionStage, normalizeVersionStage } from '@/lib/version-stage';
 
 function clean(form: FormData, name: string) {
   return String(form.get(name) || '').trim();
@@ -22,7 +23,7 @@ async function copyVersion(projectId: string, sourceVersionId: string, name: str
   });
   if (!source) return null;
 
-  const target = await prisma.projectVersion.create({ data: { projectId, name, stage, status: 'draft' } });
+  const target = await prisma.projectVersion.create({ data: { projectId, name, stage: normalizeVersionStage(stage), status: 'draft' } });
   const productIdMap = new Map<string, string>();
 
   for (const product of source.products) {
@@ -179,7 +180,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   const name = clean(form, 'name') || '新测算版本';
-  const stage = clean(form, 'stage') || '投拓阶段';
+  const stage = normalizeVersionStage(clean(form, 'stage') || defaultVersionStage);
   const sourceVersionId = clean(form, 'sourceVersionId') || project.activeVersionId || project.versions[0]?.id || '';
   const copyCosts = form.get('copyCosts') === 'on';
 
