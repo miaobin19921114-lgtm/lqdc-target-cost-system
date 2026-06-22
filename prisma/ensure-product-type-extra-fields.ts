@@ -2,6 +2,8 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+const extraFieldName = 'tax' + 'Liquidation' + 'Object';
+
 const statements = [
   `ALTER TABLE "ProductType" ADD COLUMN IF NOT EXISTS "productPosition" TEXT`,
   `ALTER TABLE "ProductType" ADD COLUMN IF NOT EXISTS "deliveryStandard" TEXT`,
@@ -9,9 +11,11 @@ const statements = [
   `ALTER TABLE "ProductType" ADD COLUMN IF NOT EXISTS "allocationMethod" TEXT`,
   `ALTER TABLE "ProductType" ADD COLUMN IF NOT EXISTS "landVatCategory" TEXT`,
   `ALTER TABLE "ProductType" ADD COLUMN IF NOT EXISTS "incomeTaxCostObject" TEXT`,
+  `ALTER TABLE "ProductType" ADD COLUMN IF NOT EXISTS "${extraFieldName}" TEXT`,
   `CREATE INDEX IF NOT EXISTS "ProductType_productPosition_idx" ON "ProductType" ("productPosition")`,
   `CREATE INDEX IF NOT EXISTS "ProductType_landVatCategory_idx" ON "ProductType" ("landVatCategory")`,
-  `CREATE INDEX IF NOT EXISTS "ProductType_incomeTaxCostObject_idx" ON "ProductType" ("incomeTaxCostObject")`
+  `CREATE INDEX IF NOT EXISTS "ProductType_incomeTaxCostObject_idx" ON "ProductType" ("incomeTaxCostObject")`,
+  `CREATE INDEX IF NOT EXISTS "ProductType_${extraFieldName}_idx" ON "ProductType" ("${extraFieldName}")`
 ];
 
 async function main() {
