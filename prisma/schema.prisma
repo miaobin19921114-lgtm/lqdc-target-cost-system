@@ -605,3 +605,49 @@ model SalesScheduleLine {
   @@unique([planId, monthIndex])
   @@index([planId])
 }
+
+model MeasureBasisRule {
+  id                  String                  @id @default(cuid())
+  costCode            String
+  basisName           String
+  metricKey           String?
+  metricScope         String                  @default("project")
+  quantityUnit        String?
+  pricingUnit         String?
+  defaultCoefficient  Decimal                 @default(1)
+  quantityFormula     String?
+  amountFormula       String?
+  applicableProductType String?
+  allowManualOverride Boolean                 @default(true)
+  enabled             Boolean                 @default(true)
+  priority            Int                     @default(100)
+  remark              String?
+  stageRules          MeasureBasisStageRule[]
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @default(now()) @updatedAt
+
+  @@unique([costCode, basisName])
+  @@index([costCode])
+  @@index([metricKey])
+  @@index([enabled])
+}
+
+model MeasureBasisStageRule {
+  id          String           @id @default(cuid())
+  costCode    String
+  stage       String
+  basisRuleId String
+  basisRule   MeasureBasisRule @relation(fields: [basisRuleId], references: [id], onDelete: Cascade)
+  priority    Int              @default(100)
+  isDefault   Boolean          @default(false)
+  enabled     Boolean          @default(true)
+  remark      String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now()) @updatedAt
+
+  @@unique([costCode, stage, basisRuleId])
+  @@index([costCode])
+  @@index([stage])
+  @@index([basisRuleId])
+  @@index([enabled])
+}
