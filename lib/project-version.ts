@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { defaultVersionStage } from '@/lib/version-stage';
 
 type ProjectVersionOwner = {
   id: string;
@@ -50,7 +51,7 @@ export async function getOrCreateActiveVersion(projectId: string) {
   }
 
   const created = await prisma.projectVersion.create({
-    data: { projectId, name: '初始版本', status: 'draft' }
+    data: { projectId, name: '初始版本', stage: defaultVersionStage, status: 'draft' }
   });
 
   await prisma.project.update({
