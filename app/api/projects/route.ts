@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { defaultVersionStage, normalizeVersionStage } from '@/lib/version-stage';
 import { parseTemplateAllocationRules, writeTemplateAllocationRemark } from '@/lib/template-allocation-rules';
 
 const toNumber = (value: FormDataEntryValue | null) => Number(value || 0);
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
   const templateId = String(form.get('templateId') || '');
   const selectedIds = form.getAll('templateProductIds').map((item) => String(item));
   const selectedCostRuleIds = form.getAll('costRuleIds').map((item) => String(item));
-  const stage = clean(form, 'stage') || '投拓阶段';
+  const stage = normalizeVersionStage(clean(form, 'stage') || defaultVersionStage);
   const customProductName = String(form.get('customProductName') || '').trim();
   const customCategory = String(form.get('customCategory') || '').trim();
   const template = templateId ? await prisma.template.findUnique({
