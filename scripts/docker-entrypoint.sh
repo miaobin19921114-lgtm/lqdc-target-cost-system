@@ -25,6 +25,8 @@ if [ "${RUN_SEED:-true}" = "true" ]; then
   npm run db:seed:project-metrics || true
   echo "Seeding measure basis rules..."
   npm run db:seed:measure-rules || true
+  echo "Seeding price indicators..."
+  npm run db:seed:price-indicators || true
   echo "Syncing project metric values..."
   npm run db:sync:metric-values || true
   echo "Syncing V60 land cost subjects..."
