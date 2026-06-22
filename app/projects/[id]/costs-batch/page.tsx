@@ -111,7 +111,7 @@ function addToAmount(target: Amount, amount: AmountValue, product?: string) {
 
 function codePrefix(code: string, length: number) { return code.split('.').slice(0, length).join('.'); }
 
-export default async function TargetCostBatchPage({ params }: { params: { id: string } }) {
+export default async function TargetCostBatchPage({ params, searchParams }: { params: { id: string }; searchParams?: Record<string, string | undefined> }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
 
@@ -194,20 +194,26 @@ export default async function TargetCostBatchPage({ params }: { params: { id: st
           <div>
             <p className="eyebrow">目标成本测算表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">金额单位统一为万元；单价单位统一为元/单位；单方统一为元/㎡。各专业明细页负责录入，本页自动汇总并自动重算旧成本行。</p>
+            <p className="subtitle">金额单位统一为万元；单价单位统一为元/单位；单方统一为元/㎡。各专业明细页负责录入，本页自动汇总并支持按规则库和量价库一键重算。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
-            <Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总表</Link>
+            <form action={`/api/projects/${project.id}/costs/recalculate`} method="post" style={{ display: 'inline' }}><button className="btn btn-primary">一键按规则重算</button></form>
+            <Link href={`/projects/${project.id}/summary`} className="btn">目标成本汇总表</Link>
             <Link href={`/projects/${project.id}/summary-check`} className="btn">汇总校验</Link>
             <Link href={`/projects/${project.id}/cost-allocation`} className="btn">成本分摊</Link>
             <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
           </div>
         </div>
 
+        {searchParams?.recalculated === '1' ? <section className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb', background: '#f0fff4' }}><b>一键重算完成</b><p className="meta" style={{ margin: '6px 0 0' }}>更新成本行 {searchParams.recalcRows || 0} 条；规则库重算工程量 {searchParams.ruleRows || 0} 条；量价库补齐单价 {searchParams.priceRows || 0} 条；金额重算 {searchParams.amountRows || 0} 条。</p></section> : null}
+        {searchParams?.recalculated === '0' ? <section className="card" style={{ marginBottom: 12, borderColor: '#ffc9c9', background: '#fff5f5' }}><b>一键重算失败</b><p className="meta" style={{ margin: '6px 0 0' }}>当前项目没有可编辑的活动版本。</p></section> : null}
+        {searchParams?.locked === '1' ? <section className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}><b>当前版本已锁定</b><p className="meta" style={{ margin: '6px 0 0' }}>锁定版本不能重算，请复制或解锁版本后再操作。</p></section> : null}
+
         <section className="card" style={{ marginBottom: 12, borderColor: '#d0ebff', background: '#f8fbff' }}>
           <b>V60口径说明</b>
           <p className="meta" style={{ margin: '6px 0 0' }}>目标成本测算表不是重复录入页，而是把土地费、前期费、各专业明细、销售/管理/财务费用按科目树和业态汇总展示。</p>
           <p className="meta" style={{ margin: '6px 0 0' }}>价格规则：工程量 × 含税单价（元） ÷ 10000 = 含税合价（万元）；不含税、税额也按万元保存和汇总。</p>
+          <p className="meta" style={{ margin: '6px 0 0' }}>一键重算不会覆盖手动工程量，也不会覆盖已手填单价；只补齐空单价并刷新金额。</p>
           <p className="meta" style={{ margin: '6px 0 0' }}>顺序：{v60OrderNote}</p>
         </section>
 
