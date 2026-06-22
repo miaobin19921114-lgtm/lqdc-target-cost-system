@@ -181,7 +181,8 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
     }
   }
 
-  const total = displayRows.filter((row) => row.level === 1).reduce((sum, row) => sum + row.amount.incl, 0);
+  const levelOneRows = displayRows.filter((row) => row.level === 1);
+  const total = levelOneRows.reduce((sum, row) => sum + row.amount.incl, 0);
   const filledLeafRows = displayRows.filter((row) => row.isLeaf && row.amount.incl > 0).length;
   const leafCount = displayRows.filter((row) => row.isLeaf).length;
   const v60OrderNote = '土地费 → 前期费 → 土建 → 安装 → 设备 → 精装 → 室外管网 → 景观 → 道路总平 → 围墙出入口 → 销售费用 → 管理费用 → 财务费用 → 税金';
@@ -194,7 +195,7 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
           <div>
             <p className="eyebrow">目标成本测算表</p>
             <h1 className="title">{project.name}</h1>
-            <p className="subtitle">金额单位统一为万元；单价单位统一为元/单位；单方统一为元/㎡。各专业明细页负责录入，本页自动汇总并支持按规则库和量价库一键重算。</p>
+            <p className="subtitle">目标成本测算是成本结果入口：专业明细页负责录入，本页按科目树、业态维度和税率口径自动汇总。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <form action={`/api/projects/${project.id}/costs/recalculate`} method="post" style={{ display: 'inline' }}><button className="btn btn-primary">一键按规则重算</button></form>
@@ -210,11 +211,11 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
         {searchParams?.locked === '1' ? <section className="card" style={{ marginBottom: 12, borderColor: '#ffd8a8', background: '#fff9db' }}><b>当前版本已锁定</b><p className="meta" style={{ margin: '6px 0 0' }}>锁定版本不能重算，请复制或解锁版本后再操作。</p></section> : null}
 
         <section className="card" style={{ marginBottom: 12, borderColor: '#d0ebff', background: '#f8fbff' }}>
-          <b>V60口径说明</b>
-          <p className="meta" style={{ margin: '6px 0 0' }}>目标成本测算表不是重复录入页，而是把土地费、前期费、各专业明细、销售/管理/财务费用按科目树和业态汇总展示。</p>
-          <p className="meta" style={{ margin: '6px 0 0' }}>价格规则：工程量 × 含税单价（元） ÷ 10000 = 含税合价（万元）；不含税、税额也按万元保存和汇总。</p>
+          <b>测算口径说明</b>
+          <p className="meta" style={{ margin: '6px 0 0' }}>金额单位：万元；单价单位：元/单位；建面单方和可售单方：元/㎡。</p>
+          <p className="meta" style={{ margin: '6px 0 0' }}>价格规则：工程量 × 含税单价 ÷ 10000 = 含税合价；不含税、税额同步按万元汇总。</p>
           <p className="meta" style={{ margin: '6px 0 0' }}>一键重算不会覆盖手动工程量，也不会覆盖已手填单价；只补齐空单价并刷新金额。</p>
-          <p className="meta" style={{ margin: '6px 0 0' }}>顺序：{v60OrderNote}</p>
+          <p className="meta" style={{ margin: '6px 0 0' }}>科目顺序：{v60OrderNote}</p>
         </section>
 
         <div className="summary-strip" style={{ marginBottom: 12 }}>
@@ -222,7 +223,16 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
           <div className="stat"><div className="stat-label">建面单方（元/㎡）</div><div className="stat-value">{fmt(single(total, buildingArea))}</div></div>
           <div className="stat"><div className="stat-label">可售单方（元/㎡）</div><div className="stat-value">{fmt(single(total, saleableArea))}</div></div>
           <div className="stat"><div className="stat-label">已填末级科目</div><div className="stat-value">{filledLeafRows}/{leafCount}</div></div>
+          <div className="stat"><div className="stat-label">启用业态列</div><div className="stat-value">{products.length}</div></div>
         </div>
+
+        <section className="card" style={{ marginBottom: 12 }}>
+          <h2>一级科目成本看板</h2>
+          <p className="meta">快速检查各一级成本科目金额、占比、建面单方和可售单方。下方明细表继续展示完整科目树和业态列。</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 12 }}>
+            {levelOneRows.map((row) => <div key={row.id} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#fbfdff' }}><b>{row.name}</b><div style={{ fontSize: 20, fontWeight: 900, marginTop: 6 }}>{fmt(row.amount.incl)}</div><div className="meta">万元｜占比 {total ? fmt(row.amount.incl / total * 100) : '0'}%</div><div className="meta">建面 {fmt(single(row.amount.incl, buildingArea))} 元/㎡</div><div className="meta">可售 {fmt(single(row.amount.incl, saleableArea))} 元/㎡</div></div>)}
+          </div>
+        </section>
 
         <V60TargetCostTable rows={displayRows} products={products} buildingArea={buildingArea} saleableArea={saleableArea} />
       </div>
