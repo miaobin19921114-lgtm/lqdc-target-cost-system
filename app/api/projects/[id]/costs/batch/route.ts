@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
+import { calculateRuleDrivenQuantity } from '@/lib/rule-driven-quantity';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -48,19 +49,20 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const rowIds = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
   let savedCount = 0;
+  let ruleAppliedCount = 0;
 
   for (const dictionaryRowId of rowIds) {
-    const quantity = numberFrom(form, `quantity-${dictionaryRowId}`);
+    let quantity = numberFrom(form, `quantity-${dictionaryRowId}`);
     const taxInclusiveUnitPrice = numberFrom(form, `taxInclusiveUnitPrice-${dictionaryRowId}`);
-    const remark = clean(form.get(`remark-${dictionaryRowId}`));
-    const unitInput = clean(form.get(`unit-${dictionaryRowId}`));
+    const remarkInput = clean(form.get(`remark-${dictionaryRowId}`));
+    let unitInput = clean(form.get(`unit-${dictionaryRowId}`));
     const taxRateInput = clean(form.get(`taxRate-${dictionaryRowId}`));
     const costLineId = clean(form.get(`costLineId-${dictionaryRowId}`));
     const regionOrProductTypeInput = clean(form.get(`regionOrProductType-${dictionaryRowId}`));
     const measureBasisInput = clean(form.get(`measureBasis-${dictionaryRowId}`));
     const allocationMethodInput = clean(form.get(`allocationMethod-${dictionaryRowId}`));
 
-    if (!quantity && !taxInclusiveUnitPrice && !remark && !costLineId && !regionOrProductTypeInput && !measureBasisInput && !allocationMethodInput) continue;
+    if (!quantity && !taxInclusiveUnitPrice && !remarkInput && !costLineId && !regionOrProductTypeInput && !measureBasisInput && !allocationMethodInput) continue;
 
     const dict = await prisma.costDictionaryRow.findUnique({ where: { id: dictionaryRowId } });
     if (!dict || !dict.detailSubject) continue;
@@ -93,8 +95,34 @@ export async function POST(request: Request, { params }: { params: { id: string 
       }
     });
 
+    const ruleQuantity = await calculateRuleDrivenQuantity(prisma, {
+      projectId: params.id,
+      projectVersionId: version.id,
+      costCode: code,
+      basisName: measureBasisInput || dict.measureBasis || '',
+      regionOrProductType: regionOrProductTypeInput || dict.applicableProductType || '',
+      fallbackMeasureValue: quantity,
+      fallbackCoefficient: 1,
+      fallbackQuantity: quantity,
+      quantityOverride: false,
+      fallbackUnit: unitInput || dict.unit || ''
+    });
+
+    let measureValue = quantity;
+    let coefficient = 1;
+    if (ruleQuantity.applied) {
+      measureValue = ruleQuantity.measureValue;
+      coefficient = ruleQuantity.coefficient;
+      quantity = ruleQuantity.quantity;
+      unitInput = ruleQuantity.unit || unitInput;
+      ruleAppliedCount += 1;
+    }
+
     const taxRate = taxRateFrom(taxRateInput || dict.defaultTaxRate, 0.09);
     const amounts = calc(quantity, taxInclusiveUnitPrice, taxRate);
+    const remark = ruleQuantity.applied && ruleQuantity.source
+      ? [remarkInput, `后端${ruleQuantity.source}自动计算工程量`].filter(Boolean).join('；')
+      : remarkInput;
     const data = {
       projectVersionId: version.id,
       costSubjectId: costSubject.id,
@@ -103,6 +131,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       regionOrProductType: regionOrProductTypeInput || dict.applicableProductType || '项目整体共用',
       professionalGroup: dict.sourceTable?.replace('表', '') || dict.secondSubject || '目标成本',
       measureBasis: measureBasisInput || dict.measureBasis || '',
+      measureValue,
+      coefficient,
+      quantityOverride: false,
       quantity,
       unit: unitInput || dict.unit || '',
       taxRate,
@@ -126,5 +157,5 @@ export async function POST(request: Request, { params }: { params: { id: string 
     savedCount += 1;
   }
 
-  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/costs-batch?saved=1&batch=${savedCount}`, 303);
+  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/costs-batch?saved=1&batch=${savedCount}&rules=${ruleAppliedCount}`, 303);
 }
