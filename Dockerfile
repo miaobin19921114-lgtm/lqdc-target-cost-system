@@ -7,7 +7,8 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 COPY package.json ./
-RUN npm install
+RUN npm cache clean --force \
+  && npm install --include=dev --ignore-scripts
 
 FROM deps AS builder
 WORKDIR /app
