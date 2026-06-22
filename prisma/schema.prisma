@@ -105,6 +105,27 @@ model TemplateTaxRule {
   @@index([templateId])
 }
 
+model ProductTypePreset {
+  id                      String        @id @default(cuid())
+  key                     String        @unique
+  name                    String
+  category                String
+  isSaleable              Boolean       @default(true)
+  participateAllocation   Boolean       @default(true)
+  defaultVatRate          Decimal       @default(0.09)
+  defaultAllocationMethod String        @default("按建筑面积占比")
+  defaultIncomeType       String        @default("销售收入")
+  description             String?
+  enabled                 Boolean       @default(true)
+  sortOrder               Int           @default(0)
+  projectProducts         ProductType[]
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @default(now()) @updatedAt
+
+  @@index([category])
+  @@index([enabled])
+}
+
 model Project {
   id                              String   @id @default(cuid())
   activeVersionId                 String?
@@ -238,14 +259,24 @@ model ProjectVersion {
 }
 
 model ProductType {
-  id                     String         @id @default(cuid())
+  id                     String             @id @default(cuid())
   projectVersionId       String
-  projectVersion         ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  projectVersion         ProjectVersion     @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  productTypeKey         String?
+  productTypePreset      ProductTypePreset? @relation(fields: [productTypeKey], references: [key], onDelete: SetNull)
+  category               String?
   name                   String
   buildingArea           Decimal @default(0)
+  aboveGroundArea        Decimal @default(0)
+  undergroundArea        Decimal @default(0)
   saleableArea           Decimal @default(0)
   capacityArea           Decimal @default(0)
   nonSaleableArea        Decimal @default(0)
+  baseArea               Decimal @default(0)
+  householdCount         Int     @default(0)
+  unitCount              Int     @default(0)
+  buildingCount          Int     @default(0)
+  parkingCount           Int     @default(0)
   salePrice              Decimal @default(0)
   isSaleable             Boolean @default(true)
   participateAllocation  Boolean @default(true)
@@ -261,6 +292,8 @@ model ProductType {
 
   @@index([projectVersionId])
   @@index([projectVersionId, isActive])
+  @@index([productTypeKey])
+  @@index([category])
 }
 
 model ProjectCostRule {
