@@ -7,6 +7,29 @@ type MetricsPayload = {
   products?: Array<Record<string, number | string>>;
 };
 
+type MeasureBasisRule = {
+  id: string;
+  costCode: string;
+  basisName: string;
+  metricKey?: string | null;
+  metricScope?: string | null;
+  quantityUnit?: string | null;
+  pricingUnit?: string | null;
+  defaultCoefficient?: number | null;
+  quantityFormula?: string | null;
+  amountFormula?: string | null;
+  applicableProductType?: string | null;
+  priority?: number;
+  isDefault?: boolean;
+  remark?: string | null;
+  stageMatched?: boolean;
+};
+
+type RulesPayload = {
+  stage?: string;
+  rules?: MeasureBasisRule[];
+};
+
 type Suggestion = { quantity: number; unit: string; source: string; coefficient: number };
 
 const splitSeparators = /[\/、,，;；\n]+/;
@@ -35,6 +58,52 @@ function findProduct(payload: MetricsPayload, groupName: string) {
 
 function pick(value: unknown, unit: string, source: string, coefficient = 1): Suggestion {
   return { quantity: toNumber(value), unit, source, coefficient };
+}
+
+function findCostCode(rowText: string) {
+  const matches = rowText.match(/\d{2}(?:\.\d{2}){1,4}/g) || [];
+  return matches.sort((a, b) => b.length - a.length)[0] || '';
+}
+
+function buildRuleMap(rules: MeasureBasisRule[]) {
+  const map = new Map<string, MeasureBasisRule[]>();
+  rules.forEach((rule) => {
+    const list = map.get(rule.costCode) || [];
+    list.push(rule);
+    map.set(rule.costCode, list);
+  });
+  map.forEach((list) => list.sort((a, b) => Number(b.stageMatched) - Number(a.stageMatched) || Number(b.isDefault) - Number(a.isDefault) || (a.priority || 100) - (b.priority || 100)));
+  return map;
+}
+
+function rulesForCostCode(costCode: string, ruleMap: Map<string, MeasureBasisRule[]>) {
+  if (!costCode) return [];
+  const direct = ruleMap.get(costCode);
+  if (direct?.length) return direct;
+  const prefixes = Array.from(ruleMap.keys()).filter((code) => costCode.startsWith(`${code}.`) || code.startsWith(`${costCode}.`));
+  prefixes.sort((a, b) => b.length - a.length);
+  return prefixes.flatMap((code) => ruleMap.get(code) || []);
+}
+
+function applyRuleSuggestion(payload: MetricsPayload, rule: MeasureBasisRule | undefined, groupName: string): Suggestion | null {
+  if (!rule) return null;
+  const project = payload.project || {};
+  const product = findProduct(payload, groupName);
+  const coefficient = toNumber(rule.defaultCoefficient) || 1;
+  const quantityUnit = clean(rule.quantityUnit);
+
+  if (rule.metricKey) {
+    const rawMetricKey = clean(rule.metricKey);
+    const metricKey = rawMetricKey.replace(/^product\./, '');
+    const isProductScope = rule.metricScope === 'product' || rawMetricKey.startsWith('product.');
+    const sourceName = isProductScope ? `业态指标：${rawMetricKey}` : `项目指标：${rawMetricKey}`;
+    const value = isProductScope && product ? toNumber(product[metricKey]) : toNumber(project[rawMetricKey]);
+    return pick(value, quantityUnit, `规则库：${rule.basisName}；${sourceName}`, coefficient);
+  }
+
+  if (clean(rule.quantityFormula) === '1') return pick(1, quantityUnit || '项', `规则库：${rule.basisName}`, coefficient);
+  if (/manual|手动|fixed|合同|金额/i.test(clean(rule.quantityFormula) + clean(rule.basisName))) return pick(0, quantityUnit, `规则库：${rule.basisName}；需手动录入基数或金额`, coefficient);
+  return null;
 }
 
 function suggestByBasis(payload: MetricsPayload, basis: string, groupName: string, rowText: string): Suggestion {
@@ -138,7 +207,21 @@ function updateRow(select: HTMLSelectElement, payload: MetricsPayload) {
   const unitInput = form?.querySelector<HTMLInputElement>(`[name="${fieldName(entryId, 'unit')}"]`);
   const source = row?.querySelector<HTMLElement>('[data-measure-source]');
   const rowText = row?.textContent || '';
-  const suggestion = suggestByBasis(payload, select.value, groupInput?.value || '', rowText);
+  const selectedOption = select.selectedOptions[0];
+  const rule: MeasureBasisRule | undefined = selectedOption?.dataset?.ruleId ? {
+    id: selectedOption.dataset.ruleId,
+    costCode: selectedOption.dataset.costCode || '',
+    basisName: selectedOption.value,
+    metricKey: selectedOption.dataset.metricKey || null,
+    metricScope: selectedOption.dataset.metricScope || 'project',
+    quantityUnit: selectedOption.dataset.quantityUnit || null,
+    pricingUnit: selectedOption.dataset.pricingUnit || null,
+    defaultCoefficient: toNumber(selectedOption.dataset.defaultCoefficient) || 1,
+    quantityFormula: selectedOption.dataset.quantityFormula || null,
+    amountFormula: selectedOption.dataset.amountFormula || null,
+    stageMatched: selectedOption.dataset.stageMatched === 'true'
+  } : undefined;
+  const suggestion = applyRuleSuggestion(payload, rule, groupInput?.value || '') || suggestByBasis(payload, select.value, groupInput?.value || '', rowText);
 
   if (measureInput) measureInput.value = suggestion.quantity ? String(suggestion.quantity) : '';
   if (coefficientInput) coefficientInput.value = String(suggestion.coefficient || 1);
@@ -147,14 +230,62 @@ function updateRow(select: HTMLSelectElement, payload: MetricsPayload) {
   if (source) source.textContent = suggestion.source ? `默认取数：${suggestion.source}` : '';
 }
 
+function addOption(select: HTMLSelectElement, value: string, label: string, rule?: MeasureBasisRule) {
+  const option = document.createElement('option');
+  option.value = value;
+  option.textContent = label;
+  if (rule) {
+    option.dataset.ruleId = rule.id;
+    option.dataset.costCode = rule.costCode;
+    option.dataset.metricKey = rule.metricKey || '';
+    option.dataset.metricScope = rule.metricScope || 'project';
+    option.dataset.quantityUnit = rule.quantityUnit || '';
+    option.dataset.pricingUnit = rule.pricingUnit || '';
+    option.dataset.defaultCoefficient = String(rule.defaultCoefficient || 1);
+    option.dataset.quantityFormula = rule.quantityFormula || '';
+    option.dataset.amountFormula = rule.amountFormula || '';
+    option.dataset.stageMatched = String(Boolean(rule.stageMatched));
+  }
+  select.appendChild(option);
+}
+
+function applyRulesToSelect(select: HTMLSelectElement, rowText: string, ruleMap: Map<string, MeasureBasisRule[]>, originalValues: string[]) {
+  const costCode = findCostCode(rowText);
+  const rules = rulesForCostCode(costCode, ruleMap);
+  const existingValue = select.value || originalValues[0] || '';
+  select.innerHTML = '';
+  const seen = new Set<string>();
+
+  rules.forEach((rule, index) => {
+    if (seen.has(rule.basisName)) return;
+    seen.add(rule.basisName);
+    const suffix = rule.stageMatched ? '（阶段规则）' : index === 0 ? '（规则库默认）' : '';
+    addOption(select, rule.basisName, `${rule.basisName}${suffix}`, rule);
+  });
+
+  originalValues.forEach((value, index) => {
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    addOption(select, value, index === 0 && !rules.length ? `${value}（默认）` : value);
+  });
+
+  if (!select.options.length) addOption(select, '', '请选择测算依据');
+  select.value = Array.from(select.options).some((option) => option.value === existingValue) ? existingValue : select.options[0].value;
+}
+
 async function enhanceMeasureBasis(scopeId: string) {
   const root = document.querySelector<HTMLElement>(`[data-detail-scope="${scopeId}"]`);
   if (!root || root.dataset.measureEnhanced === 'true') return;
   const projectId = location.pathname.split('/').filter(Boolean)[1];
   if (!projectId) return;
-  const response = await fetch(`/api/projects/${projectId}/measure-metrics`, { cache: 'no-store' });
-  if (!response.ok) return;
-  const payload = await response.json() as MetricsPayload;
+  const [metricsResponse, rulesResponse] = await Promise.all([
+    fetch(`/api/projects/${projectId}/measure-metrics`, { cache: 'no-store' }),
+    fetch(`/api/projects/${projectId}/measure-basis-rules`, { cache: 'no-store' })
+  ]);
+  if (!metricsResponse.ok) return;
+  const payload = await metricsResponse.json() as MetricsPayload;
+  const rulesPayload = rulesResponse.ok ? await rulesResponse.json() as RulesPayload : { rules: [] };
+  const ruleMap = buildRuleMap(rulesPayload.rules || []);
 
   root.querySelectorAll<HTMLInputElement>('input[name^="measureBasis-"]').forEach((input) => {
     const originalValue = input.value || input.defaultValue || '';
@@ -167,24 +298,16 @@ async function enhanceMeasureBasis(scopeId: string) {
     Object.assign(select.style, input.style);
     select.style.minWidth = '160px';
     const values = options.length ? options : [originalValue].filter(Boolean);
-    values.forEach((value, index) => {
-      const option = document.createElement('option');
-      option.value = value;
-      option.textContent = index === 0 ? `${value}（默认）` : value;
-      select.appendChild(option);
-    });
-    if (!values.length) {
-      const option = document.createElement('option');
-      option.value = '';
-      option.textContent = '请选择测算依据';
-      select.appendChild(option);
-    }
-    select.value = values[0] || '';
+    applyRulesToSelect(select, input.closest('tr')?.textContent || '', ruleMap, values);
     input.replaceWith(select);
     bindMeasureSelect(select, payload);
   });
 
-  root.querySelectorAll<HTMLSelectElement>('select[name^="measureBasis-"]').forEach((select) => bindMeasureSelect(select, payload));
+  root.querySelectorAll<HTMLSelectElement>('select[name^="measureBasis-"]').forEach((select) => {
+    const values = Array.from(select.options).map((option) => option.value).filter(Boolean);
+    applyRulesToSelect(select, select.closest('tr')?.textContent || '', ruleMap, values);
+    bindMeasureSelect(select, payload);
+  });
 
   root.addEventListener('input', (event) => {
     const target = event.target as HTMLInputElement;
