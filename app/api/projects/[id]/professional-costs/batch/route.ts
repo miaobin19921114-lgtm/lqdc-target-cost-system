@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
+import { calculateRuleDrivenQuantity } from '@/lib/rule-driven-quantity';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -76,26 +77,27 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const allRowEntries = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
   const rowEntries = saveGroupId ? allRowEntries.filter((entryId) => entryMatchesSaveScope(form, entryId, saveGroupId)) : allRowEntries;
   let savedCount = 0;
+  let ruleAppliedCount = 0;
 
   for (const rowEntryId of rowEntries) {
     const rowId = dictionaryIdFromEntry(rowEntryId);
-    const measureValue = numberFrom(form, entryKey(rowEntryId, 'measureValue'));
+    let measureValue = numberFrom(form, entryKey(rowEntryId, 'measureValue'));
     const coefficientRaw = numberFrom(form, entryKey(rowEntryId, 'coefficient'));
-    const coefficient = coefficientRaw || 1;
+    let coefficient = coefficientRaw || 1;
     const quantityInput = numberFrom(form, entryKey(rowEntryId, 'quantity'));
     const quantityOverride = boolFrom(form, entryKey(rowEntryId, 'quantityOverride'));
     const formulaQuantity = measureValue ? round2(measureValue * coefficient) : 0;
-    const quantity = quantityOverride || !formulaQuantity ? quantityInput : formulaQuantity;
+    let quantity = quantityOverride || !formulaQuantity ? quantityInput : formulaQuantity;
     const taxInclusiveUnitPrice = numberFrom(form, entryKey(rowEntryId, 'taxInclusiveUnitPrice'));
-    const remark = clean(form.get(entryKey(rowEntryId, 'remark')));
-    const unitInput = clean(form.get(entryKey(rowEntryId, 'unit')));
+    const remarkInput = clean(form.get(entryKey(rowEntryId, 'remark')));
+    let unitInput = clean(form.get(entryKey(rowEntryId, 'unit')));
     const taxRateInput = clean(form.get(entryKey(rowEntryId, 'taxRate')));
     const costLineId = clean(form.get(entryKey(rowEntryId, 'costLineId')));
     const regionOrProductTypeInput = clean(form.get(entryKey(rowEntryId, 'regionOrProductType')));
     const measureBasisInput = clean(form.get(entryKey(rowEntryId, 'measureBasis')));
     const allocationMethodInput = clean(form.get(entryKey(rowEntryId, 'allocationMethod')));
 
-    if (!quantity && !measureValue && !coefficientRaw && !taxInclusiveUnitPrice && !remark && !costLineId && !regionOrProductTypeInput && !measureBasisInput && !allocationMethodInput) continue;
+    if (!quantity && !measureValue && !coefficientRaw && !taxInclusiveUnitPrice && !remarkInput && !costLineId && !regionOrProductTypeInput && !measureBasisInput && !allocationMethodInput) continue;
     const dict = await prisma.costDictionaryRow.findUnique({ where: { id: rowId } });
     if (!dict || !dict.detailSubject) continue;
     if (matchesInactiveProductName(regionOrProductTypeInput || dict.applicableProductType, inactiveProductNames)) continue;
@@ -113,8 +115,32 @@ export async function POST(request: Request, { params }: { params: { id: string 
       create: { code, name: subjectName, level: Number(dict.subjectLevel || 4) || 4, parentCode: dict.parentCode || undefined, fullPath: [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join('/'), defaultUnit: dict.unit || undefined, defaultMeasureBasis: dict.measureBasis || undefined, defaultAllocationMethod: dict.targetAllocationMethod || undefined, sortOrder: codeSort, enabled: true }
     });
 
+    const ruleQuantity = await calculateRuleDrivenQuantity(prisma, {
+      projectId: params.id,
+      projectVersionId: version.id,
+      costCode: code,
+      basisName: measureBasisInput || dict.measureBasis || '',
+      regionOrProductType: regionOrProductTypeInput || existingCostLine?.regionOrProductType || dict.applicableProductType || '',
+      fallbackMeasureValue: measureValue,
+      fallbackCoefficient: coefficient,
+      fallbackQuantity: quantity,
+      quantityOverride,
+      fallbackUnit: unitInput || dict.unit || '项'
+    });
+
+    if (ruleQuantity.applied && !quantityOverride) {
+      measureValue = ruleQuantity.measureValue;
+      coefficient = ruleQuantity.coefficient;
+      quantity = ruleQuantity.quantity;
+      unitInput = ruleQuantity.unit || unitInput;
+      ruleAppliedCount += 1;
+    }
+
     const taxRate = taxRateFrom(taxRateInput || dict.defaultTaxRate, 0.09);
     const amounts = calc(quantity, taxInclusiveUnitPrice, taxRate);
+    const remark = ruleQuantity.applied && ruleQuantity.source
+      ? [remarkInput, `后端${ruleQuantity.source}自动计算工程量`].filter(Boolean).join('；')
+      : remarkInput;
     const data = {
       projectVersionId: version.id,
       costSubjectId: costSubject.id,
@@ -144,6 +170,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
     savedCount += 1;
   }
 
-  const query = saveGroupId ? `saved=1&groupSaved=1&batch=${savedCount}` : `saved=1&batch=${savedCount}`;
+  const query = saveGroupId ? `saved=1&groupSaved=1&batch=${savedCount}&rules=${ruleAppliedCount}` : `saved=1&batch=${savedCount}&rules=${ruleAppliedCount}`;
   return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?${query}`, 303);
 }
