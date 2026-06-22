@@ -1,128 +1,72 @@
 import { PrismaClient } from '@prisma/client';
+import { buildV60LandRows } from '../data/cost-dictionary-v60-land';
 
 const prisma = new PrismaClient();
 
-const landSubjects = [
-  {
-    code: '01',
-    name: '土地费',
-    level: 1,
-    parentCode: null,
-    fullPath: '土地费',
-    defaultUnit: '万元',
-    defaultTaxRate: 0,
-    defaultMeasureBasis: '土地价款',
-    defaultAllocationMethod: '按受益对象/成本归属组'
-  },
-  {
-    code: '01.01',
-    name: '土地获取费',
-    level: 2,
-    parentCode: '01',
-    fullPath: '土地费 / 土地获取费',
-    defaultUnit: '万元',
-    defaultTaxRate: 0,
-    defaultMeasureBasis: '土地价款',
-    defaultAllocationMethod: '按受益对象/成本归属组'
-  },
-  {
-    code: '01.01.01',
-    name: '土地价款',
-    level: 3,
-    parentCode: '01.01',
-    fullPath: '土地费 / 土地获取费 / 土地价款',
-    defaultUnit: '万元',
-    defaultTaxRate: 0,
-    defaultMeasureBasis: '土地成交价款',
-    defaultAllocationMethod: '按受益对象/成本归属组'
-  },
-  {
-    code: '01.01.02',
-    name: '契税',
-    level: 3,
-    parentCode: '01.01',
-    fullPath: '土地费 / 土地获取费 / 契税',
-    defaultUnit: '万元',
-    defaultTaxRate: 0,
-    defaultMeasureBasis: '土地价款',
-    defaultAllocationMethod: '按受益对象/成本归属组'
-  },
-  {
-    code: '01.01.03',
-    name: '土地交易服务费',
-    level: 3,
-    parentCode: '01.01',
-    fullPath: '土地费 / 土地获取费 / 土地交易服务费',
-    defaultUnit: '万元',
-    defaultTaxRate: 0,
-    defaultMeasureBasis: '土地价款',
-    defaultAllocationMethod: '按受益对象/成本归属组'
-  },
-  {
-    code: '01.01.04',
-    name: '土地评估费',
-    level: 3,
-    parentCode: '01.01',
-    fullPath: '土地费 / 土地获取费 / 土地评估费',
-    defaultUnit: '万元',
-    defaultTaxRate: 0.06,
-    defaultMeasureBasis: '合同金额',
-    defaultAllocationMethod: '按受益对象/成本归属组'
-  },
-  {
-    code: '01.01.05',
-    name: '土地咨询/居间服务费',
-    level: 3,
-    parentCode: '01.01',
-    fullPath: '土地费 / 土地获取费 / 土地咨询/居间服务费',
-    defaultUnit: '万元',
-    defaultTaxRate: 0.06,
-    defaultMeasureBasis: '合同金额',
-    defaultAllocationMethod: '按受益对象/成本归属组'
-  },
-  {
-    code: '01.01.06',
-    name: '土地尽调费',
-    level: 3,
-    parentCode: '01.01',
-    fullPath: '土地费 / 土地获取费 / 土地尽调费',
-    defaultUnit: '万元',
-    defaultTaxRate: 0.06,
-    defaultMeasureBasis: '合同金额',
-    defaultAllocationMethod: '按受益对象/成本归属组'
-  },
-  {
-    code: '01.01.07',
-    name: '法务尽调费',
-    level: 3,
-    parentCode: '01.01',
-    fullPath: '土地费 / 土地获取费 / 法务尽调费',
-    defaultUnit: '万元',
-    defaultTaxRate: 0.06,
-    defaultMeasureBasis: '合同金额',
-    defaultAllocationMethod: '按受益对象/成本归属组'
-  },
-  {
-    code: '01.01.08',
-    name: '财税尽调费',
-    level: 3,
-    parentCode: '01.01',
-    fullPath: '土地费 / 土地获取费 / 财税尽调费',
-    defaultUnit: '万元',
-    defaultTaxRate: 0.06,
-    defaultMeasureBasis: '合同金额',
-    defaultAllocationMethod: '按受益对象/成本归属组'
-  }
+function parseTaxRate(value?: string | null) {
+  const raw = String(value || '').trim();
+  if (!raw) return 0;
+  if (raw.endsWith('%')) return Number(raw.replace('%', '')) / 100 || 0;
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric)) return 0;
+  return numeric > 1 ? numeric / 100 : numeric;
+}
+
+const landParents = [
+  { code: '01', name: '土地费', level: 1, parentCode: null, fullPath: '土地费', defaultUnit: '万元', defaultTaxRate: 0, defaultMeasureBasis: '汇总金额', defaultAllocationMethod: '按受益对象归集；不能直接归集时按建筑面积、可售面积或销售收入等合理口径分摊', sortOrder: 1 },
+  { code: '01.01', name: '土地价款', level: 2, parentCode: '01', fullPath: '土地费 / 土地价款', defaultUnit: '万元', defaultTaxRate: 0, defaultMeasureBasis: '汇总金额', defaultAllocationMethod: '按受益对象归集', sortOrder: 2 },
+  { code: '01.01.01', name: '土地出让/转让及补偿', level: 3, parentCode: '01.01', fullPath: '土地费 / 土地价款 / 土地出让/转让及补偿', defaultUnit: '万元', defaultTaxRate: 0, defaultMeasureBasis: '土地价款/补偿协议/固定金额', defaultAllocationMethod: '按受益对象归集', sortOrder: 3 },
+  { code: '01.02', name: '土地相关税费', level: 2, parentCode: '01', fullPath: '土地费 / 土地相关税费', defaultUnit: '万元', defaultTaxRate: 0, defaultMeasureBasis: '汇总金额', defaultAllocationMethod: '按受益对象归集', sortOrder: 20 },
+  { code: '01.02.01', name: '土地交易税费', level: 3, parentCode: '01.02', fullPath: '土地费 / 土地相关税费 / 土地交易税费', defaultUnit: '万元', defaultTaxRate: 0, defaultMeasureBasis: '土地价款×费率', defaultAllocationMethod: '按受益对象归集', sortOrder: 21 },
+  { code: '01.03', name: '土地交易及中介服务费', level: 2, parentCode: '01', fullPath: '土地费 / 土地交易及中介服务费', defaultUnit: '万元', defaultTaxRate: 0.06, defaultMeasureBasis: '汇总金额', defaultAllocationMethod: '按受益对象归集', sortOrder: 30 },
+  { code: '01.03.01', name: '交易服务及尽调', level: 3, parentCode: '01.03', fullPath: '土地费 / 土地交易及中介服务费 / 交易服务及尽调', defaultUnit: '万元', defaultTaxRate: 0.06, defaultMeasureBasis: '固定金额/合同金额', defaultAllocationMethod: '按受益对象归集', sortOrder: 31 }
 ];
 
 async function main() {
-  for (const [index, subject] of landSubjects.entries()) {
+  for (const parent of landParents) {
     await prisma.costSubject.upsert({
-      where: { code: subject.code },
-      update: { ...subject, sortOrder: index + 1, enabled: true },
-      create: { ...subject, sortOrder: index + 1, enabled: true }
+      where: { code: parent.code },
+      update: { ...parent, enabled: true },
+      create: { ...parent, enabled: true }
     });
   }
+
+  const rows = buildV60LandRows(1000);
+  for (const [index, row] of rows.entries()) {
+    if (!row.costCode) continue;
+    const name = row.detailSubject || row.thirdSubject || row.secondSubject || row.firstSubject || row.costCode;
+    const fullPath = [row.firstSubject, row.secondSubject, row.thirdSubject, row.detailSubject].filter(Boolean).join(' / ');
+    await prisma.costSubject.upsert({
+      where: { code: row.costCode },
+      update: {
+        name,
+        level: 4,
+        parentCode: row.parentCode || null,
+        fullPath,
+        defaultUnit: row.unit || null,
+        defaultTaxRate: parseTaxRate(row.defaultTaxRate),
+        defaultMeasureBasis: row.measureBasis || null,
+        defaultAllocationMethod: row.targetAllocationMethod || null,
+        enabled: row.enabled !== '否',
+        sortOrder: 1000 + index
+      },
+      create: {
+        code: row.costCode,
+        name,
+        level: 4,
+        parentCode: row.parentCode || null,
+        fullPath,
+        defaultUnit: row.unit || null,
+        defaultTaxRate: parseTaxRate(row.defaultTaxRate),
+        defaultMeasureBasis: row.measureBasis || null,
+        defaultAllocationMethod: row.targetAllocationMethod || null,
+        enabled: row.enabled !== '否',
+        sortOrder: 1000 + index
+      }
+    });
+  }
+
+  console.log(`Synced ${landParents.length + rows.length} V60 land cost subjects.`);
 }
 
 main()
