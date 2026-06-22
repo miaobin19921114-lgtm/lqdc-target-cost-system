@@ -24,6 +24,23 @@ function getBaseUrl(request: Request) {
   return host ? `${proto}://${host}` : new URL(request.url).origin;
 }
 
+function ruleData(form: FormData) {
+  return {
+    metricKey: clean(form, 'metricKey') || null,
+    metricScope: clean(form, 'metricScope') || 'project',
+    quantityUnit: clean(form, 'quantityUnit') || null,
+    pricingUnit: clean(form, 'pricingUnit') || null,
+    defaultCoefficient: numberFrom(form, 'defaultCoefficient', 1) || 1,
+    quantityFormula: clean(form, 'quantityFormula') || null,
+    amountFormula: clean(form, 'amountFormula') || null,
+    applicableProductType: clean(form, 'applicableProductType') || null,
+    priority: numberFrom(form, 'priority', 100) || 100,
+    allowManualOverride: boolFrom(form, 'allowManualOverride'),
+    remark: clean(form, 'remark') || null,
+    enabled: true
+  };
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
   const action = clean(form, 'action') || 'update-rule';
@@ -41,6 +58,29 @@ export async function POST(request: Request, { params }: { params: { id: string 
     backQuery.set(result, '1');
     return NextResponse.redirect(`${baseUrl}/projects/${params.id}/measure-rules?${backQuery.toString()}`, 303);
   };
+
+  if (action === 'create-rule') {
+    const costCode = clean(form, 'costCode');
+    const basisName = clean(form, 'basisName');
+    if (!costCode || !basisName) return redirect('missing');
+
+    const saved = await prisma.measureBasisRule.upsert({
+      where: { costCode_basisName: { costCode, basisName } },
+      update: ruleData(form),
+      create: { costCode, basisName, ...ruleData(form) }
+    });
+
+    if (boolFrom(form, 'stageEnabled')) {
+      await prisma.measureBasisStageRule.upsert({
+        where: { costCode_stage_basisRuleId: { costCode, stage, basisRuleId: saved.id } },
+        update: { enabled: true, isDefault: true, priority: saved.priority, remark: `${stage}阶段启用：${basisName}` },
+        create: { costCode, stage, basisRuleId: saved.id, priority: saved.priority, isDefault: true, enabled: true, remark: `${stage}阶段启用：${basisName}` }
+      });
+    }
+
+    backQuery.set('q', costCode);
+    return redirect('created');
+  }
 
   if (!ruleId) return redirect('missing');
 
@@ -64,22 +104,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   if (action === 'update-rule') {
-    await prisma.measureBasisRule.update({
-      where: { id: ruleId },
-      data: {
-        metricKey: clean(form, 'metricKey') || null,
-        metricScope: clean(form, 'metricScope') || 'project',
-        quantityUnit: clean(form, 'quantityUnit') || null,
-        pricingUnit: clean(form, 'pricingUnit') || null,
-        defaultCoefficient: numberFrom(form, 'defaultCoefficient', 1) || 1,
-        quantityFormula: clean(form, 'quantityFormula') || null,
-        amountFormula: clean(form, 'amountFormula') || null,
-        applicableProductType: clean(form, 'applicableProductType') || null,
-        priority: numberFrom(form, 'priority', 100) || 100,
-        allowManualOverride: boolFrom(form, 'allowManualOverride'),
-        remark: clean(form, 'remark') || null
-      }
-    });
+    await prisma.measureBasisRule.update({ where: { id: ruleId }, data: ruleData(form) });
     return redirect('saved');
   }
 
