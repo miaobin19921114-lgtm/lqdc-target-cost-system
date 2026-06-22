@@ -42,7 +42,7 @@ function StatusMessage({ searchParams }: { searchParams?: Record<string, string 
   return null;
 }
 
-function StatCard({ label, value, note }: { label: string; value: unknown; note?: string }) {
+function StatCard({ label, value, note }: { label: string; value: string | number; note?: string }) {
   return <div className="stat"><div className="stat-label">{label}</div><div className="stat-value">{value}</div>{note ? <div className="meta">{note}</div> : null}</div>;
 }
 
