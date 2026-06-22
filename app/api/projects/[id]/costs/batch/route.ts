@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
 import { calculateRuleDrivenQuantity } from '@/lib/rule-driven-quantity';
+import { recommendPriceIndicator } from '@/lib/price-indicator-matcher';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -18,8 +19,8 @@ function numberFrom(form: FormData, name: string) {
   return Number.isFinite(num) ? num : 0;
 }
 
-function taxRateFrom(inputValue: FormDataEntryValue | null, fallback = 0.09) {
-  const raw = clean(inputValue);
+function taxRateFrom(inputValue: FormDataEntryValue | string | null, fallback = 0.09) {
+  const raw = clean(inputValue as FormDataEntryValue | null);
   if (!raw) return fallback;
   const num = Number(raw.replace('%', ''));
   if (!Number.isFinite(num)) return fallback;
@@ -50,10 +51,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const rowIds = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
   let savedCount = 0;
   let ruleAppliedCount = 0;
+  let priceAppliedCount = 0;
 
   for (const dictionaryRowId of rowIds) {
     let quantity = numberFrom(form, `quantity-${dictionaryRowId}`);
-    const taxInclusiveUnitPrice = numberFrom(form, `taxInclusiveUnitPrice-${dictionaryRowId}`);
+    let taxInclusiveUnitPrice = numberFrom(form, `taxInclusiveUnitPrice-${dictionaryRowId}`);
     const remarkInput = clean(form.get(`remark-${dictionaryRowId}`));
     let unitInput = clean(form.get(`unit-${dictionaryRowId}`));
     const taxRateInput = clean(form.get(`taxRate-${dictionaryRowId}`));
@@ -118,11 +120,25 @@ export async function POST(request: Request, { params }: { params: { id: string 
       ruleAppliedCount += 1;
     }
 
-    const taxRate = taxRateFrom(taxRateInput || dict.defaultTaxRate, 0.09);
+    const price = !taxInclusiveUnitPrice ? await recommendPriceIndicator(prisma, {
+      projectId: params.id,
+      costCode: code,
+      regionOrProductType: regionOrProductTypeInput || dict.applicableProductType || '',
+      fallbackUnit: unitInput || dict.unit || ''
+    }) : null;
+    if (price?.applied) {
+      taxInclusiveUnitPrice = price.taxInclusiveUnitPrice;
+      unitInput = unitInput || price.quantityUnit || '';
+      priceAppliedCount += 1;
+    }
+
+    const taxRate = taxRateInput ? taxRateFrom(taxRateInput, price?.taxRate || 0.09) : (price?.applied ? price.taxRate : taxRateFrom(dict.defaultTaxRate, 0.09));
     const amounts = calc(quantity, taxInclusiveUnitPrice, taxRate);
-    const remark = ruleQuantity.applied && ruleQuantity.source
-      ? [remarkInput, `后端${ruleQuantity.source}自动计算工程量`].filter(Boolean).join('；')
-      : remarkInput;
+    const remark = [
+      remarkInput,
+      ruleQuantity.applied && ruleQuantity.source ? `后端${ruleQuantity.source}自动计算工程量` : '',
+      price?.applied && price.source ? `后端${price.source}自动推荐单价` : ''
+    ].filter(Boolean).join('；');
     const data = {
       projectVersionId: version.id,
       costSubjectId: costSubject.id,
@@ -157,5 +173,5 @@ export async function POST(request: Request, { params }: { params: { id: string 
     savedCount += 1;
   }
 
-  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/costs-batch?saved=1&batch=${savedCount}&rules=${ruleAppliedCount}`, 303);
+  return NextResponse.redirect(`${baseUrl}/projects/${params.id}/costs-batch?saved=1&batch=${savedCount}&rules=${ruleAppliedCount}&prices=${priceAppliedCount}`, 303);
 }
