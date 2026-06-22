@@ -19,6 +19,8 @@ if [ "${RUN_SEED:-true}" = "true" ]; then
   npm run db:seed || true
   echo "Seeding product type presets..."
   npm run db:seed:product-types || true
+  echo "Seeding cost subjects..."
+  npm run db:seed:cost-subjects || true
   echo "Seeding project metric definitions..."
   npm run db:seed:project-metrics || true
   echo "Syncing V60 land cost subjects..."
