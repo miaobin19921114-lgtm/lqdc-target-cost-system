@@ -31,6 +31,7 @@ npm run db:ensure:revenue-tax-extra || true
 npm run db:ensure:procurement-contract-extra || true
 npm run db:ensure:dc-extra || true
 npm run db:ensure:financial-extra || true
+npm run db:ensure:ai-extra || true
 
 if [ "${RUN_SEED:-true}" = "true" ]; then
   echo "Running seed..."
