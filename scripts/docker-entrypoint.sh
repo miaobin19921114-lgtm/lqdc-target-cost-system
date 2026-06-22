@@ -14,6 +14,9 @@ echo "Upload directory: ${UPLOAD_DIR}"
 echo "Running Prisma migrations..."
 npx prisma migrate deploy
 
+echo "Ensuring database foundation tables..."
+npm run db:ensure:foundation || true
+
 if [ "${RUN_SEED:-true}" = "true" ]; then
   echo "Running seed..."
   npm run db:seed || true
