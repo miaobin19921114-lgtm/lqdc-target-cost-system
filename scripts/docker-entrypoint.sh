@@ -18,6 +18,8 @@ echo "Ensuring database foundation tables..."
 npm run db:ensure:foundation || true
 echo "Ensuring project building table..."
 npm run db:ensure:buildings || true
+echo "Ensuring product type extra fields..."
+npm run db:ensure:product-types-extra || true
 
 if [ "${RUN_SEED:-true}" = "true" ]; then
   echo "Running seed..."
