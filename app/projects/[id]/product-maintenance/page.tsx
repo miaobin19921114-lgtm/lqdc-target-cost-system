@@ -83,6 +83,8 @@ function defaultCostObject(item: { name: string }, extra?: ExtraRow) {
 }
 
 function StatusMessage({ searchParams }: { searchParams?: Record<string, string | undefined> }) {
+  if (searchParams?.organized === '1') return <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>已一键整理业态结构：空白专业属性已补齐，并已检查对应地下室。</div>;
+  if (searchParams?.organized === '0') return <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8', background: '#fff9db' }}>一键整理失败，请检查当前版本状态。</div>;
   if (searchParams?.classificationSaved === '1') return <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>产品专业属性已保存。</div>;
   if (searchParams?.classificationSaved === '0') return <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8', background: '#fff9db' }}>产品专业属性保存失败，请检查业态状态。</div>;
   if (searchParams?.taxObjectSaved === '1') return <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>税务清算对象已保存。</div>;
@@ -135,7 +137,7 @@ export default async function ProductMaintenancePage({ params, searchParams }: {
   const supportCount = products.filter((item) => item.isActive && groupOf(item, extraMap.get(item.id)) === '配套公建').length;
 
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1480 }}>
-    <div className="page-header"><div><p className="eyebrow">项目基础</p><h1 className="title">业态产品 / 税务清算对象</h1><p className="subtitle">卡片式管理业态产品。优先维护产品大类、销售属性、成本对象、清算对象，面积指标仍回项目概况维护。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/overview`} className="btn btn-primary">项目概况</Link><Link href={`/projects/${project.id}/construction-standards`} className="btn">建造配置标准</Link><Link href={`/projects/${project.id}/quantity-indicators`} className="btn">工程量指标</Link><Link href={`/projects/${project.id}/indicator-check`} className="btn">指标校验</Link><Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">项目基础</p><h1 className="title">业态产品 / 税务清算对象</h1><p className="subtitle">卡片式管理业态产品。优先维护产品大类、销售属性、成本对象、清算对象，面积指标仍回项目概况维护。</p></div><div className="actions" style={{ marginTop: 0 }}><form action={`/api/projects/${project.id}/products/organize`} method="post"><button className="btn btn-primary">一键整理业态结构</button></form><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}/construction-standards`} className="btn">建造配置标准</Link><Link href={`/projects/${project.id}/quantity-indicators`} className="btn">工程量指标</Link><Link href={`/projects/${project.id}/indicator-check`} className="btn">指标校验</Link><Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link></div></div>
     <StatusMessage searchParams={searchParams} />
 
     <div className="summary-strip" style={{ marginBottom: 14 }}>
@@ -150,7 +152,7 @@ export default async function ProductMaintenancePage({ params, searchParams }: {
 
     <section className="card" style={{ marginBottom: 14, borderColor: '#d0ebff', background: '#f8fbff' }}>
       <b>页面口径</b>
-      <p className="meta" style={{ margin: '6px 0 10px' }}>现在按“产品大类”分组展示。每张卡片可单独保存专业属性和成本归属，不再需要横向拖动大表格。</p>
+      <p className="meta" style={{ margin: '6px 0 10px' }}>现在按“产品大类”分组展示。点击“一键整理业态结构”，会补齐空白专业属性，并检查是否缺少对应地下室；不会覆盖你已经手动保存过的专业字段。</p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{groups.map((group) => <a key={group.title} href={`#${safeAnchor(group.title)}`} className="btn" style={{ minHeight: 32 }}>{group.title}（{group.items.length}）</a>)}</div>
     </section>
 
