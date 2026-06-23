@@ -28,6 +28,7 @@ export const projectNavGroups = [
       ['围墙出入口', 'wall-gate-details', 'done'],
       ['规则模板中心', 'rule-template-center', 'done'],
       ['模板科目开关', 'template-subject-switches', 'done'],
+      ['项目规则快照', 'project-rule-snapshot', 'done'],
       ['模板字段需求', 'template-field-requirements', 'done'],
       ['字段定义库', 'template-field-definitions', 'done'],
       ['成本科目及测算规则库', 'cost-calculation-rules', 'done'],
