@@ -29,8 +29,19 @@ function getBaseUrl(request: Request) {
   return host ? `${proto}://${host}` : new URL(request.url).origin;
 }
 
+function landAreaFromForm(form: FormData) {
+  const mu = toNumber(form, 'landAreaMu');
+  const sqm = toNumber(form, 'landArea');
+  return { landAreaMu: mu || (sqm ? sqm / 666.6667 : 0), landArea: sqm || (mu ? mu * 666.6667 : 0) };
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
+  const land = landAreaFromForm(form);
+  const softscapeArea = toNumber(form, 'softscapeArea') || toNumber(form, 'greenArea');
+  const greenArea = toNumber(form, 'greenArea') || softscapeArea;
+  const siteLevelingArea = toNumber(form, 'siteLevelingArea') || land.landArea;
+  const landscapeArea = toNumber(form, 'landscapeArea') || (toNumber(form, 'hardscapeArea') + softscapeArea);
 
   await prisma.project.update({
     where: { id: params.id },
@@ -39,8 +50,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       city: clean(form, 'city') || null,
       district: clean(form, 'district') || null,
 
-      landArea: toNumber(form, 'landArea'),
-      landAreaMu: toNumber(form, 'landAreaMu'),
+      landArea: land.landArea,
+      landAreaMu: land.landAreaMu,
       redLineArea: toNumber(form, 'redLineArea'),
       plotRatio: toNumber(form, 'plotRatio'),
       totalBuildingArea: toNumber(form, 'totalBuildingArea'),
@@ -76,15 +87,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
       basementFloorHeight: toNumber(form, 'basementFloorHeight'),
 
       sitePerimeter: toNumber(form, 'sitePerimeter'),
-      gateCount: toInt(form, 'gateCount'),
+      gateCount: toInt(form, 'gateCount') || toInt(form, 'formalGateCount') + toInt(form, 'temporaryGateCount'),
       formalGateCount: toInt(form, 'formalGateCount'),
       temporaryGateCount: toInt(form, 'temporaryGateCount'),
       temporaryFacilityArea: toNumber(form, 'temporaryFacilityArea'),
-      siteLevelingArea: toNumber(form, 'siteLevelingArea'),
-      landscapeArea: toNumber(form, 'landscapeArea'),
+      siteLevelingArea,
+      landscapeArea,
       hardscapeArea: toNumber(form, 'hardscapeArea'),
-      softscapeArea: toNumber(form, 'softscapeArea'),
-      greenArea: toNumber(form, 'greenArea'),
+      softscapeArea,
+      greenArea,
       waterFeatureArea: toNumber(form, 'waterFeatureArea'),
       childrenActivityArea: toNumber(form, 'childrenActivityArea'),
       elevatedFloorLandscapeArea: toNumber(form, 'elevatedFloorLandscapeArea'),
