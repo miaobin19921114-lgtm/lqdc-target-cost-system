@@ -28,6 +28,7 @@ export const projectNavGroups = [
       ['围墙出入口', 'wall-gate-details', 'done'],
       ['测算规则库', 'measure-rules', 'done'],
       ['量价指标库', 'price-library', 'done'],
+      ['规则数据库', 'cost-calculation-rules', 'done'],
       ['科目映射', 'cost-mapping', 'done']
     ]
   },
