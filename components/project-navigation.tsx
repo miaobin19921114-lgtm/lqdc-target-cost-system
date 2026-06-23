@@ -27,6 +27,7 @@ export const projectNavGroups = [
       ['道路总平', 'road-details', 'done'],
       ['围墙出入口', 'wall-gate-details', 'done'],
       ['规则模板中心', 'rule-template-center', 'done'],
+      ['模板字段需求', 'template-field-requirements', 'done'],
       ['成本科目及测算规则库', 'cost-calculation-rules', 'done'],
       ['量价指标库', 'price-library', 'done'],
       ['Excel科目映射', 'cost-mapping', 'done']
