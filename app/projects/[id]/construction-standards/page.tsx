@@ -109,7 +109,7 @@ export default async function ConstructionStandardsPage({ params, searchParams }
 
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Block title="一、装配式标准" note="控制装配式科目是否启用，以及适用哪些业态。">
-        <Grid>{selectFor(project, 'isPrefabricated', '是否装配式', yesNo, 'false')}<ProductScopeSelect name="prefabricatedScope" label="装配式适用范围" products={scopeProductNames} value={project.prefabricatedScope} />{numberFor(project, 'prefabricationRate', '装配率%')}{textFor(project, 'prefabricatedSystem', '装配式结构形式', 'PC构件/叠合板/预制楼梯/预制墙板')}</Grid>
+        <Grid>{selectFor(project, 'isPrefabricated', '是否装配式', yesNo, 'false')}<ProductScopeSelect formId="construction-standards-form" name="prefabricatedScope" label="装配式适用范围" products={scopeProductNames} value={project.prefabricatedScope} />{numberFor(project, 'prefabricationRate', '装配率%')}{textFor(project, 'prefabricatedSystem', '装配式结构形式', 'PC构件/叠合板/预制楼梯/预制墙板')}</Grid>
       </Block>
 
       <Block title="二、住宅交付与公区标准" note="住宅户内、住宅公区、地下归家动线分别控制。">
@@ -134,7 +134,7 @@ export default async function ConstructionStandardsPage({ params, searchParams }
       </Block>
 
       <Block title="五、采暖 / 地暖标准" note="控制采暖科目是否启用，以及适用范围。未选择范围时，不启用采暖科目。">
-        <Grid>{selectFor(project, 'heatingEnabled', '是否采暖', yesNo, 'false')}<ProductScopeSelect name="heatingScope" label="采暖适用范围" products={scopeProductNames} value={project.heatingScope} />{textFor(project, 'heatingType', '采暖形式', '地暖/散热器/集中供暖/空气源')}</Grid>
+        <Grid>{selectFor(project, 'heatingEnabled', '是否采暖', yesNo, 'false')}<ProductScopeSelect formId="construction-standards-form" name="heatingScope" label="采暖适用范围" products={scopeProductNames} value={project.heatingScope} />{textFor(project, 'heatingType', '采暖形式', '地暖/散热器/集中供暖/空气源')}</Grid>
       </Block>
     </div>
   </div></main>;
