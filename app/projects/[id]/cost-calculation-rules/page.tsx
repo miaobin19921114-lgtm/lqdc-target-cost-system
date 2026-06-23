@@ -36,6 +36,16 @@ type RuleRow = {
   enabled: boolean | null;
   priority: number | null;
   remark: string | null;
+  measureBasisName: string | null;
+  measureMetricKey: string | null;
+  measureMetricScope: string | null;
+  measureQuantityUnit: string | null;
+  measurePricingUnit: string | null;
+  measureCoefficient: unknown;
+  measureQuantityFormula: string | null;
+  measureAmountFormula: string | null;
+  measureAllowManualOverride: boolean | null;
+  measureRemark: string | null;
 };
 
 function short(value?: string | null) {
@@ -52,6 +62,22 @@ function numeric(value: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function codeParts(code?: string | null) {
+  return String(code || '').split(/[^0-9]+/).filter(Boolean).map((part) => Number(part));
+}
+
+function compareCostCode(a?: string | null, b?: string | null) {
+  const left = codeParts(a);
+  const right = codeParts(b);
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    const l = left[index] ?? -1;
+    const r = right[index] ?? -1;
+    if (l !== r) return l - r;
+  }
+  return String(a || '').localeCompare(String(b || ''), 'zh-CN', { numeric: true });
+}
+
 function groupOf(path?: string | null) {
   const textValue = path || '未分组';
   return textValue.split(/[>／/｜|]/).map((item) => item.trim()).filter(Boolean)[0] || '未分组';
@@ -59,11 +85,11 @@ function groupOf(path?: string | null) {
 
 async function loadRules() {
   try {
-    return await prisma.$queryRawUnsafe<RuleRow[]>(`
+    const rows = await prisma.$queryRawUnsafe<RuleRow[]>(`
       SELECT
         r."ruleKey",
-        r."costCode",
-        r."subjectName",
+        COALESCE(cs."code", r."costCode") AS "costCode",
+        COALESCE(cs."name", r."subjectName") AS "subjectName",
         COALESCE(cs."fullPath", r."subjectPath") AS "subjectPath",
         r."dataSource",
         r."quantityField",
@@ -92,13 +118,28 @@ async function loadRules() {
         r."allowPriceOverride",
         r."enabled",
         r."priority",
-        r."remark"
+        r."remark",
+        m."basisName" AS "measureBasisName",
+        m."metricKey" AS "measureMetricKey",
+        m."metricScope" AS "measureMetricScope",
+        m."quantityUnit" AS "measureQuantityUnit",
+        m."pricingUnit" AS "measurePricingUnit",
+        m."defaultCoefficient" AS "measureCoefficient",
+        m."quantityFormula" AS "measureQuantityFormula",
+        m."amountFormula" AS "measureAmountFormula",
+        m."allowManualOverride" AS "measureAllowManualOverride",
+        m."remark" AS "measureRemark"
       FROM "CostCalculationRule" r
       LEFT JOIN "CostSubject" cs ON cs."code" = r."costCode"
-      ORDER BY
-        COALESCE(cs."sortOrder", 999999) ASC,
-        COALESCE(cs."code", r."costCode", r."ruleKey") ASC
+      LEFT JOIN LATERAL (
+        SELECT * FROM "MeasureBasisRule" mb
+        WHERE mb."costCode" = r."costCode" AND mb."enabled" = TRUE
+        ORDER BY mb."priority" ASC, mb."basisName" ASC
+        LIMIT 1
+      ) m ON TRUE
+      WHERE r."enabled" = TRUE
     `);
+    return rows.sort((a, b) => compareCostCode(a.costCode || a.ruleKey, b.costCode || b.ruleKey));
   } catch {
     return [];
   }
@@ -147,8 +188,8 @@ export default async function CostCalculationRulesPage({ params, searchParams }:
 
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1500 }}>
     <div className="page-header">
-      <div><p className="eyebrow">目标成本</p><h1 className="title">{project.name} · 规则数据库</h1><p className="subtitle">按末级成本科目维护计量指标、配置参数、计价规则、成本归属、成本分摊及税务处理口径。排序跟随成本科目库顺序。</p></div>
-      <div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/cost-mapping`} className="btn">测算规则映射表</Link><Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">目标成本测算</Link><Link href={`/projects/${project.id}`} className="btn">测算中心</Link></div>
+      <div><p className="eyebrow">目标成本</p><h1 className="title">{project.name} · 成本科目及测算规则库</h1><p className="subtitle">一张主表整合成本科目、工程量计算规则、计价规则、成本归属、成本分摊及三套税务处理口径。排序按科目编码层级自然顺序。</p></div>
+      <div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/cost-mapping`} className="btn">Excel科目映射</Link><Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">目标成本测算</Link><Link href={`/projects/${project.id}`} className="btn">测算中心</Link></div>
     </div>
 
     {searchParams?.ruleSaved === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>规则已保存。</div> : null}
@@ -156,63 +197,78 @@ export default async function CostCalculationRulesPage({ params, searchParams }:
     {searchParams?.ruleMissing === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8', background: '#fff9db' }}>未找到规则编号。</div> : null}
 
     <div className="summary-strip" style={{ marginBottom: 14 }}>
-      <div className="stat"><div className="stat-label">规则数量</div><div className="stat-value">{rules.length}</div><div className="meta">末级科目规则</div></div>
-      <div className="stat"><div className="stat-label">成本分组</div><div className="stat-value">{groups.length}</div><div className="meta">按一级科目路径归组</div></div>
-      <div className="stat"><div className="stat-label">排序口径</div><div className="stat-value">科目库</div><div className="meta">CostSubject.sortOrder</div></div>
-      <div className="stat"><div className="stat-label">税务口径</div><div className="stat-value">三套</div><div className="meta">增值税 / 土增税 / 所得税</div></div>
+      <div className="stat"><div className="stat-label">规则数量</div><div className="stat-value">{rules.length}</div><div className="meta">末级成本科目</div></div>
+      <div className="stat"><div className="stat-label">成本分组</div><div className="stat-value">{groups.length}</div><div className="meta">按一级科目归组</div></div>
+      <div className="stat"><div className="stat-label">排序口径</div><div className="stat-value">科目编码</div><div className="meta">层级自然顺序</div></div>
+      <div className="stat"><div className="stat-label">整合内容</div><div className="stat-value">4类</div><div className="meta">科目/算量/计价/税务</div></div>
     </div>
 
-    {!rules.length ? <section className="card" style={{ borderColor: '#ffd8a8', background: '#fff9db' }}><b>规则数据库尚未初始化</b><p className="meta" style={{ margin: '6px 0 0' }}>等待 Railway 启动脚本执行完成后会自动创建 CostCalculationRule 表，并按标准成本末级科目生成初始规则。</p></section> : null}
+    {!rules.length ? <section className="card" style={{ borderColor: '#ffd8a8', background: '#fff9db' }}><b>成本科目及测算规则库尚未初始化</b><p className="meta" style={{ margin: '6px 0 0' }}>等待 Railway 启动脚本执行完成后会自动创建规则表，并按标准成本末级科目生成初始规则。</p></section> : null}
 
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {groups.map((group) => {
         const rows = rules.filter((rule) => groupOf(rule.subjectPath) === group);
         return <section key={group} className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}><div><h2 style={{ margin: 0 }}>{group}</h2><p className="meta" style={{ margin: '5px 0 0' }}>本组共 {rows.length} 条规则。默认折叠，点击展开维护。</p></div><span style={{ border: '1px solid #d0ebff', background: '#e7f5ff', color: '#0b7285', borderRadius: 999, padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>{rows.length} 条</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}><div><h2 style={{ margin: 0 }}>{group}</h2><p className="meta" style={{ margin: '5px 0 0' }}>本组共 {rows.length} 个末级科目。默认折叠，点击展开维护。</p></div><span style={{ border: '1px solid #d0ebff', background: '#e7f5ff', color: '#0b7285', borderRadius: 999, padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>{rows.length} 项</span></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
             {rows.map((rule) => <details key={rule.ruleKey} style={{ border: '1px solid #e6eef7', borderRadius: 12, background: '#fbfdff', overflow: 'hidden' }}>
               <summary style={{ cursor: 'pointer', padding: 12, display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1.1fr', gap: 10, alignItems: 'center' }}>
                 <div><b>{rule.costCode || '-'}</b><div className="meta">{short(rule.subjectPath || rule.subjectName)}</div></div>
                 <div><span className="meta">计价规则</span><br />{short(rule.calculationMethod)}</div>
-                <div><span className="meta">计量指标</span><br />{short(rule.quantityField)}</div>
+                <div><span className="meta">工程量计算规则</span><br />{short(rule.measureBasisName || rule.quantityField)}</div>
                 <div><span className="meta">税务处理</span><br />增值税 {rule.vatInputCreditAllowed ? '可抵扣' : '不抵扣'} / 土增税 {rule.landVatDeductible ? '可扣除' : '不扣除'} / 所得税 {rule.incomeTaxDeductible ? '可扣除' : '不扣除'}</div>
               </summary>
               <div style={{ borderTop: '1px solid #e6eef7', padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-                <InfoBlock title="数据来源" value={short(rule.dataSource)} />
-                <InfoBlock title="计量指标" value={short(rule.quantityField)} />
+                <InfoBlock title="成本科目" value={`${short(rule.costCode)}｜${short(rule.subjectName)}`} />
+                <InfoBlock title="工程量计算规则" value={short(rule.measureBasisName || rule.quantityField)} note={rule.measureQuantityFormula || undefined} />
+                <InfoBlock title="计量指标" value={short(rule.measureMetricKey || rule.quantityField)} />
                 <InfoBlock title="配置参数" value={short(rule.configField)} />
                 <InfoBlock title="成本归属口径" value={short(rule.costAttributionMethod)} />
                 <InfoBlock title="成本分摊口径" value={short(rule.allocationMethod)} />
-                <InfoBlock title="综合税务口径" value={short(rule.taxDeductionMethod)} />
               </div>
               <form action={`/api/projects/${project.id}/cost-calculation-rules`} method="post" style={{ borderTop: '1px solid #e6eef7', padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 10 }}>
                 <input type="hidden" name="ruleKey" value={rule.ruleKey} />
-                <SectionTitle>一、计量与计价规则</SectionTitle>
+                <SectionTitle>一、工程量计算规则</SectionTitle>
+                <InfoBlock title="工程量规则名称" value={short(rule.measureBasisName)} />
+                <InfoBlock title="指标字段" value={short(rule.measureMetricKey)} />
+                <InfoBlock title="指标范围" value={short(rule.measureMetricScope)} />
+                <InfoBlock title="工程量单位" value={short(rule.measureQuantityUnit)} />
+                <InfoBlock title="计价单位" value={short(rule.measurePricingUnit)} />
+                <InfoBlock title="工程量公式" value={short(rule.measureQuantityFormula)} />
+                <InfoBlock title="金额公式" value={short(rule.measureAmountFormula)} />
+                <InfoBlock title="规则系数" value={String(numeric(rule.measureCoefficient || 1))} />
+
+                <SectionTitle>二、计量与计价规则</SectionTitle>
                 <Field label="计量指标字段" name="quantityField" value={rule.quantityField} />
                 <Field label="配置参数字段" name="configField" value={rule.configField} />
                 <Field label="计价规则" name="calculationMethod" value={rule.calculationMethod} />
                 <SwitchField label="允许调整计量指标" name="allowQuantityOverride" value={rule.allowQuantityOverride} />
                 <SwitchField label="允许调整单价参数" name="allowPriceOverride" value={rule.allowPriceOverride} />
-                <SectionTitle>二、成本归属与成本分摊</SectionTitle>
+
+                <SectionTitle>三、成本归属与成本分摊</SectionTitle>
                 <Field label="成本归属口径" name="costAttributionMethod" value={rule.costAttributionMethod} />
                 <Field label="成本分摊口径" name="allocationMethod" value={rule.allocationMethod} />
-                <SectionTitle>三、增值税处理口径</SectionTitle>
+
+                <SectionTitle>四、增值税处理口径</SectionTitle>
                 <SwitchField label="是否允许进项税抵扣" name="vatInputCreditAllowed" value={rule.vatInputCreditAllowed} />
                 <NumberField label="适用增值税税率" name="vatRate" value={numeric(rule.vatRate || 0.09)} />
                 <Field label="增值税处理方式" name="vatTreatment" value={rule.vatTreatment} />
                 <Field label="不可抵扣进项税处理方式" name="nonDeductibleVatTreatment" value={rule.nonDeductibleVatTreatment} />
-                <SectionTitle>四、土地增值税处理口径</SectionTitle>
+
+                <SectionTitle>五、土地增值税处理口径</SectionTitle>
                 <SwitchField label="是否纳入土增税扣除项目" name="landVatDeductible" value={rule.landVatDeductible} />
                 <Field label="土增税扣除项目类别" name="landVatDeductionCategory" value={rule.landVatDeductionCategory} />
                 <Field label="土增税清算对象" name="landVatClearanceObject" value={rule.landVatClearanceObject} />
                 <Field label="土增税分摊口径" name="landVatAllocationMethod" value={rule.landVatAllocationMethod} />
-                <SectionTitle>五、企业所得税处理口径</SectionTitle>
+
+                <SectionTitle>六、企业所得税处理口径</SectionTitle>
                 <SwitchField label="是否企业所得税税前扣除" name="incomeTaxDeductible" value={rule.incomeTaxDeductible} />
                 <Field label="企业所得税处理方式" name="incomeTaxTreatment" value={rule.incomeTaxTreatment} />
                 <Field label="企业所得税成本对象" name="incomeTaxCostObject" value={rule.incomeTaxCostObject} />
                 <Field label="企业所得税分摊口径" name="incomeTaxAllocationMethod" value={rule.incomeTaxAllocationMethod} />
                 <Field label="期间费用类别" name="periodExpenseType" value={rule.periodExpenseType} />
-                <SectionTitle>六、系统参数与备注</SectionTitle>
+
+                <SectionTitle>七、系统参数与备注</SectionTitle>
                 <Field label="综合税务口径说明" name="taxDeductionMethod" value={rule.taxDeductionMethod} />
                 <Field label="规则备注" name="remark" value={rule.remark} wide />
                 <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, justifyContent: 'flex-end' }}><button className="btn btn-primary">保存规则</button></div>
