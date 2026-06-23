@@ -26,10 +26,10 @@ export const projectNavGroups = [
       ['景观工程', 'landscape-details', 'done'],
       ['道路总平', 'road-details', 'done'],
       ['围墙出入口', 'wall-gate-details', 'done'],
-      ['测算规则库', 'measure-rules', 'done'],
+      ['成本科目及测算规则库', 'cost-calculation-rules', 'done'],
       ['量价指标库', 'price-library', 'done'],
-      ['规则数据库', 'cost-calculation-rules', 'done'],
-      ['科目映射', 'cost-mapping', 'done']
+      ['工程量计算规则库', 'measure-rules', 'done'],
+      ['Excel科目映射', 'cost-mapping', 'done']
     ]
   },
   {
