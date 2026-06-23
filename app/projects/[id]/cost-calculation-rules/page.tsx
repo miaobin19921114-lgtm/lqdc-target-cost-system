@@ -60,9 +60,44 @@ function groupOf(path?: string | null) {
 async function loadRules() {
   try {
     return await prisma.$queryRawUnsafe<RuleRow[]>(`
-      SELECT "ruleKey", "costCode", "subjectName", "subjectPath", "dataSource", "quantityField", "configField", "calculationMethod", "defaultUnit", "defaultUnitPrice", "defaultCoefficient", "costAttributionMethod", "allocationMethod", "taxDeductionMethod", "vatInputCreditAllowed", "vatRate", "vatTreatment", "nonDeductibleVatTreatment", "landVatDeductible", "landVatDeductionCategory", "landVatAllocationMethod", "landVatClearanceObject", "incomeTaxDeductible", "incomeTaxTreatment", "incomeTaxCostObject", "incomeTaxAllocationMethod", "periodExpenseType", "allowQuantityOverride", "allowPriceOverride", "enabled", "priority", "remark"
-      FROM "CostCalculationRule"
-      ORDER BY "priority" ASC, "costCode" ASC
+      SELECT
+        r."ruleKey",
+        r."costCode",
+        r."subjectName",
+        COALESCE(cs."fullPath", r."subjectPath") AS "subjectPath",
+        r."dataSource",
+        r."quantityField",
+        r."configField",
+        r."calculationMethod",
+        r."defaultUnit",
+        r."defaultUnitPrice",
+        r."defaultCoefficient",
+        r."costAttributionMethod",
+        r."allocationMethod",
+        r."taxDeductionMethod",
+        r."vatInputCreditAllowed",
+        r."vatRate",
+        r."vatTreatment",
+        r."nonDeductibleVatTreatment",
+        r."landVatDeductible",
+        r."landVatDeductionCategory",
+        r."landVatAllocationMethod",
+        r."landVatClearanceObject",
+        r."incomeTaxDeductible",
+        r."incomeTaxTreatment",
+        r."incomeTaxCostObject",
+        r."incomeTaxAllocationMethod",
+        r."periodExpenseType",
+        r."allowQuantityOverride",
+        r."allowPriceOverride",
+        r."enabled",
+        r."priority",
+        r."remark"
+      FROM "CostCalculationRule" r
+      LEFT JOIN "CostSubject" cs ON cs."code" = r."costCode"
+      ORDER BY
+        COALESCE(cs."sortOrder", 999999) ASC,
+        COALESCE(cs."code", r."costCode", r."ruleKey") ASC
     `);
   } catch {
     return [];
@@ -112,7 +147,7 @@ export default async function CostCalculationRulesPage({ params, searchParams }:
 
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1500 }}>
     <div className="page-header">
-      <div><p className="eyebrow">目标成本</p><h1 className="title">{project.name} · 规则数据库</h1><p className="subtitle">按末级成本科目维护计量指标、配置参数、计价规则、成本归属、成本分摊及税务处理口径。默认展示业务规则摘要，展开后编辑详细规则。</p></div>
+      <div><p className="eyebrow">目标成本</p><h1 className="title">{project.name} · 规则数据库</h1><p className="subtitle">按末级成本科目维护计量指标、配置参数、计价规则、成本归属、成本分摊及税务处理口径。排序跟随成本科目库顺序。</p></div>
       <div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/cost-mapping`} className="btn">测算规则映射表</Link><Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">目标成本测算</Link><Link href={`/projects/${project.id}`} className="btn">测算中心</Link></div>
     </div>
 
@@ -123,8 +158,8 @@ export default async function CostCalculationRulesPage({ params, searchParams }:
     <div className="summary-strip" style={{ marginBottom: 14 }}>
       <div className="stat"><div className="stat-label">规则数量</div><div className="stat-value">{rules.length}</div><div className="meta">末级科目规则</div></div>
       <div className="stat"><div className="stat-label">成本分组</div><div className="stat-value">{groups.length}</div><div className="meta">按一级科目路径归组</div></div>
-      <div className="stat"><div className="stat-label">税务口径</div><div className="stat-value">三套</div><div className="meta">增值税 / 土地增值税 / 企业所得税</div></div>
-      <div className="stat"><div className="stat-label">展示方式</div><div className="stat-value">分组折叠</div><div className="meta">规则摘要与编辑参数分层</div></div>
+      <div className="stat"><div className="stat-label">排序口径</div><div className="stat-value">科目库</div><div className="meta">CostSubject.sortOrder</div></div>
+      <div className="stat"><div className="stat-label">税务口径</div><div className="stat-value">三套</div><div className="meta">增值税 / 土增税 / 所得税</div></div>
     </div>
 
     {!rules.length ? <section className="card" style={{ borderColor: '#ffd8a8', background: '#fff9db' }}><b>规则数据库尚未初始化</b><p className="meta" style={{ margin: '6px 0 0' }}>等待 Railway 启动脚本执行完成后会自动创建 CostCalculationRule 表，并按标准成本末级科目生成初始规则。</p></section> : null}
@@ -158,30 +193,25 @@ export default async function CostCalculationRulesPage({ params, searchParams }:
                 <Field label="计价规则" name="calculationMethod" value={rule.calculationMethod} />
                 <SwitchField label="允许调整计量指标" name="allowQuantityOverride" value={rule.allowQuantityOverride} />
                 <SwitchField label="允许调整单价参数" name="allowPriceOverride" value={rule.allowPriceOverride} />
-
                 <SectionTitle>二、成本归属与成本分摊</SectionTitle>
                 <Field label="成本归属口径" name="costAttributionMethod" value={rule.costAttributionMethod} />
                 <Field label="成本分摊口径" name="allocationMethod" value={rule.allocationMethod} />
-
                 <SectionTitle>三、增值税处理口径</SectionTitle>
                 <SwitchField label="是否允许进项税抵扣" name="vatInputCreditAllowed" value={rule.vatInputCreditAllowed} />
                 <NumberField label="适用增值税税率" name="vatRate" value={numeric(rule.vatRate || 0.09)} />
                 <Field label="增值税处理方式" name="vatTreatment" value={rule.vatTreatment} />
                 <Field label="不可抵扣进项税处理方式" name="nonDeductibleVatTreatment" value={rule.nonDeductibleVatTreatment} />
-
                 <SectionTitle>四、土地增值税处理口径</SectionTitle>
                 <SwitchField label="是否纳入土增税扣除项目" name="landVatDeductible" value={rule.landVatDeductible} />
                 <Field label="土增税扣除项目类别" name="landVatDeductionCategory" value={rule.landVatDeductionCategory} />
                 <Field label="土增税清算对象" name="landVatClearanceObject" value={rule.landVatClearanceObject} />
                 <Field label="土增税分摊口径" name="landVatAllocationMethod" value={rule.landVatAllocationMethod} />
-
                 <SectionTitle>五、企业所得税处理口径</SectionTitle>
                 <SwitchField label="是否企业所得税税前扣除" name="incomeTaxDeductible" value={rule.incomeTaxDeductible} />
                 <Field label="企业所得税处理方式" name="incomeTaxTreatment" value={rule.incomeTaxTreatment} />
                 <Field label="企业所得税成本对象" name="incomeTaxCostObject" value={rule.incomeTaxCostObject} />
                 <Field label="企业所得税分摊口径" name="incomeTaxAllocationMethod" value={rule.incomeTaxAllocationMethod} />
                 <Field label="期间费用类别" name="periodExpenseType" value={rule.periodExpenseType} />
-
                 <SectionTitle>六、系统参数与备注</SectionTitle>
                 <Field label="综合税务口径说明" name="taxDeductionMethod" value={rule.taxDeductionMethod} />
                 <Field label="规则备注" name="remark" value={rule.remark} wide />
