@@ -4,10 +4,10 @@ export const projectNavGroups = [
     items: [
       ['项目概况', 'overview', 'done'],
       ['业态产品 / 税务清算对象', 'product-maintenance', 'done'],
+      ['建造配置标准', 'construction-standards', 'done'],
+      ['工程量指标', 'quantity-indicators', 'done'],
       ['版本管理', 'versions', 'done'],
-      ['指标校验', 'indicator-check', 'done'],
-      ['楼栋指标', '', 'planned'],
-      ['地块边界 / 红线资料', '', 'planned']
+      ['指标校验', 'indicator-check', 'done']
     ]
   },
   {
@@ -56,31 +56,6 @@ export const projectNavGroups = [
       ['项目自检', 'check', 'done'],
       ['汇总校验', 'summary-check', 'done'],
       ['模板中心 / 规则管理', '/templates', 'done']
-    ]
-  },
-  {
-    title: '后期管理',
-    items: [
-      ['合约规划', '', 'planned'],
-      ['招采计划', '', 'planned'],
-      ['合同台账', '', 'planned'],
-      ['付款计划', '', 'planned'],
-      ['合同变更', '', 'planned'],
-      ['结算管理', '', 'planned'],
-      ['动态成本跟踪', '', 'planned'],
-      ['成本预警', '', 'planned']
-    ]
-  },
-  {
-    title: '高级能力',
-    items: [
-      ['财务评价 / 现金流', '', 'planned'],
-      ['AI 测算助手', '', 'planned'],
-      ['AI 知识库', '', 'planned'],
-      ['地区成本指标库', '', 'planned'],
-      ['业态成本参数库', '', 'planned'],
-      ['PDF / Word 导出', '', 'planned'],
-      ['系统健康检查', '/health', 'done']
     ]
   }
 ] as const;
