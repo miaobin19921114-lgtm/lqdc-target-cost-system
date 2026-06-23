@@ -33,6 +33,7 @@ export const projectNavGroups = [
       ['版本规则快照', 'version-rule-snapshots', 'done'],
       ['模板字段需求', 'template-field-requirements', 'done'],
       ['字段定义库', 'template-field-definitions', 'done'],
+      ['字段定义编辑', 'template-field-editor', 'done'],
       ['成本科目及测算规则库', 'cost-calculation-rules', 'done'],
       ['量价指标库', 'price-library', 'done'],
       ['Excel科目映射', 'cost-mapping', 'done']
