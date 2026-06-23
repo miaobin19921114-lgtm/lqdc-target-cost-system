@@ -88,6 +88,10 @@ function groupOf(path?: string | null) {
   return textValue.split(/[>／/｜|]/).map((item) => item.trim()).filter(Boolean)[0] || '未分组';
 }
 
+function anchor(value: string) {
+  return encodeURIComponent(value.replace(/\s+/g, '-'));
+}
+
 async function loadRules() {
   try {
     const rows = await prisma.$queryRawUnsafe<RuleRow[]>(`
@@ -193,7 +197,7 @@ export default async function CostCalculationRulesPage({ params, searchParams }:
 
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1500 }}>
     <div className="page-header">
-      <div><p className="eyebrow">目标成本</p><h1 className="title">{project.name} · 成本科目及测算规则库</h1><p className="subtitle">一张主表整合成本科目、工程量计算规则、计价规则、成本归属、成本分摊及三套税务处理口径。成本科目统一使用“土地费”，税务扣除类别可使用“土地成本”。</p></div>
+      <div><p className="eyebrow">目标成本</p><h1 className="title">{project.name} · 成本科目及测算规则库</h1><p className="subtitle">一张主表整合成本科目、工程量计算规则、计价规则、成本归属、成本分摊及三套税务处理口径。上方科目树用于快速定位，一级科目与末级科目均支持折叠。</p></div>
       <div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/cost-mapping`} className="btn">Excel科目映射</Link><Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">目标成本测算</Link><Link href={`/projects/${project.id}`} className="btn">测算中心</Link></div>
     </div>
 
@@ -204,19 +208,38 @@ export default async function CostCalculationRulesPage({ params, searchParams }:
     <div className="summary-strip" style={{ marginBottom: 14 }}>
       <div className="stat"><div className="stat-label">规则数量</div><div className="stat-value">{rules.length}</div><div className="meta">末级成本科目</div></div>
       <div className="stat"><div className="stat-label">成本分组</div><div className="stat-value">{groups.length}</div><div className="meta">按一级科目归组</div></div>
-      <div className="stat"><div className="stat-label">排序口径</div><div className="stat-value">科目编码</div><div className="meta">层级自然顺序</div></div>
-      <div className="stat"><div className="stat-label">命名口径</div><div className="stat-value">土地费</div><div className="meta">土地成本仅作税务类别</div></div>
+      <div className="stat"><div className="stat-label">展示结构</div><div className="stat-value">两级折叠</div><div className="meta">一级科目 / 末级科目</div></div>
+      <div className="stat"><div className="stat-label">查找方式</div><div className="stat-value">科目树</div><div className="meta">点击快速定位</div></div>
     </div>
 
     {!rules.length ? <section className="card" style={{ borderColor: '#ffd8a8', background: '#fff9db' }}><b>成本科目及测算规则库尚未初始化</b><p className="meta" style={{ margin: '6px 0 0' }}>等待 Railway 启动脚本执行完成后会自动创建规则表，并按标准成本末级科目生成初始规则。</p></section> : null}
 
+    {rules.length ? <section className="card" style={{ marginBottom: 14, borderColor: '#d0ebff', background: '#f8fbff' }}>
+      <h2 style={{ marginTop: 0 }}>科目树索引</h2>
+      <p className="meta">按一级成本科目折叠展示。点击末级科目可直接定位到对应规则卡片。</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10, marginTop: 12 }}>
+        {groups.map((group) => {
+          const rows = rules.filter((rule) => groupOf(rule.subjectPath) === group);
+          return <details key={group} style={{ border: '1px solid #e6eef7', borderRadius: 12, background: '#fff', padding: '8px 10px' }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 900 }}>{group} <span className="meta">({rows.length})</span></summary>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, paddingLeft: 8 }}>
+              {rows.map((rule) => <a key={rule.ruleKey} href={`#rule-${anchor(rule.ruleKey)}`} style={{ color: '#0b7285', textDecoration: 'none', fontSize: 13 }}><b>{rule.costCode}</b>｜{short(rule.subjectName)}</a>)}
+            </div>
+          </details>;
+        })}
+      </div>
+    </section> : null}
+
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {groups.map((group) => {
+      {groups.map((group, groupIndex) => {
         const rows = rules.filter((rule) => groupOf(rule.subjectPath) === group);
-        return <section key={group} className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}><div><h2 style={{ margin: 0 }}>{group}</h2><p className="meta" style={{ margin: '5px 0 0' }}>本组共 {rows.length} 个末级科目。默认折叠，点击展开维护。</p></div><span style={{ border: '1px solid #d0ebff', background: '#e7f5ff', color: '#0b7285', borderRadius: 999, padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>{rows.length} 项</span></div>
+        return <details key={group} id={`group-${anchor(group)}`} className="card" open={groupIndex === 0}>
+          <summary style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div><h2 style={{ margin: 0, display: 'inline' }}>{group}</h2><p className="meta" style={{ margin: '5px 0 0' }}>一级科目折叠组，共 {rows.length} 个末级科目。</p></div>
+            <span style={{ border: '1px solid #d0ebff', background: '#e7f5ff', color: '#0b7285', borderRadius: 999, padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>{rows.length} 项</span>
+          </summary>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-            {rows.map((rule) => <details key={rule.ruleKey} style={{ border: '1px solid #e6eef7', borderRadius: 12, background: '#fbfdff', overflow: 'hidden' }}>
+            {rows.map((rule) => <details key={rule.ruleKey} id={`rule-${anchor(rule.ruleKey)}`} style={{ border: '1px solid #e6eef7', borderRadius: 12, background: '#fbfdff', overflow: 'hidden' }}>
               <summary style={{ cursor: 'pointer', padding: 12, display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1.1fr', gap: 10, alignItems: 'center' }}>
                 <div><b>{rule.costCode || '-'}</b><div className="meta">{short(rule.subjectPath || rule.subjectName)}</div></div>
                 <div><span className="meta">计价规则</span><br />{short(rule.calculationMethod)}</div>
@@ -274,7 +297,7 @@ export default async function CostCalculationRulesPage({ params, searchParams }:
               </form>
             </details>)}
           </div>
-        </section>;
+        </details>;
       })}
     </div>
   </div></main>;
