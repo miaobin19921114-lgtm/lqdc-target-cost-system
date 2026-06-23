@@ -27,6 +27,7 @@ export const projectNavGroups = [
       ['道路总平', 'road-details', 'done'],
       ['围墙出入口', 'wall-gate-details', 'done'],
       ['规则模板中心', 'rule-template-center', 'done'],
+      ['模板规则编辑', 'template-rule-editor', 'done'],
       ['模板科目开关', 'template-subject-switches', 'done'],
       ['项目规则快照', 'project-rule-snapshot', 'done'],
       ['版本规则快照', 'version-rule-snapshots', 'done'],
