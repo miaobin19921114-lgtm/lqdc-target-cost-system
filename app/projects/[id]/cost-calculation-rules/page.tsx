@@ -48,8 +48,13 @@ type RuleRow = {
   measureRemark: string | null;
 };
 
+function normalizeSubjectPath(value?: string | null) {
+  const raw = value || '';
+  return raw.replace(/^土地成本(?=\s*[/／>|｜]|$)/, '土地费');
+}
+
 function short(value?: string | null) {
-  return value || '-';
+  return normalizeSubjectPath(value) || '-';
 }
 
 function text(value: unknown) {
@@ -79,7 +84,7 @@ function compareCostCode(a?: string | null, b?: string | null) {
 }
 
 function groupOf(path?: string | null) {
-  const textValue = path || '未分组';
+  const textValue = normalizeSubjectPath(path) || '未分组';
   return textValue.split(/[>／/｜|]/).map((item) => item.trim()).filter(Boolean)[0] || '未分组';
 }
 
@@ -188,7 +193,7 @@ export default async function CostCalculationRulesPage({ params, searchParams }:
 
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1500 }}>
     <div className="page-header">
-      <div><p className="eyebrow">目标成本</p><h1 className="title">{project.name} · 成本科目及测算规则库</h1><p className="subtitle">一张主表整合成本科目、工程量计算规则、计价规则、成本归属、成本分摊及三套税务处理口径。排序按科目编码层级自然顺序。</p></div>
+      <div><p className="eyebrow">目标成本</p><h1 className="title">{project.name} · 成本科目及测算规则库</h1><p className="subtitle">一张主表整合成本科目、工程量计算规则、计价规则、成本归属、成本分摊及三套税务处理口径。成本科目统一使用“土地费”，税务扣除类别可使用“土地成本”。</p></div>
       <div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/cost-mapping`} className="btn">Excel科目映射</Link><Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">目标成本测算</Link><Link href={`/projects/${project.id}`} className="btn">测算中心</Link></div>
     </div>
 
@@ -200,7 +205,7 @@ export default async function CostCalculationRulesPage({ params, searchParams }:
       <div className="stat"><div className="stat-label">规则数量</div><div className="stat-value">{rules.length}</div><div className="meta">末级成本科目</div></div>
       <div className="stat"><div className="stat-label">成本分组</div><div className="stat-value">{groups.length}</div><div className="meta">按一级科目归组</div></div>
       <div className="stat"><div className="stat-label">排序口径</div><div className="stat-value">科目编码</div><div className="meta">层级自然顺序</div></div>
-      <div className="stat"><div className="stat-label">整合内容</div><div className="stat-value">4类</div><div className="meta">科目/算量/计价/税务</div></div>
+      <div className="stat"><div className="stat-label">命名口径</div><div className="stat-value">土地费</div><div className="meta">土地成本仅作税务类别</div></div>
     </div>
 
     {!rules.length ? <section className="card" style={{ borderColor: '#ffd8a8', background: '#fff9db' }}><b>成本科目及测算规则库尚未初始化</b><p className="meta" style={{ margin: '6px 0 0' }}>等待 Railway 启动脚本执行完成后会自动创建规则表，并按标准成本末级科目生成初始规则。</p></section> : null}
@@ -237,37 +242,31 @@ export default async function CostCalculationRulesPage({ params, searchParams }:
                 <InfoBlock title="工程量公式" value={short(rule.measureQuantityFormula)} />
                 <InfoBlock title="金额公式" value={short(rule.measureAmountFormula)} />
                 <InfoBlock title="规则系数" value={String(numeric(rule.measureCoefficient || 1))} />
-
                 <SectionTitle>二、计量与计价规则</SectionTitle>
                 <Field label="计量指标字段" name="quantityField" value={rule.quantityField} />
                 <Field label="配置参数字段" name="configField" value={rule.configField} />
                 <Field label="计价规则" name="calculationMethod" value={rule.calculationMethod} />
                 <SwitchField label="允许调整计量指标" name="allowQuantityOverride" value={rule.allowQuantityOverride} />
                 <SwitchField label="允许调整单价参数" name="allowPriceOverride" value={rule.allowPriceOverride} />
-
                 <SectionTitle>三、成本归属与成本分摊</SectionTitle>
                 <Field label="成本归属口径" name="costAttributionMethod" value={rule.costAttributionMethod} />
                 <Field label="成本分摊口径" name="allocationMethod" value={rule.allocationMethod} />
-
                 <SectionTitle>四、增值税处理口径</SectionTitle>
                 <SwitchField label="是否允许进项税抵扣" name="vatInputCreditAllowed" value={rule.vatInputCreditAllowed} />
                 <NumberField label="适用增值税税率" name="vatRate" value={numeric(rule.vatRate || 0.09)} />
                 <Field label="增值税处理方式" name="vatTreatment" value={rule.vatTreatment} />
                 <Field label="不可抵扣进项税处理方式" name="nonDeductibleVatTreatment" value={rule.nonDeductibleVatTreatment} />
-
                 <SectionTitle>五、土地增值税处理口径</SectionTitle>
                 <SwitchField label="是否纳入土增税扣除项目" name="landVatDeductible" value={rule.landVatDeductible} />
                 <Field label="土增税扣除项目类别" name="landVatDeductionCategory" value={rule.landVatDeductionCategory} />
                 <Field label="土增税清算对象" name="landVatClearanceObject" value={rule.landVatClearanceObject} />
                 <Field label="土增税分摊口径" name="landVatAllocationMethod" value={rule.landVatAllocationMethod} />
-
                 <SectionTitle>六、企业所得税处理口径</SectionTitle>
                 <SwitchField label="是否企业所得税税前扣除" name="incomeTaxDeductible" value={rule.incomeTaxDeductible} />
                 <Field label="企业所得税处理方式" name="incomeTaxTreatment" value={rule.incomeTaxTreatment} />
                 <Field label="企业所得税成本对象" name="incomeTaxCostObject" value={rule.incomeTaxCostObject} />
                 <Field label="企业所得税分摊口径" name="incomeTaxAllocationMethod" value={rule.incomeTaxAllocationMethod} />
                 <Field label="期间费用类别" name="periodExpenseType" value={rule.periodExpenseType} />
-
                 <SectionTitle>七、系统参数与备注</SectionTitle>
                 <Field label="综合税务口径说明" name="taxDeductionMethod" value={rule.taxDeductionMethod} />
                 <Field label="规则备注" name="remark" value={rule.remark} wide />
