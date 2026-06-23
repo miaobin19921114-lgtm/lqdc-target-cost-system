@@ -7,7 +7,8 @@ export const projectNavGroups = [
       ['建造配置标准', 'construction-standards', 'done'],
       ['工程量指标', 'quantity-indicators', 'done'],
       ['版本管理', 'versions', 'done'],
-      ['指标校验', 'indicator-check', 'done']
+      ['指标校验', 'indicator-check', 'done'],
+      ['楼栋指标', '', 'planned']
     ]
   },
   {
