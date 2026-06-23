@@ -215,19 +215,11 @@ model Project {
   residentialFitoutDelivery       Boolean  @default(false)
   residentialFitoutType           String   @default("硬装")
   residentialFitoutStandard       String   @default("毛坯")
-  facadeStandard                  String   @default("标准")
-  windowSystemStandard            String   @default("断桥铝/普通中空")
-  elevatorStandard                String   @default("标准")
-  smartSystemStandard             String   @default("标准")
-  lobbyFitoutStandard             String   @default("标准")
-  publicAreaFitoutScope           String?
   commercialPublicFitout          Boolean  @default(false)
   commercialPublicFitoutStandard  String   @default("标准")
   shopDeliveryStandard            String   @default("毛坯")
   basementQualityUpgrade          Boolean  @default(false)
   basementQualityStandard         String   @default("基础美化")
-  basementFlooringType            String   @default("金刚砂")
-  landscapeStandard               String   @default("标准")
   propertyFitout                  Boolean  @default(true)
   communityFitout                 Boolean  @default(true)
   supportFitout                   Boolean  @default(false)
@@ -246,84 +238,3 @@ model Project {
 
   @@index([sourceTemplateId])
 }
-
-model ProjectVersion {
-  id                     String        @id @default(cuid())
-  projectId              String
-  project                Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name                   String
-  stage                  String?
-  status                 String        @default("draft")
-  products               ProductType[]
-  costRules              ProjectCostRule[]
-  costs                  CostLine[]
-  revenues               RevenueLine[]
-  commercialRevenueLines CommercialRevenueLine[]
-  otherRevenueLines      OtherRevenueLine[]
-  salesSchedulePlans     SalesSchedulePlan[]
-  taxes                  TaxParameter?
-  importBatches          ImportBatch[]
-  metricValues           ProjectMetricValue[]
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @default(now()) @updatedAt
-}
-
-model ProductType {
-  id                     String             @id @default(cuid())
-  projectVersionId       String
-  projectVersion         ProjectVersion     @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  productTypeKey         String?
-  productTypePreset      ProductTypePreset? @relation(fields: [productTypeKey], references: [key], onDelete: SetNull)
-  category               String?
-  name                   String
-  buildingArea           Decimal @default(0)
-  aboveGroundArea        Decimal @default(0)
-  undergroundArea        Decimal @default(0)
-  saleableArea           Decimal @default(0)
-  capacityArea           Decimal @default(0)
-  nonSaleableArea        Decimal @default(0)
-  baseArea               Decimal @default(0)
-  householdCount         Int     @default(0)
-  unitCount              Int     @default(0)
-  buildingCount          Int     @default(0)
-  parkingCount           Int     @default(0)
-  salePrice              Decimal @default(0)
-  isSaleable             Boolean @default(true)
-  participateAllocation  Boolean @default(true)
-  allocationWeight       Decimal @default(1)
-  remark                 String?
-  isActive               Boolean @default(true)
-  disabledAt             DateTime?
-  costs                  CostLine[]
-  revenues               RevenueLine[]
-  commercialRevenueLines CommercialRevenueLine[]
-  metricValues           ProjectMetricValue[]
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @default(now()) @updatedAt
-
-  @@index([projectVersionId])
-  @@index([projectVersionId, isActive])
-  @@index([productTypeKey])
-  @@index([category])
-}
-
-model ProjectCostRule {
-  id               String @id @default(cuid())
-  projectVersionId String
-  projectVersion   ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  costCode         String?
-  category         String?
-  subjectName      String
-  sourceTable      String?
-  measureBasis     String?
-  unit             String?
-  defaultTaxRate   Decimal @default(0.09)
-  allocationMethod String?
-  sortOrder        Int @default(0)
-  remark           String?
-
-  @@index([projectVersionId])
-}
-
-model CostLine {
-  id               String @id @default(cuid())
