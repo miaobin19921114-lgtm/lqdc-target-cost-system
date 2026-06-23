@@ -25,14 +25,27 @@ function hasAny(text: string, words: string[]) {
 
 function prefabricatedScopeAllows(scopeConfig: string | null | undefined, row: any) {
   const selected = clean(scopeConfig);
-  if (!selected || hasAny(selected, ['全部', '全项目'])) return true;
+  if (!selected) return false;
+  if (hasAny(selected, ['全部', '全项目'])) return true;
   const text = `${clean(row.applicableProductType)} ${clean(row.secondSubject)} ${clean(row.thirdSubject)} ${clean(row.detailSubject)}`;
   if (hasAny(text, ['高层'])) return hasAny(selected, ['高层', '住宅']);
   if (hasAny(text, ['洋房'])) return hasAny(selected, ['洋房', '住宅']);
   if (hasAny(text, ['商业', '商铺', '商业街'])) return hasAny(selected, ['商业']);
   if (hasAny(text, ['配套', '物业', '社区'])) return hasAny(selected, ['配套', '物业', '社区']);
   if (hasAny(text, ['地下室', '地库', '地下车位'])) return hasAny(selected, ['地下', '地下室', '地库']);
-  return true;
+  return false;
+}
+
+function heatingScopeAllows(scopeConfig: string | null | undefined, row: any) {
+  const selected = clean(scopeConfig);
+  if (!selected) return false;
+  if (hasAny(selected, ['全部', '全项目'])) return true;
+  const text = `${clean(row.applicableProductType)} ${clean(row.secondSubject)} ${clean(row.thirdSubject)} ${clean(row.detailSubject)}`;
+  if (hasAny(text, ['高层'])) return hasAny(selected, ['高层', '住宅']);
+  if (hasAny(text, ['洋房'])) return hasAny(selected, ['洋房', '住宅']);
+  if (hasAny(text, ['商业', '商铺', '商业街'])) return hasAny(selected, ['商业']);
+  if (hasAny(text, ['配套', '物业', '社区'])) return hasAny(selected, ['配套', '物业', '社区']);
+  return hasAny(selected, ['住宅', '高层', '洋房', '商业', '配套']);
 }
 
 function rowPassesProjectConfig(project: any, row: any) {
@@ -44,11 +57,11 @@ function rowPassesProjectConfig(project: any, row: any) {
   }
 
   if (hasAny(text, ['地暖盘管', '地暖保温板', '地暖反射膜', '地暖钢丝网', '豆石混凝土回填', '户内采暖地面精装工程'])) {
-    return Boolean(project.heatingEnabled && project.residentialFitoutDelivery && project.heatingType === '地暖');
+    return Boolean(project.heatingEnabled && project.residentialFitoutDelivery && project.heatingType === '地暖') && heatingScopeAllows(project.heatingScope, row);
   }
 
   if (hasAny(text, ['采暖', '换热', '热量表', '温控阀', '分集水器', '散热器']) && (table === '安装明细表' || table === '设备明细表')) {
-    return Boolean(project.heatingEnabled);
+    return Boolean(project.heatingEnabled) && heatingScopeAllows(project.heatingScope, row);
   }
 
   if (hasAny(text, ['户内批量精装修', '户内墙面', '户内地面', '户内天棚', '客餐厅', '卧室精装修', '厨房精装修', '卫生间精装修', '阳台精装修', '户内门及门套', '橱柜', '浴室柜', '洁具五金', '开关插座面板', '户内灯具'])) {
