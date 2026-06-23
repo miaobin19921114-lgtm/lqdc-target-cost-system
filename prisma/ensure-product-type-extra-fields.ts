@@ -112,7 +112,7 @@ async function backfillProfessionalFields() {
   }
 }
 
-async function ensureProduct(projectVersionId: string, name: string, sortOrder: number, remark: string) {
+async function ensureProduct(projectVersionId: string, name: string, remark: string) {
   const existing = await prisma.productType.findFirst({ where: { projectVersionId, name }, select: { id: true } });
   if (existing) return existing.id;
   const created = await prisma.productType.create({
@@ -127,7 +127,6 @@ async function ensureProduct(projectVersionId: string, name: string, sortOrder: 
       isSaleable: false,
       participateAllocation: true,
       allocationWeight: 1,
-      sortOrder,
       remark
     },
     select: { id: true }
@@ -148,14 +147,14 @@ async function backfillRelatedBasements() {
     }
 
     for (const name of basementNames) {
-      const id = await ensureProduct(version.id, name, 930, `系统自动补齐：对应地上业态的主楼地下室。`);
+      const id = await ensureProduct(version.id, name, '系统自动补齐：对应地上业态的主楼地下室。');
       await setProfessionalFields(id, '地下空间', '不可售', '归属地下室', '不可售配套');
     }
 
-    const pureGarageId = await ensureProduct(version.id, '非主楼纯地库', 940, '系统自动补齐：非主楼区域地下车库。');
+    const pureGarageId = await ensureProduct(version.id, '非主楼纯地库', '系统自动补齐：非主楼区域地下车库。');
     await setProfessionalFields(pureGarageId, '地下空间', '不可售', '归属地下室', '不可售配套');
 
-    const civilDefenseId = await ensureProduct(version.id, '人防地下室', 950, '系统自动补齐：人防地下室。');
+    const civilDefenseId = await ensureProduct(version.id, '人防地下室', '系统自动补齐：人防地下室。');
     await setProfessionalFields(civilDefenseId, '地下空间', '人防', '归属地下室', '人防/特殊物业');
   }
 }
