@@ -26,6 +26,7 @@ export const projectNavGroups = [
       ['景观工程', 'landscape-details', 'done'],
       ['道路总平', 'road-details', 'done'],
       ['围墙出入口', 'wall-gate-details', 'done'],
+      ['规则驱动明细测算', 'detail-rule-calculation', 'done'],
       ['规则治理中心', 'rule-governance-center', 'done'],
       ['项目模板选择', 'project-template-selection', 'done'],
       ['版本快照生成', 'version-snapshot-generator', 'done'],
