@@ -1,0 +1,38 @@
+name: Prisma Schema Check
+
+on:
+  pull_request:
+    paths:
+      - "prisma/schema.prisma"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/prisma-schema-check.yml"
+  workflow_dispatch:
+
+jobs:
+  prisma-schema-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build project
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/lqdc_target_cost?schema=public
+        run: npm run build
