@@ -8,4 +8,4 @@ cmds = ["npm install"]
 cmds = ["npx prisma generate", "npm run build"]
 
 [start]
-cmd = "npm run railway:start"
+cmd = "next start -H 0.0.0.0 -p ${PORT:-3000}"
