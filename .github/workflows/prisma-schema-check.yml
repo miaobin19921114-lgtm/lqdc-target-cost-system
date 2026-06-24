@@ -1,21 +1,23 @@
-name: Build Verification
+name: Prisma Schema Check
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
-    branches:
-      - main
+    paths:
+      - "prisma/schema.prisma"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/prisma-schema-check.yml"
+  workflow_dispatch:
 
 jobs:
-  build:
+  prisma-schema-check:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://user:password@localhost:5432/lqdc_target_cost?schema=public
       NEXT_TELEMETRY_DISABLED: '1'
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v5
 
       - name: Show Node.js version
@@ -24,8 +26,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Build
+      - name: Build project
         run: npm run build

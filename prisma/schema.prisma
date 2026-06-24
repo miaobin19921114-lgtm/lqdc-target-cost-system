@@ -651,3 +651,628 @@ model MeasureBasisStageRule {
   @@index([basisRuleId])
   @@index([enabled])
 }
+
+// -----------------------------------------------------------------------------
+// First-stage target cost MVP additive models
+// These models are appended without removing legacy models to keep existing code
+// compatible while the new calculation engine is introduced gradually.
+// Cross-model links use scalar id fields first; strict Prisma relations can be
+// added after the existing UI/API is migrated to the new engine.
+// -----------------------------------------------------------------------------
+
+model ProjectInitialization {
+  id                       String   @id @default(cuid())
+  projectId                String
+  projectType              String
+  developmentMode          String
+  regionId                 String?
+  estimateStage            String
+  precisionLevel           String
+  selectedTemplateId       String?
+  projectTemplateId        String?
+  selectedProductTypes     String?
+  enabledSpecialOptions    String?
+  initializationStatus     String   @default("draft")
+  initializedBy            String?
+  initializedAt            DateTime?
+  baseTemplateVersion      String?
+  costDictionaryVersion    String?
+  regionParameterVersion   String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([regionId])
+  @@index([selectedTemplateId])
+  @@index([projectTemplateId])
+  @@index([initializationStatus])
+}
+
+model EstimateVersion {
+  id                                String   @id @default(cuid())
+  projectId                         String
+  projectTemplateId                 String?
+  versionName                       String
+  versionType                       String
+  versionNo                         String?
+  baseVersionId                     String?
+  precisionLevel                    String?
+  excelTemplateVersion              String?
+  costDictionaryVersion             String?
+  regionParameterVersion            String?
+  ruleVersion                       String?
+  allocationRuleVersion             String?
+  taxRuleVersion                    String?
+  priceVersion                      String?
+  indicatorVersion                  String?
+  versionStatus                     String   @default("draft")
+  isLocked                          Boolean  @default(false)
+  lockedBy                          String?
+  lockedAt                          DateTime?
+  changeReason                      String?
+  versionRemark                     String?
+  createdBy                         String?
+  updatedBy                         String?
+  remark                            String?
+  createdAt                         DateTime @default(now())
+  updatedAt                         DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([projectTemplateId])
+  @@index([baseVersionId])
+  @@index([versionType])
+  @@index([versionStatus])
+  @@index([isLocked])
+}
+
+model EstimateProductType {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  productTypeCode          String
+  productTypeName          String
+  productCategory          String?
+  isSaleable               Boolean  @default(false)
+  isCostObject             Boolean  @default(true)
+  isTaxClearanceObject     Boolean  @default(false)
+  isEnabled                Boolean  @default(true)
+  defaultAllocationWeight  Decimal  @default(1)
+  defaultIncomeTaxObject   String?
+  defaultLandVatObject     String?
+  sortOrder                Int      @default(0)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([versionId, productTypeCode])
+  @@index([projectId])
+  @@index([versionId])
+  @@index([productCategory])
+  @@index([isEnabled])
+}
+
+model ProjectOverviewIndicator {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String   @unique
+  landArea                 Decimal  @default(0)
+  capacityArea             Decimal  @default(0)
+  totalBuildingArea        Decimal  @default(0)
+  aboveGroundArea          Decimal  @default(0)
+  undergroundArea          Decimal  @default(0)
+  saleableArea             Decimal  @default(0)
+  parkingCount             Decimal  @default(0)
+  chargingPileCount        Decimal  @default(0)
+  householdCount           Decimal  @default(0)
+  buildingCount            Decimal  @default(0)
+  unitCount                Decimal  @default(0)
+  sitePerimeter            Decimal  @default(0)
+  gateCount                Decimal  @default(0)
+  landscapeArea            Decimal  @default(0)
+  hardscapeArea            Decimal  @default(0)
+  softscapeArea            Decimal  @default(0)
+  civilDefenseArea         Decimal  @default(0)
+  heatingArea              Decimal  @default(0)
+  prefabricatedArea        Decimal  @default(0)
+  antiqueBuildingArea      Decimal  @default(0)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+model ProductTypeIndicator {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  productTypeId            String
+  buildingArea             Decimal  @default(0)
+  saleableArea             Decimal  @default(0)
+  capacityArea             Decimal  @default(0)
+  landOccupationArea       Decimal  @default(0)
+  aboveGroundArea          Decimal  @default(0)
+  undergroundArea          Decimal  @default(0)
+  buildingCount            Decimal  @default(0)
+  unitCount                Decimal  @default(0)
+  floorCount               Decimal  @default(0)
+  householdCount           Decimal  @default(0)
+  parkingCount             Decimal  @default(0)
+  supportArea              Decimal  @default(0)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([versionId, productTypeId])
+  @@index([projectId])
+  @@index([productTypeId])
+}
+
+model QuantityIndicator {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  productTypeId            String?
+  indicatorName            String
+  indicatorSource          String
+  indicatorValue           Decimal  @default(0)
+  indicatorUnit            String?
+  isSystemCalculated       Boolean  @default(false)
+  calculationRemark        String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([productTypeId])
+  @@index([indicatorName])
+}
+
+model BuildingStandard {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  productTypeId            String?
+  deliveryStandard         String?
+  facadeStandard           String?
+  windowDoorStandard       String?
+  landscapeStandard        String?
+  garageStandard           String?
+  intelligentStandard      String?
+  isFineDecoration         Boolean  @default(false)
+  isCivilDefense           Boolean  @default(false)
+  isHeating                Boolean  @default(false)
+  isPrefabricated          Boolean  @default(false)
+  isAntiqueBuilding        Boolean  @default(false)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([productTypeId])
+}
+
+model DetailSubject {
+  id                          String   @id @default(cuid())
+  costSubjectId               String
+  detailSubjectCode           String?
+  detailSubjectName           String
+  subjectFullPath             String?
+  measurementBasis            String?
+  defaultIndicatorSource      String?
+  defaultQuantityUnit         String?
+  defaultPricingUnit          String?
+  defaultTaxRate              Decimal  @default(0)
+  defaultProductType          String?
+  defaultCostObject           String?
+  participateAllocation       Boolean  @default(false)
+  defaultAllocationBasis      String?
+  enterLandVatDeduction       Boolean  @default(false)
+  enterIncomeTaxCost          Boolean  @default(true)
+  createdBy                   String?
+  updatedBy                   String?
+  remark                      String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@index([costSubjectId])
+  @@index([detailSubjectCode])
+  @@index([detailSubjectName])
+}
+
+model QuantityRule {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  detailSubjectId          String
+  indicatorName            String
+  indicatorSource          String?
+  indicatorValue           Decimal  @default(0)
+  contentRatio             Decimal  @default(1)
+  contentUnit              String?
+  quantityFormula          String?
+  engineeringQuantity      Decimal  @default(0)
+  quantityUnit             String?
+  allowManualAdjustment    Boolean  @default(true)
+  calculationRemark        String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([detailSubjectId])
+  @@index([indicatorName])
+}
+
+model UnitDictionary {
+  id                       String   @id @default(cuid())
+  unitType                 String
+  unitName                 String
+  unitDescription          String?
+  isEnabled                Boolean  @default(true)
+  sortOrder                Int      @default(0)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([unitType, unitName])
+  @@index([unitType])
+  @@index([isEnabled])
+}
+
+model PriceTaxRule {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  detailSubjectId          String
+  productTypeId            String?
+  unitPriceTaxIncluded     Decimal  @default(0)
+  unitPriceTaxExcluded     Decimal  @default(0)
+  taxRate                  Decimal  @default(0)
+  priceType                String?
+  priceSource              String?
+  priceRemark              String?
+  allowOverride            Boolean  @default(true)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([detailSubjectId])
+  @@index([productTypeId])
+}
+
+model AllocationRule {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  detailSubjectId          String
+  isDirectAttribution      Boolean  @default(false)
+  productTypeId            String?
+  costObjectId             String?
+  participateAllocation    Boolean  @default(false)
+  allocationBasis          String?
+  allocationObjectScope    String?
+  allocationRatio          Decimal  @default(0)
+  allowManualAdjustment    Boolean  @default(true)
+  allocationRemark         String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([detailSubjectId])
+  @@index([productTypeId])
+  @@index([costObjectId])
+}
+
+model EstimateDetailLine {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  productTypeId            String?
+  costObjectId             String?
+  costSubjectId            String
+  detailSubjectId          String
+  targetCostSummaryId      String?
+  measurementBasis         String?
+  indicatorSource          String?
+  indicatorValue           Decimal  @default(0)
+  contentRatio             Decimal  @default(1)
+  engineeringQuantity      Decimal  @default(0)
+  quantityUnit             String?
+  pricingUnit              String?
+  unitPriceTaxIncluded     Decimal  @default(0)
+  unitPriceTaxExcluded     Decimal  @default(0)
+  taxRate                  Decimal  @default(0)
+  amountTaxIncluded        Decimal  @default(0)
+  amountTaxExcluded        Decimal  @default(0)
+  taxAmount                Decimal  @default(0)
+  priceSource              String?
+  participateAllocation    Boolean  @default(false)
+  allocatedAmount          Decimal  @default(0)
+  calculationRemark        String?
+  sortOrder                Int      @default(0)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([productTypeId])
+  @@index([costObjectId])
+  @@index([costSubjectId])
+  @@index([detailSubjectId])
+  @@index([targetCostSummaryId])
+}
+
+model RevenueEstimate {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  productTypeId            String
+  revenueType              String
+  measurementQuantity      Decimal  @default(0)
+  measurementUnit          String?
+  saleUnitPrice            Decimal  @default(0)
+  pricingUnit              String?
+  revenueTaxIncluded       Decimal  @default(0)
+  revenueTaxExcluded       Decimal  @default(0)
+  outputTaxRate            Decimal  @default(0)
+  outputTaxAmount          Decimal  @default(0)
+  sellThroughPeriod        String?
+  collectionPlan           String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([productTypeId])
+  @@index([revenueType])
+}
+
+model TaxEstimate {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  taxType                  String
+  taxBase                  Decimal  @default(0)
+  taxRate                  Decimal  @default(0)
+  deductibleInputTax       Decimal  @default(0)
+  outputTax                Decimal  @default(0)
+  payableVat               Decimal  @default(0)
+  surtaxAmount             Decimal  @default(0)
+  landVatDeductibleCost    Decimal  @default(0)
+  landVatAmount            Decimal  @default(0)
+  incomeTaxPreTaxProfit    Decimal  @default(0)
+  incomeTaxAmount          Decimal  @default(0)
+  taxRemark                String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([taxType])
+}
+
+model TargetCostSummary {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  costSubjectId            String
+  subjectLevel             Int
+  productTypeId            String?
+  totalAmountTaxIncluded   Decimal  @default(0)
+  totalAmountTaxExcluded   Decimal  @default(0)
+  totalTaxAmount           Decimal  @default(0)
+  buildingUnitCost         Decimal  @default(0)
+  saleableUnitCost         Decimal  @default(0)
+  beforeAllocationAmount   Decimal  @default(0)
+  afterAllocationAmount    Decimal  @default(0)
+  summarizedAt             DateTime?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([costSubjectId])
+  @@index([productTypeId])
+  @@index([subjectLevel])
+}
+
+model ProjectCostDashboard {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String   @unique
+  salesRevenue             Decimal  @default(0)
+  otherRevenue             Decimal  @default(0)
+  developmentCostTaxIncluded Decimal @default(0)
+  developmentCostTaxExcluded Decimal @default(0)
+  totalTaxAmount           Decimal  @default(0)
+  preTaxOperatingProfit    Decimal  @default(0)
+  incomeTax                Decimal  @default(0)
+  netProfitAfterTax        Decimal  @default(0)
+  preTaxSalesProfitRate    Decimal  @default(0)
+  netSalesProfitRate       Decimal  @default(0)
+  buildingUnitCost         Decimal  @default(0)
+  saleableUnitCost         Decimal  @default(0)
+  calculatedAt             DateTime?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+model ExcelMapping {
+  id                       String   @id @default(cuid())
+  excelFileName            String
+  excelFileVersion         String?
+  sheetName                String
+  excelRow                 Int?
+  excelColumn              Int?
+  excelFieldName           String?
+  excelSubjectCode         String?
+  excelSubjectName         String?
+  excelFormula             String?
+  excelUnit                String?
+  excelTaxRate             String?
+  excelAllocationBasis     String?
+  systemModule             String
+  systemField              String
+  mappingStatus            String   @default("pending")
+  importBatch              String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([excelFileVersion])
+  @@index([sheetName])
+  @@index([excelSubjectCode])
+  @@index([systemModule])
+  @@index([mappingStatus])
+}
+
+model VersionOperation {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  compareVersionId         String?
+  operationType            String
+  beforeStatus             String?
+  afterStatus              String?
+  operatedBy               String?
+  operatedAt               DateTime @default(now())
+  operationReason          String?
+  differenceAmount         Decimal  @default(0)
+  differenceRemark         String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([compareVersionId])
+  @@index([operationType])
+}
+
+model CalculationCheck {
+  id                       String   @id @default(cuid())
+  projectId                String
+  versionId                String
+  checkObjectType          String
+  checkObjectId            String?
+  checkRule                String
+  checkLevel               String   @default("warning")
+  checkResult              String   @default("pending")
+  errorMessage             String?
+  isProcessed              Boolean  @default(false)
+  processedBy              String?
+  processedAt              DateTime?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([checkObjectType])
+  @@index([checkLevel])
+  @@index([checkResult])
+  @@index([isProcessed])
+}
+
+model RegionParameter {
+  id                       String   @id @default(cuid())
+  country                  String?
+  province                 String?
+  city                     String?
+  district                 String?
+  marketArea               String?
+  defaultVatRate           Decimal  @default(0)
+  defaultSurtaxRate        Decimal  @default(0)
+  defaultIncomeTaxRate     Decimal  @default(0)
+  landVatPrepayRate        Decimal  @default(0)
+  regionParameterVersion   String   @default("v1")
+  effectiveDate            DateTime?
+  expiryDate               DateTime?
+  dataSource               String?
+  confidenceLevel          String?
+  approvedBy               String?
+  approvedAt               DateTime?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([country])
+  @@index([province])
+  @@index([city])
+  @@index([district])
+  @@index([regionParameterVersion])
+}
+
+model DictionaryItem {
+  id                       String   @id @default(cuid())
+  dictionaryType           String
+  dictionaryCode           String
+  dictionaryName           String
+  defaultPrecisionLevel    String?
+  defaultSubjectDepth      String?
+  isEnabled                Boolean  @default(true)
+  sortOrder                Int      @default(0)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([dictionaryType, dictionaryCode])
+  @@index([dictionaryType])
+  @@index([isEnabled])
+}

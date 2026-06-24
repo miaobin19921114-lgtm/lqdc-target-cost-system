@@ -1,0 +1,12 @@
+// Legacy Prisma schema audit note.
+//
+// PR #6 was first created as a full schema replacement, then corrected to a
+// safer additive approach:
+// - existing legacy models remain in prisma/schema.prisma
+// - first-stage target cost MVP models are appended without deleting legacy models
+// - new MVP models use scalar id links first to avoid breaking existing UI/API code
+//
+// Original schema.prisma blob SHA observed before the first replacement:
+// 43348ca250946419ba7e36cabbb853b4b6d78883
+//
+// Keep this file as a history pointer only. The active schema is prisma/schema.prisma.
