@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -30,6 +30,8 @@ jobs:
         run: npx prisma validate
 
       - name: Generate Prisma client
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/lqdc_target_cost?schema=public
         run: npx prisma generate
 
       - name: Build project
