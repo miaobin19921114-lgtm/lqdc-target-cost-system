@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
 import { calculateRuleDrivenQuantity } from '@/lib/rule-driven-quantity';
 import { recommendPriceIndicator } from '@/lib/price-indicator-matcher';
+import { refreshTargetCostAggregates, upsertDetailCalculationResult } from '@/lib/detail-calculation-result-sync';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -63,6 +64,31 @@ function entryMatchesSaveScope(form: FormData, entryId: string, saveGroupId: str
   return form.getAll(entryKey(entryId, 'saveScope')).map((item) => String(item || '')).includes(saveGroupId);
 }
 
+function detailTypeFrom(professionalGroup: string, returnPath: string) {
+  const text = `${professionalGroup} ${returnPath}`;
+  if (/前期/.test(text)) return 'pre';
+  if (/土建|建筑|结构|主体|地下室|桩基|门窗|防水/.test(text)) return 'building';
+  if (/安装|给排水|电气|消防|弱电|暖通/.test(text)) return 'installation';
+  if (/设备|电梯|充电桩|人防|立体车库/.test(text)) return 'equipment';
+  if (/精装|装修|大堂/.test(text)) return 'fitout';
+  if (/管网|室外管网|综合管线/.test(text)) return 'outdoor-pipe';
+  if (/景观|绿化|硬景|软景/.test(text)) return 'landscape';
+  if (/道路|总平|交安|标识/.test(text)) return 'road';
+  if (/围墙|出入口|临设/.test(text)) return 'wall-gate';
+  if (/销售|营销|示范区|包装/.test(text)) return 'sales-expense';
+  if (/管理|行政|开发间接/.test(text)) return 'admin-expense';
+  if (/财务|利息|融资/.test(text)) return 'finance-expense';
+  if (/税|增值税|所得税|土地增值税/.test(text)) return 'tax';
+  return returnPath || 'professional-detail';
+}
+
+function landVatTreatmentFor(code: string, professionalGroup: string) {
+  if (code.startsWith('09') || code.startsWith('10')) return '通常不计入土增税开发成本，按税务口径另行处理';
+  if (code.startsWith('12')) return '税金专项，按税金明细表口径处理';
+  if (/销售|营销|财务/.test(professionalGroup)) return '通常不计入土增税开发成本，按期间费用/税务清算口径处理';
+  return '计入土地增值税扣除项目或按受益对象分摊';
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
   const baseUrl = getBaseUrl(request);
@@ -73,6 +99,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!version) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?saved=0`, 303);
   if (locked) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?locked=1`, 303);
 
+  const project = await prisma.project.findUnique({ where: { id: params.id }, select: { totalBuildingArea: true, saleableArea: true } });
+  const [versionSnapshot] = await prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+    SELECT "id" FROM "VersionRuleSnapshot" WHERE "projectId"=$1 AND "versionId"=$2 ORDER BY "createdAt" DESC LIMIT 1
+  `, params.id, version.id).catch(() => []);
+  const detailType = detailTypeFrom(professionalGroup, returnPath);
   const products = await prisma.productType.findMany({ where: { projectVersionId: version.id }, select: { name: true, isActive: true } });
   const inactiveProductNames = new Set(products.filter((item) => !item.isActive).map((item) => item.name));
   const allRowEntries = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
@@ -183,8 +214,45 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     if (costLineId) await prisma.costLine.update({ where: { id: costLineId }, data });
     else await prisma.costLine.create({ data });
+
+    await upsertDetailCalculationResult(prisma, {
+      id: `detail-${detailType}-${version.id}-${rowEntryId}`,
+      projectId: params.id,
+      versionId: version.id,
+      versionSnapshotId: versionSnapshot?.id || null,
+      sourceRuleId: `manual-${detailType}-${rowEntryId}`,
+      detailType,
+      subjectCode: code,
+      subjectName,
+      applicableStage: version.stage || 'SCHEME',
+      precisionLevel: 'L3',
+      areaZone: regionOrProductTypeInput || dict.applicableProductType || '项目整体共用',
+      professionalGroup,
+      measureBasis: data.measureBasis,
+      quantityFormula: measureBasisInput || dict.measureBasis || null,
+      pricingUnit: unitInput || dict.unit || '项',
+      unitPriceSource: price?.applied ? `指标库：${price.source || ''}` : '专业明细页手动录入',
+      quantity,
+      unitPrice: taxInclusiveUnitPrice / 10000,
+      taxRate,
+      amountFormula: '工程量×含税单价',
+      costAttributionMethod: dict.costAttribution || '按科目直接归集',
+      allocationMethod: data.allocationMethod,
+      vatTreatment: taxRate ? `进项税率${round2(taxRate * 100)}%` : '不可抵扣/无税',
+      landVatTreatment: landVatTreatmentFor(code, professionalGroup),
+      incomeTaxTreatment: '计入所得税成本对象或期间费用',
+      remark
+    });
+
     savedCount += 1;
   }
+
+  await refreshTargetCostAggregates(prisma, {
+    projectId: params.id,
+    versionId: version.id,
+    buildingArea: Number(project?.totalBuildingArea || 0),
+    saleableArea: Number(project?.saleableArea || 0)
+  });
 
   const query = saveGroupId ? `saved=1&groupSaved=1&batch=${savedCount}&rules=${ruleAppliedCount}&prices=${priceAppliedCount}` : `saved=1&batch=${savedCount}&rules=${ruleAppliedCount}&prices=${priceAppliedCount}`;
   return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath}?${query}`, 303);
