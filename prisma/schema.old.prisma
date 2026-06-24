@@ -1,8 +1,12 @@
-// Backup pointer for the pre-rebuild Prisma schema.
+// Legacy Prisma schema audit note.
 //
-// This branch was created from main before rebuilding the first-stage database schema.
-// The original schema.prisma content is preserved in git history at the branch base.
-// Original schema.prisma blob SHA observed before replacement:
+// PR #6 was first created as a full schema replacement, then corrected to a
+// safer additive approach:
+// - existing legacy models remain in prisma/schema.prisma
+// - first-stage target cost MVP models are appended without deleting legacy models
+// - new MVP models use scalar id links first to avoid breaking existing UI/API code
+//
+// Original schema.prisma blob SHA observed before the first replacement:
 // 43348ca250946419ba7e36cabbb853b4b6d78883
 //
-// To restore it, compare this branch against main or fetch the above blob from GitHub history.
+// Keep this file as a history pointer only. The active schema is prisma/schema.prisma.
