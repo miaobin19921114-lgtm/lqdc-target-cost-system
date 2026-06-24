@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { refreshTargetCostAggregates, upsertDetailCalculationResult } from '@/lib/detail-calculation-result-sync';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -65,7 +66,11 @@ function defaultTaxRateForLandRow(dict: { detailSubject?: string | null; default
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
+  const project = await prisma.project.findUnique({ where: { id: params.id }, select: { id: true, totalBuildingArea: true, saleableArea: true } });
   const version = await getOrCreateVersion(params.id);
+  const [versionSnapshot] = await prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+    SELECT "id" FROM "VersionRuleSnapshot" WHERE "projectId"=$1 AND "versionId"=$2 ORDER BY "createdAt" DESC LIMIT 1
+  `, params.id, version.id).catch(() => []);
   const products = await prisma.productType.findMany({ where: { projectVersionId: version.id }, select: { name: true, isActive: true } });
   const inactiveProductNames = new Set(products.filter((item) => !item.isActive).map((item) => item.name));
   const rowIds = form.getAll('dictionaryRowId').map((item) => String(item || '')).filter(Boolean);
@@ -130,14 +135,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const taxRate = taxRateFrom(taxRateInput || dict.defaultTaxRate, defaultTaxRateForLandRow(dict));
     let taxInclusiveUnitPrice = 0;
     let taxInclusiveAmount = 0;
+    let detailUnitPriceWan = priceWanPerUnit;
 
     if (rateBased) {
       const feeRate = rateFromText(form.get(`priceWanPerUnit-${rowId}`), 0);
       taxInclusiveUnitPrice = round2(feeRate * 10000);
       taxInclusiveAmount = round2(quantity * feeRate);
+      detailUnitPriceWan = feeRate;
     } else {
       taxInclusiveUnitPrice = round2(priceWanPerUnit * 10000);
       taxInclusiveAmount = round2((quantity * taxInclusiveUnitPrice) / 10000);
+      detailUnitPriceWan = priceWanPerUnit;
     }
 
     const taxExclusiveAmount = taxRate ? round2(taxInclusiveAmount / (1 + taxRate)) : taxInclusiveAmount;
@@ -169,8 +177,45 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     if (costLineId) await prisma.costLine.update({ where: { id: costLineId }, data });
     else await prisma.costLine.create({ data });
+
+    await upsertDetailCalculationResult(prisma, {
+      id: `detail-land-${version.id}-${rowId}`,
+      projectId: params.id,
+      versionId: version.id,
+      versionSnapshotId: versionSnapshot?.id || null,
+      sourceRuleId: `manual-land-${rowId}`,
+      detailType: 'land',
+      subjectCode: code,
+      subjectName,
+      applicableStage: version.stage || 'SCHEME',
+      precisionLevel: 'L3',
+      areaZone: regionOrProductType || dict.applicableProductType || '项目整体',
+      professionalGroup: '土地费用',
+      measureBasis: data.measureBasis,
+      quantityFormula: dict.measureBasis || null,
+      pricingUnit: unitInput || (rateBased ? '费率' : (dict.unit || '亩')),
+      unitPriceSource: '土地费用明细表',
+      quantity,
+      unitPrice: detailUnitPriceWan,
+      taxRate,
+      amountFormula: rateBased ? '土地价款/成交价×费率' : '工程量×含税单价',
+      costAttributionMethod: '土地费直接归集',
+      allocationMethod: data.allocationMethod,
+      vatTreatment: taxRate ? `进项税率${round2(taxRate * 100)}%` : '不可抵扣/无税',
+      landVatTreatment: '计入土地增值税扣除项目',
+      incomeTaxTreatment: '计入所得税成本对象',
+      remark
+    });
+
     savedCount += 1;
   }
+
+  await refreshTargetCostAggregates(prisma, {
+    projectId: params.id,
+    versionId: version.id,
+    buildingArea: Number(project?.totalBuildingArea || 0),
+    saleableArea: Number(project?.saleableArea || 0)
+  });
 
   return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/land?saved=1&batch=${savedCount}`, 303);
 }
