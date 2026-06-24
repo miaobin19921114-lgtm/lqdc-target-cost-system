@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "railway:start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "railway:start": "./node_modules/.bin/next start -H 0.0.0.0 -p ${PORT:-3000}",
     "lint": "next lint",
     "test": "vitest run",
     "db:migrate": "prisma migrate dev",
