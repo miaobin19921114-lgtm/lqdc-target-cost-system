@@ -50,6 +50,20 @@ The branch has now been corrected to a safer additive approach:
 - `RegionParameter`
 - `DictionaryItem`
 
+## Current design note
+
+The new MVP models intentionally use scalar id fields instead of full Prisma relation fields at this stage. This avoids forcing reverse relation fields into legacy models before the existing UI/API has been migrated.
+
+Examples:
+
+- `projectId`
+- `versionId`
+- `productTypeId`
+- `costSubjectId`
+- `detailSubjectId`
+
+After the existing code is migrated to the new target-cost engine, these scalar links can be hardened into explicit Prisma relations where needed.
+
 ## Required verification before merge
 
 Run locally or in CI:
