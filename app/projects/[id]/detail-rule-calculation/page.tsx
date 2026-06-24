@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { calculateTaxAmounts, refreshTargetCostAggregates } from '@/lib/detail-calculation-result-sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,12 +118,7 @@ async function updateDetailResult(formData: FormData) {
   const versionId = valueOf(formData, 'versionId');
   const detailType = valueOf(formData, 'detailType');
   const resultId = valueOf(formData, 'resultId');
-  const quantity = numOf(formData, 'quantity');
-  const unitPrice = numOf(formData, 'unitPrice');
-  const taxRate = numOf(formData, 'taxRate') || 0.09;
-  const taxInclusiveAmount = quantity * unitPrice;
-  const taxExclusiveAmount = taxRate > 0 ? taxInclusiveAmount / (1 + taxRate) : taxInclusiveAmount;
-  const taxAmount = taxInclusiveAmount - taxExclusiveAmount;
+  const amounts = calculateTaxAmounts(numOf(formData, 'quantity'), numOf(formData, 'unitPrice'), valueOf(formData, 'taxRate') || 0.09);
   const remark = valueOf(formData, 'remark');
 
   await prisma.$executeRawUnsafe(`
@@ -130,7 +126,7 @@ async function updateDetailResult(formData: FormData) {
     SET "quantity"=$1, "unitPrice"=$2, "taxRate"=$3, "taxInclusiveAmount"=$4, "taxExclusiveAmount"=$5, "taxAmount"=$6,
         "calculationStatus"='calculated', "isManualAdjusted"=TRUE, "remark"=$7, "updatedAt"=CURRENT_TIMESTAMP
     WHERE "id"=$8 AND "projectId"=$9 AND "versionId"=$10
-  `, quantity, unitPrice, taxRate, taxInclusiveAmount, taxExclusiveAmount, taxAmount, remark, resultId, projectId, versionId);
+  `, amounts.quantity, amounts.unitPrice, amounts.taxRate, amounts.taxInclusiveAmount, amounts.taxExclusiveAmount, amounts.taxAmount, remark, resultId, projectId, versionId);
 
   revalidatePath(`/projects/${projectId}/detail-rule-calculation`);
   redirect(`/projects/${projectId}/detail-rule-calculation?versionId=${encodeURIComponent(versionId)}&detailType=${encodeURIComponent(detailType)}`);
@@ -140,26 +136,13 @@ async function aggregateTargetCost(formData: FormData) {
   'use server';
   const projectId = valueOf(formData, 'projectId');
   const versionId = valueOf(formData, 'versionId');
-  await prisma.$executeRawUnsafe(`DELETE FROM "TargetCostMeasureAggregate" WHERE "projectId"=$1 AND "versionId"=$2`, projectId, versionId);
-  await prisma.$executeRawUnsafe(`
-    INSERT INTO "TargetCostMeasureAggregate" ("id", "projectId", "versionId", "subjectCode", "subjectName", "ruleType", "subjectLevel", "subjectPath", "taxInclusiveAmount", "taxExclusiveAmount", "taxAmount")
-    SELECT 'target-cost-' || $2 || '-' || "subjectCode", $1, $2, "subjectCode", MAX("subjectName"), 'COST', LENGTH("subjectCode"), MAX("subjectCode" || ' ' || "subjectName"), SUM("taxInclusiveAmount"), SUM("taxExclusiveAmount"), SUM("taxAmount")
-    FROM "DetailCalculationResult"
-    WHERE "projectId"=$1 AND "versionId"=$2
-    GROUP BY "subjectCode"
-    ON CONFLICT ("versionId", "subjectCode") DO UPDATE SET
-      "taxInclusiveAmount"=EXCLUDED."taxInclusiveAmount", "taxExclusiveAmount"=EXCLUDED."taxExclusiveAmount", "taxAmount"=EXCLUDED."taxAmount", "updatedAt"=CURRENT_TIMESTAMP
-  `, projectId, versionId);
-  await prisma.$executeRawUnsafe(`DELETE FROM "TargetCostSummaryAggregate" WHERE "projectId"=$1 AND "versionId"=$2`, projectId, versionId);
-  await prisma.$executeRawUnsafe(`
-    INSERT INTO "TargetCostSummaryAggregate" ("id", "projectId", "versionId", "subjectCode", "subjectName", "summaryLevel", "taxInclusiveAmount", "taxExclusiveAmount", "taxAmount")
-    SELECT 'target-summary-' || $2 || '-' || LEFT("subjectCode",2), $1, $2, LEFT("subjectCode",2), MAX(CASE LEFT("subjectCode",2) WHEN '01' THEN '土地费' WHEN '02' THEN '前期工程费' WHEN '03' THEN '建安工程费' WHEN '04' THEN '室外景观及配套' WHEN '05' THEN '设备工程' WHEN '06' THEN '精装修工程' WHEN '07' THEN '咨询顾问费' WHEN '08' THEN '开发间接费' WHEN '09' THEN '营销费用' WHEN '10' THEN '财务费用' WHEN '11' THEN '预备费' WHEN '12' THEN '税金' ELSE LEFT("subjectCode",2) END), 1, SUM("taxInclusiveAmount"), SUM("taxExclusiveAmount"), SUM("taxAmount")
-    FROM "TargetCostMeasureAggregate"
-    WHERE "projectId"=$1 AND "versionId"=$2
-    GROUP BY LEFT("subjectCode",2)
-    ON CONFLICT ("versionId", "subjectCode") DO UPDATE SET
-      "taxInclusiveAmount"=EXCLUDED."taxInclusiveAmount", "taxExclusiveAmount"=EXCLUDED."taxExclusiveAmount", "taxAmount"=EXCLUDED."taxAmount", "updatedAt"=CURRENT_TIMESTAMP
-  `, projectId, versionId);
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { totalBuildingArea: true, saleableArea: true } });
+  await refreshTargetCostAggregates(prisma, {
+    projectId,
+    versionId,
+    buildingArea: Number(project?.totalBuildingArea || 0),
+    saleableArea: Number(project?.saleableArea || 0)
+  });
   revalidatePath(`/projects/${projectId}/detail-rule-calculation`);
   revalidatePath(`/projects/${projectId}/costs-batch`);
   revalidatePath(`/projects/${projectId}/summary`);
