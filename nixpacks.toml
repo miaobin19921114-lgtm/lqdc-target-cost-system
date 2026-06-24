@@ -8,4 +8,4 @@ cmds = ["npm install"]
 cmds = ["npx prisma generate", "npm run build"]
 
 [start]
-cmd = "next start -H 0.0.0.0 -p ${PORT:-3000}"
+cmd = "./node_modules/.bin/next start -H 0.0.0.0 -p ${PORT:-3000}"
