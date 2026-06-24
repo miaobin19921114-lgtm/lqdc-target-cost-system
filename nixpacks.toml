@@ -1,1 +1,11 @@
-[phases.setup]\nnixPkgs = ["nodejs_20"]\n\n[phases.install]\ncmds = ["npm install"]\n\n[phases.build]\ncmds = ["npx prisma generate", "npm run build"]\n\n[start]\ncmd = "npm run railway:start"\n
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["npx prisma generate", "npm run build"]
+
+[start]
+cmd = "npm run railway:start"
