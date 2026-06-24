@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "railway:start": "./node_modules/.bin/next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "railway:start": "node -e \"const { spawn } = require('node:child_process'); const port = process.env.PORT || '3000'; const command = process.platform === 'win32' ? 'next.cmd' : 'next'; console.log('[startup] starting Next.js on 0.0.0.0:' + port); const child = spawn(command, ['start', '-H', '0.0.0.0', '-p', port], { stdio: 'inherit', shell: true, env: process.env }); child.on('exit', (code, signal) => { if (signal) { console.log('[startup] stopped by signal ' + signal); process.exit(0); } process.exit(code || 0); }); child.on('error', (error) => { console.error('[startup] failed to start Next.js', error); process.exit(1); });\"",
     "lint": "next lint",
     "test": "vitest run",
     "db:migrate": "prisma migrate dev",
