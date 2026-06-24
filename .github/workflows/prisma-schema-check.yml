@@ -12,6 +12,9 @@ on:
 jobs:
   prisma-schema-check:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://user:password@localhost:5432/lqdc_target_cost?schema=public
+      NEXT_TELEMETRY_DISABLED: '1'
 
     steps:
       - name: Checkout repository
@@ -27,11 +30,7 @@ jobs:
         run: npx prisma validate
 
       - name: Generate Prisma client
-        env:
-          DATABASE_URL: postgresql://user:password@localhost:5432/lqdc_target_cost?schema=public
         run: npx prisma generate
 
       - name: Build project
-        env:
-          DATABASE_URL: postgresql://user:password@localhost:5432/lqdc_target_cost?schema=public
         run: npm run build
