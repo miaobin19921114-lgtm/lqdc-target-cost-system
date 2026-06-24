@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "./node_modules/.bin/next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "startCommand": "node railway-start.mjs",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   }
