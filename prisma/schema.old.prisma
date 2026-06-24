@@ -1,0 +1,8 @@
+// Backup pointer for the pre-rebuild Prisma schema.
+//
+// This branch was created from main before rebuilding the first-stage database schema.
+// The original schema.prisma content is preserved in git history at the branch base.
+// Original schema.prisma blob SHA observed before replacement:
+// 43348ca250946419ba7e36cabbb853b4b6d78883
+//
+// To restore it, compare this branch against main or fetch the above blob from GitHub history.
