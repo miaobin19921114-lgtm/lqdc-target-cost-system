@@ -53,10 +53,37 @@ async function main() {
     )
   `);
 
+  await safeExecute('add detail result enhanced columns', `
+    ALTER TABLE "DetailCalculationResult"
+    ADD COLUMN IF NOT EXISTS "subjectPath" TEXT,
+    ADD COLUMN IF NOT EXISTS "majorSubjectCode" TEXT,
+    ADD COLUMN IF NOT EXISTS "majorSubjectName" TEXT,
+    ADD COLUMN IF NOT EXISTS "regionOrProduct" TEXT,
+    ADD COLUMN IF NOT EXISTS "quantityField" TEXT,
+    ADD COLUMN IF NOT EXISTS "unit" TEXT,
+    ADD COLUMN IF NOT EXISTS "calculationSource" TEXT NOT NULL DEFAULT 'version-rule-snapshot'
+  `);
+
   await safeExecute('create DetailCalculationResult indexes', `
     CREATE INDEX IF NOT EXISTS "DetailCalculationResult_project_version_idx" ON "DetailCalculationResult" ("projectId", "versionId");
     CREATE INDEX IF NOT EXISTS "DetailCalculationResult_detail_type_idx" ON "DetailCalculationResult" ("detailType");
     CREATE INDEX IF NOT EXISTS "DetailCalculationResult_subject_idx" ON "DetailCalculationResult" ("subjectCode");
+  `);
+
+  await safeExecute('create DetailCalculationBatch', `
+    CREATE TABLE IF NOT EXISTS "DetailCalculationBatch" (
+      "id" TEXT PRIMARY KEY,
+      "projectId" TEXT NOT NULL,
+      "versionId" TEXT NOT NULL,
+      "versionSnapshotId" TEXT,
+      "detailType" TEXT NOT NULL,
+      "batchName" TEXT NOT NULL,
+      "source" TEXT NOT NULL DEFAULT 'version-rule-snapshot',
+      "generatedRows" INTEGER NOT NULL DEFAULT 0,
+      "status" TEXT NOT NULL DEFAULT 'success',
+      "remark" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
   `);
 
   await safeExecute('create TargetCostMeasureAggregate', `
