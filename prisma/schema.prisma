@@ -7,17 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  admin
-  editor
-  viewer
-}
-
-enum VersionStatus {
-  draft
-  locked
-  final
-}
+// First-stage target cost MVP schema rebuilt from the V60 Excel master logic.
+// Scope: project initialization, template copy, estimate versions, product types,
+// subject trees, detail calculation lines, revenue, tax, summary, Excel mapping,
+// version operations, and calculation checks.
 
 model User {
   id           String   @id @default(cuid())
@@ -25,629 +18,856 @@ model User {
   email        String   @unique
   phone        String?  @unique
   passwordHash String
-  role         UserRole @default(admin)
+  role         String   @default("admin")
   templates    Template[]
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @updatedAt
-}
-
-model Template {
-  id                String             @id @default(cuid())
-  ownerId           String?
-  owner             User?              @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  baseTemplateId    String?
-  sourceProjectId   String?
-  sourceProjectName String?
-  name              String
-  type              String             @default("住宅开发")
-  description       String?
-  isDefault         Boolean            @default(false)
-  isActive          Boolean            @default(true)
-  sortOrder         Int                @default(0)
-  products          TemplateProduct[]
-  costRules         TemplateCostRule[]
-  taxRules          TemplateTaxRule[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @default(now()) @updatedAt
-
-  @@index([ownerId])
-  @@index([baseTemplateId])
-  @@index([sourceProjectId])
-}
-
-model TemplateProduct {
-  id                   String   @id @default(cuid())
-  templateId            String
-  template              Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  category              String
-  name                  String
-  isSaleable            Boolean  @default(true)
-  participateAllocation Boolean  @default(true)
-  allocationWeight      Decimal  @default(1)
-  sortOrder             Int      @default(0)
-  remark                String?
-  isActive              Boolean  @default(true)
-  disabledAt            DateTime?
-
-  @@unique([templateId, name])
-  @@index([templateId])
-  @@index([templateId, isActive])
-}
-
-model TemplateCostRule {
-  id               String   @id @default(cuid())
-  templateId       String
-  template         Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  costCode         String?
-  category         String?
-  subjectName      String
-  sourceTable      String?
-  measureBasis     String?
-  unit             String?
-  defaultTaxRate   Decimal  @default(0.09)
-  allocationMethod String?
-  sortOrder        Int      @default(0)
-  remark           String?
-
-  @@index([templateId])
-}
-
-model TemplateTaxRule {
-  id         String   @id @default(cuid())
-  templateId String
-  template  Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  name      String
-  rate      Decimal  @default(0)
-  scope     String?
-  remark    String?
-  sortOrder Int      @default(0)
-
-  @@index([templateId])
-}
-
-model ProductTypePreset {
-  id                      String        @id @default(cuid())
-  key                     String        @unique
-  name                    String
-  category                String
-  isSaleable              Boolean       @default(true)
-  participateAllocation   Boolean       @default(true)
-  defaultVatRate          Decimal       @default(0.09)
-  defaultAllocationMethod String        @default("按建筑面积占比")
-  defaultIncomeType       String        @default("销售收入")
-  description             String?
-  enabled                 Boolean       @default(true)
-  sortOrder               Int           @default(0)
-  projectProducts         ProductType[]
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @default(now()) @updatedAt
-
-  @@index([category])
-  @@index([enabled])
+  updatedAt    DateTime @updatedAt
 }
 
 model Project {
-  id                              String   @id @default(cuid())
-  activeVersionId                 String?
-  sourceTemplateId                String?
-  sourceTemplateName              String?
-  sourceTemplateType              String?
-  name                            String
-  city                            String?
-  district                        String?
-  landArea                        Decimal  @default(0)
-  landAreaMu                      Decimal  @default(0)
-  redLineArea                     Decimal  @default(0)
-  plotRatio                       Decimal  @default(0)
-  totalBuildingArea               Decimal  @default(0)
-  capacityBuildingArea            Decimal  @default(0)
-  aboveGroundArea                 Decimal  @default(0)
-  undergroundArea                 Decimal  @default(0)
-  saleableArea                    Decimal  @default(0)
-  nonSaleableArea                 Decimal  @default(0)
-  parkingCount                    Int      @default(0)
-  undergroundPropertyParkingCount Int      @default(0)
-  undergroundUseRightParkingCount Int      @default(0)
-  civilDefenseParkingCount        Int      @default(0)
-  aboveGroundParkingCount         Int      @default(0)
-  chargingPileCount               Int      @default(0)
-  fastChargingPileCount           Int      @default(0)
-  slowChargingPileCount           Int      @default(0)
-  reservedChargingPileCount       Int      @default(0)
-  chargingPileRatio               Decimal  @default(0)
-  parkingPowerCapacity            Decimal  @default(0)
-  chargingIncludedInParkingPrice  Boolean  @default(false)
-  chargingSeparateCostMeasure     Boolean  @default(true)
-  parkingRemark                   String?
-  buildingCount                   Int      @default(0)
-  unitCount                       Int      @default(0)
-  householdCount                  Int      @default(0)
-  elevatorCount                   Int      @default(0)
-  basementFloors                  Int      @default(0)
-  aboveGroundFloors               Int      @default(0)
-  standardFloorHeight             Decimal  @default(0)
-  basementFloorHeight             Decimal  @default(0)
-  sitePerimeter                   Decimal  @default(0)
-  gateCount                       Int      @default(0)
-  formalGateCount                 Int      @default(0)
-  temporaryGateCount              Int      @default(0)
-  temporaryFacilityArea           Decimal  @default(0)
-  siteLevelingArea                Decimal  @default(0)
-  landscapeArea                   Decimal  @default(0)
-  hardscapeArea                   Decimal  @default(0)
-  softscapeArea                   Decimal  @default(0)
-  greenArea                       Decimal  @default(0)
-  waterFeatureArea                Decimal  @default(0)
-  childrenActivityArea            Decimal  @default(0)
-  elevatedFloorLandscapeArea      Decimal  @default(0)
-  roadArea                        Decimal  @default(0)
-  fireRoadArea                    Decimal  @default(0)
-  asphaltRoadArea                 Decimal  @default(0)
-  standardFloorArea               Decimal  @default(0)
-  basementParkingArea             Decimal  @default(0)
-  mainBuildingUndergroundArea     Decimal  @default(0)
-  civilDefenseArea                Decimal  @default(0)
-  nonCivilDefenseArea             Decimal  @default(0)
-  publicArea                      Decimal  @default(0)
-  lobbyArea                       Decimal  @default(0)
-  salesOfficeArea                 Decimal  @default(0)
-  showFlatArea                    Decimal  @default(0)
-  propertyManagementArea          Decimal  @default(0)
-  communityServiceArea            Decimal  @default(0)
-  baseArea                        Decimal  @default(0)
-  pileFoundationArea              Decimal  @default(0)
-  earthworkVolume                 Decimal  @default(0)
-  waterproofArea                  Decimal  @default(0)
-  roofArea                        Decimal  @default(0)
-  insulationArea                  Decimal  @default(0)
-  facadeArea                      Decimal  @default(0)
-  windowArea                      Decimal  @default(0)
-  railingLength                   Decimal  @default(0)
-  powerRoomCount                  Int      @default(0)
-  pumpRoomCount                   Int      @default(0)
-  firePoolVolume                  Decimal  @default(0)
-  isPrefabricated                 Boolean  @default(false)
-  prefabricatedScope              String?
-  prefabricationRate              Decimal  @default(0)
-  prefabricatedSystem             String?
-  residentialPublicFitoutStandard String   @default("标准")
-  undergroundLobbyFitoutStandard  String   @default("标准")
-  residentialFitoutDelivery       Boolean  @default(false)
-  residentialFitoutType           String   @default("硬装")
-  residentialFitoutStandard       String   @default("毛坯")
-  commercialPublicFitout          Boolean  @default(false)
-  commercialPublicFitoutStandard  String   @default("标准")
-  shopDeliveryStandard            String   @default("毛坯")
-  basementQualityUpgrade          Boolean  @default(false)
-  basementQualityStandard         String   @default("基础美化")
-  propertyFitout                  Boolean  @default(true)
-  communityFitout                 Boolean  @default(true)
-  supportFitout                   Boolean  @default(false)
-  hasSalesOffice                  Boolean  @default(true)
-  salesOfficeFitoutType           String   @default("硬装+软装")
-  hasShowFlat                     Boolean  @default(true)
-  showFlatFitoutType              String   @default("全部")
-  heatingEnabled                  Boolean  @default(false)
-  heatingScope                    String?
-  heatingType                     String?
-  remark                          String?
-  versions                        ProjectVersion[]
-  metricValues                    ProjectMetricValue[]
-  createdAt                       DateTime @default(now())
-  updatedAt                       DateTime @default(now()) @updatedAt
+  id                    String   @id @default(cuid())
+  projectName           String
+  country               String?
+  province              String?
+  city                  String?
+  district              String?
+  marketArea            String?
+  projectType           String
+  developmentMode       String
+  landAcquisitionMethod String?
+  landPrice             Decimal  @default(0)
+  developerEntity       String?
+  partner               String?
+  operatorEntity        String?
+  projectStatus         String   @default("draft")
+  regionId              String?
+  region                RegionParameter? @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  createdBy             String?
+  updatedBy             String?
+  remark                String?
 
-  @@index([sourceTemplateId])
+  initializations       ProjectInitialization[]
+  templates             Template[]
+  estimateVersions      EstimateVersion[]
+  productTypes          ProductType[]
+  overviewIndicators    ProjectOverviewIndicator[]
+  productTypeIndicators ProductTypeIndicator[]
+  quantityIndicators    QuantityIndicator[]
+  buildingStandards     BuildingStandard[]
+  quantityRules         QuantityRule[]
+  priceTaxRules         PriceTaxRule[]
+  allocationRules       AllocationRule[]
+  estimateDetailLines   EstimateDetailLine[]
+  revenueEstimates      RevenueEstimate[]
+  taxEstimates          TaxEstimate[]
+  targetCostSummaries   TargetCostSummary[]
+  costDashboards        ProjectCostDashboard[]
+  versionOperations     VersionOperation[]
+  calculationChecks     CalculationCheck[]
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([regionId])
+  @@index([projectType])
+  @@index([developmentMode])
+  @@index([projectStatus])
 }
 
-model ProjectVersion {
-  id                     String        @id @default(cuid())
-  projectId              String
-  project                Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name                   String
-  stage                  String?
-  status                 String        @default("draft")
-  products               ProductType[]
-  costRules              ProjectCostRule[]
-  costs                  CostLine[]
-  revenues               RevenueLine[]
-  commercialRevenueLines CommercialRevenueLine[]
-  otherRevenueLines      OtherRevenueLine[]
-  salesSchedulePlans     SalesSchedulePlan[]
-  taxes                  TaxParameter?
-  importBatches          ImportBatch[]
-  metricValues           ProjectMetricValue[]
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @default(now()) @updatedAt
+model ProjectInitialization {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectType              String
+  developmentMode          String
+  regionId                 String?
+  region                   RegionParameter? @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  estimateStage            String
+  precisionLevel           String
+  selectedTemplateId       String?
+  selectedTemplate         Template? @relation("SelectedTemplate", fields: [selectedTemplateId], references: [id], onDelete: SetNull)
+  projectTemplateId        String?
+  projectTemplate          Template? @relation("ProjectTemplate", fields: [projectTemplateId], references: [id], onDelete: SetNull)
+  selectedProductTypes     String?
+  enabledSpecialOptions    String?
+  initializationStatus     String   @default("draft")
+  initializedBy            String?
+  initializedAt            DateTime?
+  baseTemplateVersion      String?
+  costDictionaryVersion    String?
+  regionParameterVersion   String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([regionId])
+  @@index([selectedTemplateId])
+  @@index([projectTemplateId])
+  @@index([initializationStatus])
+}
+
+model Template {
+  id                   String   @id @default(cuid())
+  templateName         String
+  templateType         String   @default("system")
+  templateSource       String   @default("system")
+  baseTemplateId       String?
+  baseTemplate         Template?  @relation("TemplateToTemplate", fields: [baseTemplateId], references: [id], onDelete: SetNull)
+  derivedTemplates     Template[] @relation("TemplateToTemplate")
+  projectId            String?
+  project              Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ownerUserId          String?
+  owner                User?     @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  ownerCompanyId       String?
+  templateVersion      String   @default("v1")
+  applicableProjectType String?
+  applicableStage      String?
+  isSystemTemplate     Boolean  @default(false)
+  isProjectTemplate    Boolean  @default(false)
+  isPersonalTemplate   Boolean  @default(false)
+  isCompanyTemplate    Boolean  @default(false)
+  isPublic             Boolean  @default(false)
+  isEnabled            Boolean  @default(true)
+  lockedStatus         String   @default("unlocked")
+  changeReason         String?
+  createdBy            String?
+  updatedBy            String?
+  remark               String?
+
+  selectedInInitializations ProjectInitialization[] @relation("SelectedTemplate")
+  projectTemplateInitializations ProjectInitialization[] @relation("ProjectTemplate")
+  estimateVersions     EstimateVersion[]
+  costSubjects         CostSubject[]
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([ownerUserId])
+  @@index([baseTemplateId])
+  @@index([templateType])
+  @@index([templateSource])
+  @@index([applicableProjectType])
+}
+
+model EstimateVersion {
+  id                                String   @id @default(cuid())
+  projectId                         String
+  project                           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectTemplateId                 String?
+  projectTemplate                   Template? @relation(fields: [projectTemplateId], references: [id], onDelete: SetNull)
+  versionName                       String
+  versionType                       String
+  versionNo                         String?
+  baseVersionId                     String?
+  baseVersion                       EstimateVersion? @relation("EstimateVersionToEstimateVersion", fields: [baseVersionId], references: [id], onDelete: SetNull)
+  derivedVersions                   EstimateVersion[] @relation("EstimateVersionToEstimateVersion")
+  precisionLevel                    String?
+  excelTemplateVersion              String?
+  costDictionaryVersion             String?
+  regionParameterVersion            String?
+  ruleVersion                       String?
+  allocationRuleVersion             String?
+  taxRuleVersion                    String?
+  priceVersion                      String?
+  indicatorVersion                  String?
+  versionStatus                     String   @default("draft")
+  isLocked                          Boolean  @default(false)
+  lockedBy                          String?
+  lockedAt                          DateTime?
+  changeReason                      String?
+  versionRemark                     String?
+  createdBy                         String?
+  updatedBy                         String?
+  remark                            String?
+
+  productTypes                      ProductType[]
+  projectOverviewIndicator          ProjectOverviewIndicator?
+  productTypeIndicators             ProductTypeIndicator[]
+  quantityIndicators                QuantityIndicator[]
+  buildingStandards                 BuildingStandard[]
+  quantityRules                     QuantityRule[]
+  priceTaxRules                     PriceTaxRule[]
+  allocationRules                   AllocationRule[]
+  estimateDetailLines               EstimateDetailLine[]
+  revenueEstimates                  RevenueEstimate[]
+  taxEstimates                      TaxEstimate[]
+  targetCostSummaries               TargetCostSummary[]
+  projectCostDashboard              ProjectCostDashboard?
+  versionOperations                 VersionOperation[] @relation("VersionOperationMainVersion")
+  comparedVersionOperations         VersionOperation[] @relation("VersionOperationComparedVersion")
+  calculationChecks                 CalculationCheck[]
+
+  createdAt                         DateTime @default(now())
+  updatedAt                         DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([projectTemplateId])
+  @@index([baseVersionId])
+  @@index([versionType])
+  @@index([versionStatus])
+  @@index([isLocked])
 }
 
 model ProductType {
-  id                     String             @id @default(cuid())
-  projectVersionId       String
-  projectVersion         ProjectVersion     @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  productTypeKey         String?
-  productTypePreset      ProductTypePreset? @relation(fields: [productTypeKey], references: [key], onDelete: SetNull)
-  category               String?
-  name                   String
-  buildingArea           Decimal @default(0)
-  aboveGroundArea        Decimal @default(0)
-  undergroundArea        Decimal @default(0)
-  saleableArea           Decimal @default(0)
-  capacityArea           Decimal @default(0)
-  nonSaleableArea        Decimal @default(0)
-  baseArea               Decimal @default(0)
-  householdCount         Int     @default(0)
-  unitCount              Int     @default(0)
-  buildingCount          Int     @default(0)
-  parkingCount           Int     @default(0)
-  salePrice              Decimal @default(0)
-  isSaleable             Boolean @default(true)
-  participateAllocation  Boolean @default(true)
-  allocationWeight       Decimal @default(1)
-  remark                 String?
-  isActive               Boolean @default(true)
-  disabledAt             DateTime?
-  costs                  CostLine[]
-  revenues               RevenueLine[]
-  commercialRevenueLines CommercialRevenueLine[]
-  metricValues           ProjectMetricValue[]
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @default(now()) @updatedAt
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  productTypeCode          String
+  productTypeName          String
+  productCategory          String?
+  isSaleable               Boolean  @default(false)
+  isCostObject             Boolean  @default(true)
+  isTaxClearanceObject     Boolean  @default(false)
+  isEnabled                Boolean  @default(true)
+  defaultAllocationWeight  Decimal  @default(1)
+  defaultIncomeTaxObject   String?
+  defaultLandVatObject     String?
+  sortOrder                Int      @default(0)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
 
-  @@index([projectVersionId])
-  @@index([projectVersionId, isActive])
-  @@index([productTypeKey])
-  @@index([category])
+  productTypeIndicators    ProductTypeIndicator[]
+  quantityIndicators       QuantityIndicator[]
+  buildingStandards        BuildingStandard[]
+  priceTaxRules            PriceTaxRule[]
+  allocationRulesAsProductType AllocationRule[] @relation("AllocationRuleProductType")
+  allocationRulesAsCostObject  AllocationRule[] @relation("AllocationRuleCostObject")
+  estimateLinesAsProductType   EstimateDetailLine[] @relation("EstimateLineProductType")
+  estimateLinesAsCostObject    EstimateDetailLine[] @relation("EstimateLineCostObject")
+  revenueEstimates         RevenueEstimate[]
+  targetCostSummaries      TargetCostSummary[]
+
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([versionId, productTypeCode])
+  @@index([projectId])
+  @@index([versionId])
+  @@index([productCategory])
+  @@index([isEnabled])
 }
 
-model ProjectCostRule {
-  id                String         @id @default(cuid())
-  projectVersionId  String
-  projectVersion    ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  costCode          String?
-  category          String?
-  subjectName       String
-  sourceTable       String?
-  measureBasis      String?
-  unit              String?
-  defaultTaxRate    Decimal @default(0.09)
-  allocationMethod  String?
-  sortOrder         Int @default(0)
-  remark            String?
+model ProjectOverviewIndicator {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String   @unique
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  landArea                 Decimal  @default(0)
+  capacityArea             Decimal  @default(0)
+  totalBuildingArea        Decimal  @default(0)
+  aboveGroundArea          Decimal  @default(0)
+  undergroundArea          Decimal  @default(0)
+  saleableArea             Decimal  @default(0)
+  parkingCount             Decimal  @default(0)
+  chargingPileCount        Decimal  @default(0)
+  householdCount           Decimal  @default(0)
+  buildingCount            Decimal  @default(0)
+  unitCount                Decimal  @default(0)
+  sitePerimeter            Decimal  @default(0)
+  gateCount                Decimal  @default(0)
+  landscapeArea            Decimal  @default(0)
+  hardscapeArea            Decimal  @default(0)
+  softscapeArea            Decimal  @default(0)
+  civilDefenseArea         Decimal  @default(0)
+  heatingArea              Decimal  @default(0)
+  prefabricatedArea        Decimal  @default(0)
+  antiqueBuildingArea      Decimal  @default(0)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+model ProductTypeIndicator {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  productTypeId            String
+  productType              ProductType @relation(fields: [productTypeId], references: [id], onDelete: Cascade)
+  buildingArea             Decimal  @default(0)
+  saleableArea             Decimal  @default(0)
+  capacityArea             Decimal  @default(0)
+  landOccupationArea       Decimal  @default(0)
+  aboveGroundArea          Decimal  @default(0)
+  undergroundArea          Decimal  @default(0)
+  buildingCount            Decimal  @default(0)
+  unitCount                Decimal  @default(0)
+  floorCount               Decimal  @default(0)
+  householdCount           Decimal  @default(0)
+  parkingCount             Decimal  @default(0)
+  supportArea              Decimal  @default(0)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([versionId, productTypeId])
+  @@index([projectId])
+  @@index([productTypeId])
+}
+
+model QuantityIndicator {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  productTypeId            String?
+  productType              ProductType? @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
+  indicatorName            String
+  indicatorSource          String
+  indicatorValue           Decimal  @default(0)
+  indicatorUnit            String?
+  isSystemCalculated       Boolean  @default(false)
+  calculationRemark        String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([productTypeId])
+  @@index([indicatorName])
+}
+
+model BuildingStandard {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  productTypeId            String?
+  productType              ProductType? @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
+  deliveryStandard         String?
+  facadeStandard           String?
+  windowDoorStandard       String?
+  landscapeStandard        String?
+  garageStandard           String?
+  intelligentStandard      String?
+  isFineDecoration         Boolean  @default(false)
+  isCivilDefense           Boolean  @default(false)
+  isHeating                Boolean  @default(false)
+  isPrefabricated          Boolean  @default(false)
+  isAntiqueBuilding        Boolean  @default(false)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([productTypeId])
 }
 
 model CostSubject {
-  id                      String     @id @default(cuid())
-  code                    String     @unique
-  name                    String
-  level                   Int
-  parentCode              String?
-  fullPath                String?
-  defaultUnit             String?
-  defaultTaxRate          Decimal    @default(0.09)
-  defaultMeasureBasis     String?
-  defaultAllocationMethod String?
-  enabled                 Boolean    @default(true)
-  sortOrder               Int        @default(0)
-  costs                   CostLine[]
-}
-
-model ProjectMetricDefinition {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  name        String
-  unit        String?
-  metricGroup String?
-  scope       String   @default("project")
-  description String?
-  enabled     Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  values      ProjectMetricValue[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
-
-  @@index([scope])
-  @@index([enabled])
-  @@index([metricGroup])
-}
-
-model ProjectMetricValue {
-  id                  String                  @id @default(cuid())
-  projectId           String
-  project             Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  projectVersionId    String?
-  projectVersion      ProjectVersion?         @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  productTypeId       String?
-  productType         ProductType?            @relation(fields: [productTypeId], references: [id], onDelete: Cascade)
-  metricKey           String
-  metricDefinition    ProjectMetricDefinition @relation(fields: [metricKey], references: [key], onDelete: Restrict)
-  scope               String                  @default("project")
-  value               Decimal                 @default(0)
-  unit                String?
-  source              String                  @default("manual")
-  sourceRef           String?
-  confidence          Decimal?
-  remark              String?
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @default(now()) @updatedAt
-
-  @@index([projectId])
-  @@index([projectVersionId])
-  @@index([productTypeId])
-  @@index([metricKey])
-  @@index([scope])
-  @@index([source])
-}
-
-model CostDictionaryRow {
-  id                         String   @id @default(cuid())
-  projectId                  String
-  rowIndex                   Int
-  parentCode                 String?
-  name                       String?
-  firstSubject               String?
-  secondSubject              String?
-  thirdSubject               String?
-  detailSubject              String?
-  subjectLevel               String?
-  costCode                   String?
-  subjectDefinition          String?
-  sourceTable                String?
-  enabled                    String?
-  writeBackToTarget          String?
-  targetMappingCode          String?
-  measureBasis               String?
-  unit                       String?
-  defaultTaxRate             String?
-  applicableProductType      String?
-  applicableStage            String?
-  investmentMethod           String?
-  conceptMethod              String?
-  schemeMethod               String?
-  drawingMethod              String?
-  tenderMethod               String?
-  dynamicMethod              String?
-  specialAdjustment          String?
-  remark                     String?
-  costAttributionMethod      String?
-  targetAllocationMethod     String?
-  landVatAllocationMethod    String?
-  incomeTaxDeductionCategory String?
-  preTaxDeduction            String?
-  taxRemark                  String?
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @default(now()) @updatedAt
-
-  @@index([projectId])
-  @@unique([projectId, rowIndex])
-}
-
-model CostLine {
-  id                    String         @id @default(cuid())
-  projectVersionId       String
-  projectVersion         ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  costSubjectId          String
-  costSubject            CostSubject @relation(fields: [costSubjectId], references: [id])
-  productTypeId          String?
-  productType            ProductType? @relation(fields: [productTypeId], references: [id])
-  importBatchId          String?
-  importBatch            ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  detailName             String
-  regionOrProductType    String?
-  professionalGroup      String?
-  measureBasis           String?
-  measureValue           Decimal @default(0)
-  coefficient            Decimal @default(1)
-  quantityOverride       Boolean @default(false)
-  quantity               Decimal @default(0)
-  unit                   String?
-  taxExclusiveUnitPrice  Decimal @default(0)
-  taxInclusiveUnitPrice  Decimal @default(0)
-  taxRate                Decimal @default(0.09)
-  taxExclusiveAmount     Decimal @default(0)
-  taxAmount              Decimal @default(0)
-  taxInclusiveAmount     Decimal @default(0)
-  allocationMethod       String?
-  isDirectAssigned       Boolean @default(false)
-  description            String?
-  remark                 String?
-  sortOrder              Int @default(0)
-
-  @@index([importBatchId])
-}
-
-model ImportBatch {
-  id                String         @id @default(cuid())
-  projectVersionId  String
-  projectVersion    ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  fileName          String
-  importType        String         @default("cost")
-  importMode        String         @default("update")
-  rowCount          Int            @default(0)
-  deletedCount      Int            @default(0)
-  taxInclusiveTotal Decimal        @default(0)
-  taxExclusiveTotal Decimal        @default(0)
-  taxAmountTotal    Decimal        @default(0)
-  status            String         @default("active")
-  remark            String?
-  costLines         CostLine[]
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @default(now()) @updatedAt
-
-  @@index([projectVersionId])
-  @@index([projectVersionId, status])
-}
-
-model RevenueLine {
-  id                  String         @id @default(cuid())
-  projectVersionId    String
-  projectVersion      ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  productTypeId       String
-  productType         ProductType @relation(fields: [productTypeId], references: [id])
-  saleableArea        Decimal @default(0)
-  salePrice           Decimal @default(0)
-  taxRate             Decimal @default(0.09)
-  taxInclusiveRevenue Decimal @default(0)
-  taxExclusiveRevenue Decimal @default(0)
-  taxAmount           Decimal @default(0)
-  remark              String?
-}
-
-model CommercialRevenueLine {
-  id                  String         @id @default(cuid())
-  projectVersionId    String
-  projectVersion      ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  parentProductTypeId String
-  parentProductType   ProductType    @relation(fields: [parentProductTypeId], references: [id], onDelete: Cascade)
-  subType             String
-  mode                String         @default("出售")
-  area                Decimal        @default(0)
-  salePrice           Decimal        @default(0)
-  monthlyRent         Decimal        @default(0)
-  occupancyRate       Decimal        @default(0)
-  years               Decimal        @default(1)
-  taxRate             Decimal        @default(0.09)
-  taxInclusiveRevenue Decimal        @default(0)
-  taxExclusiveRevenue Decimal        @default(0)
-  taxAmount           Decimal        @default(0)
-  remark              String?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @default(now()) @updatedAt
-
-  @@unique([projectVersionId, parentProductTypeId, subType])
-  @@index([projectVersionId])
-  @@index([parentProductTypeId])
-}
-
-model OtherRevenueLine {
-  id                  String         @id @default(cuid())
-  projectVersionId    String
-  projectVersion      ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  incomeType          String
-  amount              Decimal        @default(0)
-  taxRate             Decimal        @default(0)
-  taxInclusiveRevenue Decimal        @default(0)
-  taxExclusiveRevenue Decimal        @default(0)
-  taxAmount           Decimal        @default(0)
-  certainty           String?
-  cashDate            String?
-  condition           String?
-  policyBasis         String?
-  remark              String?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @default(now()) @updatedAt
-
-  @@unique([projectVersionId, incomeType])
-  @@index([projectVersionId])
-}
-
-model TaxParameter {
-  id                         String         @id @default(cuid())
-  projectVersionId           String         @unique
-  projectVersion             ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  vatMethod                  String         @default("一般计税")
-  vatRate                    Decimal        @default(0.09)
-  deemedSalesRevenue         Decimal        @default(0)
-  nonDeductibleInputTax      Decimal        @default(0)
-  landDeductibleAmount       Decimal        @default(0)
-  urbanMaintenanceTaxRate    Decimal        @default(0.07)
-  educationSurchargeRate     Decimal        @default(0.03)
-  localEducationSurchargeRate Decimal       @default(0.02)
-  landVatPrepayRate          Decimal        @default(0.02)
-  incomeTaxRate              Decimal        @default(0.25)
-  costAdditionRate           Decimal        @default(0.20)
-  landVatClearanceMode       String         @default("预缴+清算测算")
-  incomeTaxMode              String         @default("项目口径测算")
-  createdAt                  DateTime       @default(now())
-  updatedAt                  DateTime       @default(now()) @updatedAt
-}
-
-model SalesSchedulePlan {
-  id                       String              @id @default(cuid())
-  projectVersionId         String
-  projectVersion           ProjectVersion      @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
-  periodName               String              @default("默认去化计划")
-  periodIndex              Int                 @default(0)
-  months                   Int                 @default(12)
-  downPaymentRate          Decimal             @default(0.30)
-  mortgageRate             Decimal             @default(0.65)
-  tailRate                 Decimal             @default(0.05)
-  mortgageDelay            Int                 @default(2)
-  tailDelay                Int                 @default(6)
-  plannedSaleableArea      Decimal             @default(0)
-  plannedRevenue           Decimal             @default(0)
-  plannedCollectionRate    Decimal             @default(0.90)
-  actualCollectedAmount    Decimal             @default(0)
+  id                       String   @id @default(cuid())
+  templateId               String?
+  template                 Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  parentId                 String?
+  parent                   CostSubject? @relation("CostSubjectTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children                 CostSubject[] @relation("CostSubjectTree")
+  subjectCode              String
+  subjectName              String
+  subjectLevel             Int
+  subjectFullPath          String?
+  isLeaf                   Boolean  @default(false)
+  isEnabled                Boolean  @default(true)
+  isConditionalSubject     Boolean  @default(false)
+  sortOrder                Int      @default(0)
+  excelSourceSheet         String?
+  excelSourceRow           Int?
+  excelSourceColumn        Int?
+  excelMasterVersion       String?
+  createdBy                String?
+  updatedBy                String?
   remark                   String?
-  lines                    SalesScheduleLine[]
-  createdAt                DateTime            @default(now())
-  updatedAt                DateTime            @default(now()) @updatedAt
 
-  @@index([projectVersionId])
+  detailSubjects           DetailSubject[]
+  estimateDetailLines      EstimateDetailLine[]
+  targetCostSummaries      TargetCostSummary[]
+
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([templateId])
+  @@index([parentId])
+  @@index([subjectCode])
+  @@index([subjectLevel])
+  @@index([isLeaf])
 }
 
-model SalesScheduleLine {
-  id                    String            @id @default(cuid())
-  planId                String
-  plan                  SalesSchedulePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  monthIndex            Int
-  sellThroughRate       Decimal           @default(0)
-  contractAmount        Decimal           @default(0)
-  downPayment           Decimal           @default(0)
-  mortgageCollection    Decimal           @default(0)
-  tailCollection        Decimal           @default(0)
-  totalCollection       Decimal           @default(0)
-  cumulativeContract    Decimal           @default(0)
-  cumulativeCollection  Decimal           @default(0)
-  receivableBalance     Decimal           @default(0)
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @default(now()) @updatedAt
+model DetailSubject {
+  id                          String   @id @default(cuid())
+  costSubjectId               String
+  costSubject                 CostSubject @relation(fields: [costSubjectId], references: [id], onDelete: Cascade)
+  detailSubjectCode           String?
+  detailSubjectName           String
+  subjectFullPath             String?
+  measurementBasis            String?
+  defaultIndicatorSource      String?
+  defaultQuantityUnit         String?
+  defaultPricingUnit          String?
+  defaultTaxRate              Decimal  @default(0)
+  defaultProductType          String?
+  defaultCostObject           String?
+  participateAllocation       Boolean  @default(false)
+  defaultAllocationBasis      String?
+  enterLandVatDeduction       Boolean  @default(false)
+  enterIncomeTaxCost          Boolean  @default(true)
+  createdBy                   String?
+  updatedBy                   String?
+  remark                      String?
 
-  @@unique([planId, monthIndex])
-  @@index([planId])
+  quantityRules               QuantityRule[]
+  priceTaxRules               PriceTaxRule[]
+  allocationRules             AllocationRule[]
+  estimateDetailLines         EstimateDetailLine[]
+
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@index([costSubjectId])
+  @@index([detailSubjectCode])
+  @@index([detailSubjectName])
 }
 
-model MeasureBasisRule {
-  id                  String                  @id @default(cuid())
-  costCode            String
-  basisName           String
-  metricKey           String?
-  metricScope         String                  @default("project")
-  quantityUnit        String?
-  pricingUnit         String?
-  defaultCoefficient  Decimal                 @default(1)
-  quantityFormula     String?
-  amountFormula       String?
-  applicableProductType String?
-  allowManualOverride Boolean                 @default(true)
-  enabled             Boolean                 @default(true)
-  priority            Int                     @default(100)
-  remark              String?
-  stageRules          MeasureBasisStageRule[]
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @default(now()) @updatedAt
+model QuantityRule {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  detailSubjectId          String
+  detailSubject            DetailSubject @relation(fields: [detailSubjectId], references: [id], onDelete: Cascade)
+  indicatorName            String
+  indicatorSource          String?
+  indicatorValue           Decimal  @default(0)
+  contentRatio             Decimal  @default(1)
+  contentUnit              String?
+  quantityFormula          String?
+  engineeringQuantity      Decimal  @default(0)
+  quantityUnit             String?
+  allowManualAdjustment    Boolean  @default(true)
+  calculationRemark        String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
-  @@unique([costCode, basisName])
-  @@index([costCode])
-  @@index([metricKey])
-  @@index([enabled])
+  @@index([projectId])
+  @@index([versionId])
+  @@index([detailSubjectId])
+  @@index([indicatorName])
 }
 
-model MeasureBasisStageRule {
-  id          String           @id @default(cuid())
-  costCode    String
-  stage       String
-  basisRuleId String
-  basisRule   MeasureBasisRule @relation(fields: [basisRuleId], references: [id], onDelete: Cascade)
-  priority    Int              @default(100)
-  isDefault   Boolean          @default(false)
-  enabled     Boolean          @default(true)
-  remark      String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @default(now()) @updatedAt
+model UnitDictionary {
+  id                       String   @id @default(cuid())
+  unitType                 String
+  unitName                 String
+  unitDescription          String?
+  isEnabled                Boolean  @default(true)
+  sortOrder                Int      @default(0)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
-  @@unique([costCode, stage, basisRuleId])
-  @@index([costCode])
-  @@index([stage])
-  @@index([basisRuleId])
-  @@index([enabled])
+  @@unique([unitType, unitName])
+  @@index([unitType])
+  @@index([isEnabled])
+}
+
+model PriceTaxRule {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  detailSubjectId          String
+  detailSubject            DetailSubject @relation(fields: [detailSubjectId], references: [id], onDelete: Cascade)
+  productTypeId            String?
+  productType              ProductType? @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
+  unitPriceTaxIncluded     Decimal  @default(0)
+  unitPriceTaxExcluded     Decimal  @default(0)
+  taxRate                  Decimal  @default(0)
+  priceType                String?
+  priceSource              String?
+  priceRemark              String?
+  allowOverride            Boolean  @default(true)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([detailSubjectId])
+  @@index([productTypeId])
+}
+
+model AllocationRule {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  detailSubjectId          String
+  detailSubject            DetailSubject @relation(fields: [detailSubjectId], references: [id], onDelete: Cascade)
+  isDirectAttribution      Boolean  @default(false)
+  productTypeId            String?
+  productType              ProductType? @relation("AllocationRuleProductType", fields: [productTypeId], references: [id], onDelete: SetNull)
+  costObjectId             String?
+  costObject               ProductType? @relation("AllocationRuleCostObject", fields: [costObjectId], references: [id], onDelete: SetNull)
+  participateAllocation    Boolean  @default(false)
+  allocationBasis          String?
+  allocationObjectScope    String?
+  allocationRatio          Decimal  @default(0)
+  allowManualAdjustment    Boolean  @default(true)
+  allocationRemark         String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([detailSubjectId])
+  @@index([productTypeId])
+  @@index([costObjectId])
+}
+
+model EstimateDetailLine {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  productTypeId            String?
+  productType              ProductType? @relation("EstimateLineProductType", fields: [productTypeId], references: [id], onDelete: SetNull)
+  costObjectId             String?
+  costObject               ProductType? @relation("EstimateLineCostObject", fields: [costObjectId], references: [id], onDelete: SetNull)
+  costSubjectId            String
+  costSubject              CostSubject @relation(fields: [costSubjectId], references: [id], onDelete: Restrict)
+  detailSubjectId          String
+  detailSubject            DetailSubject @relation(fields: [detailSubjectId], references: [id], onDelete: Restrict)
+  targetCostSummaryId      String?
+  targetCostSummary        TargetCostSummary? @relation(fields: [targetCostSummaryId], references: [id], onDelete: SetNull)
+  measurementBasis         String?
+  indicatorSource          String?
+  indicatorValue           Decimal  @default(0)
+  contentRatio             Decimal  @default(1)
+  engineeringQuantity      Decimal  @default(0)
+  quantityUnit             String?
+  pricingUnit              String?
+  unitPriceTaxIncluded     Decimal  @default(0)
+  unitPriceTaxExcluded     Decimal  @default(0)
+  taxRate                  Decimal  @default(0)
+  amountTaxIncluded        Decimal  @default(0)
+  amountTaxExcluded        Decimal  @default(0)
+  taxAmount                Decimal  @default(0)
+  priceSource              String?
+  participateAllocation    Boolean  @default(false)
+  allocatedAmount          Decimal  @default(0)
+  calculationRemark        String?
+  sortOrder                Int      @default(0)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([productTypeId])
+  @@index([costObjectId])
+  @@index([costSubjectId])
+  @@index([detailSubjectId])
+  @@index([targetCostSummaryId])
+}
+
+model RevenueEstimate {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  productTypeId            String
+  productType              ProductType @relation(fields: [productTypeId], references: [id], onDelete: Restrict)
+  revenueType              String
+  measurementQuantity      Decimal  @default(0)
+  measurementUnit          String?
+  saleUnitPrice            Decimal  @default(0)
+  pricingUnit              String?
+  revenueTaxIncluded       Decimal  @default(0)
+  revenueTaxExcluded       Decimal  @default(0)
+  outputTaxRate            Decimal  @default(0)
+  outputTaxAmount          Decimal  @default(0)
+  sellThroughPeriod        String?
+  collectionPlan           String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([productTypeId])
+  @@index([revenueType])
+}
+
+model TaxEstimate {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  taxType                  String
+  taxBase                  Decimal  @default(0)
+  taxRate                  Decimal  @default(0)
+  deductibleInputTax       Decimal  @default(0)
+  outputTax                Decimal  @default(0)
+  payableVat               Decimal  @default(0)
+  surtaxAmount             Decimal  @default(0)
+  landVatDeductibleCost    Decimal  @default(0)
+  landVatAmount            Decimal  @default(0)
+  incomeTaxPreTaxProfit    Decimal  @default(0)
+  incomeTaxAmount          Decimal  @default(0)
+  taxRemark                String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([taxType])
+}
+
+model TargetCostSummary {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  costSubjectId            String
+  costSubject              CostSubject @relation(fields: [costSubjectId], references: [id], onDelete: Restrict)
+  subjectLevel             Int
+  productTypeId            String?
+  productType              ProductType? @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
+  totalAmountTaxIncluded   Decimal  @default(0)
+  totalAmountTaxExcluded   Decimal  @default(0)
+  totalTaxAmount           Decimal  @default(0)
+  buildingUnitCost         Decimal  @default(0)
+  saleableUnitCost         Decimal  @default(0)
+  beforeAllocationAmount   Decimal  @default(0)
+  afterAllocationAmount    Decimal  @default(0)
+  summarizedAt             DateTime?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+
+  estimateDetailLines      EstimateDetailLine[]
+
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([costSubjectId])
+  @@index([productTypeId])
+  @@index([subjectLevel])
+}
+
+model ProjectCostDashboard {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String   @unique
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  salesRevenue             Decimal  @default(0)
+  otherRevenue             Decimal  @default(0)
+  developmentCostTaxIncluded Decimal @default(0)
+  developmentCostTaxExcluded Decimal @default(0)
+  totalTaxAmount           Decimal  @default(0)
+  preTaxOperatingProfit    Decimal  @default(0)
+  incomeTax                Decimal  @default(0)
+  netProfitAfterTax        Decimal  @default(0)
+  preTaxSalesProfitRate    Decimal  @default(0)
+  netSalesProfitRate       Decimal  @default(0)
+  buildingUnitCost         Decimal  @default(0)
+  saleableUnitCost         Decimal  @default(0)
+  calculatedAt             DateTime?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+model ExcelMapping {
+  id                       String   @id @default(cuid())
+  excelFileName            String
+  excelFileVersion         String?
+  sheetName                String
+  excelRow                 Int?
+  excelColumn              Int?
+  excelFieldName           String?
+  excelSubjectCode         String?
+  excelSubjectName         String?
+  excelFormula             String?
+  excelUnit                String?
+  excelTaxRate             String?
+  excelAllocationBasis     String?
+  systemModule             String
+  systemField              String
+  mappingStatus            String   @default("pending")
+  importBatch              String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([excelFileVersion])
+  @@index([sheetName])
+  @@index([excelSubjectCode])
+  @@index([systemModule])
+  @@index([mappingStatus])
+}
+
+model VersionOperation {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation("VersionOperationMainVersion", fields: [versionId], references: [id], onDelete: Cascade)
+  compareVersionId         String?
+  compareVersion           EstimateVersion? @relation("VersionOperationComparedVersion", fields: [compareVersionId], references: [id], onDelete: SetNull)
+  operationType            String
+  beforeStatus             String?
+  afterStatus              String?
+  operatedBy               String?
+  operatedAt               DateTime @default(now())
+  operationReason          String?
+  differenceAmount         Decimal  @default(0)
+  differenceRemark         String?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([compareVersionId])
+  @@index([operationType])
+}
+
+model CalculationCheck {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId                String
+  version                  EstimateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  checkObjectType          String
+  checkObjectId            String?
+  checkRule                String
+  checkLevel               String   @default("warning")
+  checkResult              String   @default("pending")
+  errorMessage             String?
+  isProcessed              Boolean  @default(false)
+  processedBy              String?
+  processedAt              DateTime?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([versionId])
+  @@index([checkObjectType])
+  @@index([checkLevel])
+  @@index([checkResult])
+  @@index([isProcessed])
+}
+
+model RegionParameter {
+  id                       String   @id @default(cuid())
+  country                  String?
+  province                 String?
+  city                     String?
+  district                 String?
+  marketArea               String?
+  defaultVatRate           Decimal  @default(0)
+  defaultSurtaxRate        Decimal  @default(0)
+  defaultIncomeTaxRate     Decimal  @default(0)
+  landVatPrepayRate        Decimal  @default(0)
+  regionParameterVersion   String   @default("v1")
+  effectiveDate            DateTime?
+  expiryDate               DateTime?
+  dataSource               String?
+  confidenceLevel          String?
+  approvedBy               String?
+  approvedAt               DateTime?
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+
+  projects                 Project[]
+  initializations          ProjectInitialization[]
+
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([country])
+  @@index([province])
+  @@index([city])
+  @@index([district])
+  @@index([regionParameterVersion])
+}
+
+model DictionaryItem {
+  id                       String   @id @default(cuid())
+  dictionaryType           String
+  dictionaryCode           String
+  dictionaryName           String
+  defaultPrecisionLevel    String?
+  defaultSubjectDepth      String?
+  isEnabled                Boolean  @default(true)
+  sortOrder                Int      @default(0)
+  createdBy                String?
+  updatedBy                String?
+  remark                   String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([dictionaryType, dictionaryCode])
+  @@index([dictionaryType])
+  @@index([isEnabled])
 }
