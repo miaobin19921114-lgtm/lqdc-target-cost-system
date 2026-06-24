@@ -8,7 +8,6 @@ const EXCEL_FILE_VERSION = 'V60_chargepile_v57_only';
 const SYSTEM_PROJECT_ID = 'SYSTEM_SEED_PROJECT';
 const SYSTEM_VERSION_ID = 'SYSTEM_SEED_VERSION';
 const SYSTEM_TEMPLATE_ID = 'tpl-system-residential-v60';
-
 const SYSTEM_METADATA = 'source=system_seed;locked=true;copyable=true;editable=false;excel=' + EXCEL_FILE_NAME;
 
 type BatchResult = {
@@ -106,6 +105,12 @@ type ExcelMappingSeed = {
   remark?: string;
 };
 
+type CalculationRuleSeed = {
+  code: string;
+  name: string;
+  level: 'blocker' | 'warning';
+};
+
 const dictionaryItems: DictionarySeed[] = [
   { type: 'project_type', code: 'residential', name: '住宅开发', sortOrder: 10 },
   { type: 'project_type', code: 'commercial', name: '商业开发', sortOrder: 20 },
@@ -159,7 +164,9 @@ const dictionaryItems: DictionarySeed[] = [
 
   { type: 'measurement_basis', code: 'land_price', name: '土地价款', sortOrder: 10 },
   { type: 'measurement_basis', code: 'land_area', name: '占地面积', sortOrder: 20 },
+  { type: 'measurement_basis', code: 'base_area', name: '基底面积', sortOrder: 25 },
   { type: 'measurement_basis', code: 'building_area', name: '建筑面积', sortOrder: 30 },
+  { type: 'measurement_basis', code: 'above_ground_area', name: '地上建筑面积', sortOrder: 35 },
   { type: 'measurement_basis', code: 'saleable_area', name: '可售面积', sortOrder: 40 },
   { type: 'measurement_basis', code: 'capacity_area', name: '计容面积', sortOrder: 50 },
   { type: 'measurement_basis', code: 'underground_area', name: '地下建筑面积', sortOrder: 60 },
@@ -182,7 +189,12 @@ const dictionaryItems: DictionarySeed[] = [
   { type: 'measurement_basis', code: 'railing_length', name: '栏杆长度', sortOrder: 230 },
   { type: 'measurement_basis', code: 'contract_amount', name: '合同金额', sortOrder: 240 },
   { type: 'measurement_basis', code: 'construction_cost_ratio', name: '建安成本比例', sortOrder: 250 },
-  { type: 'measurement_basis', code: 'manual_amount', name: '手工金额', sortOrder: 260 },
+  { type: 'measurement_basis', code: 'sales_revenue', name: '销售收入', sortOrder: 260 },
+  { type: 'measurement_basis', code: 'vat_amount', name: '增值税', sortOrder: 270 },
+  { type: 'measurement_basis', code: 'pre_tax_profit', name: '税前利润', sortOrder: 280 },
+  { type: 'measurement_basis', code: 'income_tax_base', name: '所得税计税基础', sortOrder: 290 },
+  { type: 'measurement_basis', code: 'land_vat_base', name: '土增税清算基础', sortOrder: 300 },
+  { type: 'measurement_basis', code: 'manual_amount', name: '手工金额', sortOrder: 310 },
 
   { type: 'tax_rate', code: 'vat_0', name: '0%', sortOrder: 10, remark: '0.00' },
   { type: 'tax_rate', code: 'vat_1', name: '1%', sortOrder: 20, remark: '0.01' },
@@ -196,12 +208,17 @@ const dictionaryItems: DictionarySeed[] = [
   { type: 'allocation_basis', code: 'capacity_area', name: '按计容面积', sortOrder: 30 },
   { type: 'allocation_basis', code: 'land_area', name: '按占地面积', sortOrder: 40 },
   { type: 'allocation_basis', code: 'underground_area', name: '按地下建筑面积', sortOrder: 50 },
-  { type: 'allocation_basis', code: 'parking_count', name: '按车位数量', sortOrder: 60 },
-  { type: 'allocation_basis', code: 'household_count', name: '按户数', sortOrder: 70 },
-  { type: 'allocation_basis', code: 'sales_revenue', name: '按销售收入', sortOrder: 80 },
-  { type: 'allocation_basis', code: 'construction_cost', name: '按建安成本', sortOrder: 90 },
-  { type: 'allocation_basis', code: 'beneficiary_object', name: '按受益对象', sortOrder: 100 },
-  { type: 'allocation_basis', code: 'manual_ratio', name: '手工指定比例', sortOrder: 110 },
+  { type: 'allocation_basis', code: 'civil_defense_area', name: '按人防面积', sortOrder: 60 },
+  { type: 'allocation_basis', code: 'heating_area', name: '按采暖面积', sortOrder: 70 },
+  { type: 'allocation_basis', code: 'landscape_area', name: '按景观面积', sortOrder: 80 },
+  { type: 'allocation_basis', code: 'basement_parking_area', name: '按地下车库面积', sortOrder: 90 },
+  { type: 'allocation_basis', code: 'parking_count', name: '按车位数量', sortOrder: 100 },
+  { type: 'allocation_basis', code: 'charging_pile_count', name: '按充电桩数量', sortOrder: 110 },
+  { type: 'allocation_basis', code: 'household_count', name: '按户数', sortOrder: 120 },
+  { type: 'allocation_basis', code: 'sales_revenue', name: '按销售收入', sortOrder: 130 },
+  { type: 'allocation_basis', code: 'construction_cost', name: '按建安成本', sortOrder: 140 },
+  { type: 'allocation_basis', code: 'beneficiary_object', name: '按受益对象', sortOrder: 150 },
+  { type: 'allocation_basis', code: 'manual_ratio', name: '手工指定比例', sortOrder: 160 },
 
   { type: 'tax_aggregation_basis', code: 'land_vat_cost', name: '土增税扣除成本', sortOrder: 10 },
   { type: 'tax_aggregation_basis', code: 'income_tax_cost', name: '所得税计税成本', sortOrder: 20 },
@@ -374,16 +391,16 @@ const costSubjects: CostSubjectSeed[] = [
   { code: '03.06', name: '设备工程', parentCode: '03', level: 2, fullPath: '建安工程费 > 设备工程', sortOrder: 36 },
   { code: '03.06.01', name: '电梯工程', parentCode: '03.06', level: 3, fullPath: '建安工程费 > 设备工程 > 电梯工程', defaultMeasureBasis: '单元数量', defaultUnit: '台', defaultTaxRate: 0.09, defaultAllocationMethod: '按建筑面积', sortOrder: 361 },
   { code: '03.06.02', name: '人防设备', parentCode: '03.06', level: 3, fullPath: '建安工程费 > 设备工程 > 人防设备', defaultMeasureBasis: '人防面积', defaultUnit: '㎡', defaultTaxRate: 0.09, defaultAllocationMethod: '按人防面积', sortOrder: 362 },
-  { code: '03.06.03', name: '充电桩工程', parentCode: '03.06', level: 3, fullPath: '建安工程费 > 设备工程 > 充电桩工程', defaultMeasureBasis: '充电桩数量', defaultUnit: '个', defaultTaxRate: 0.09, defaultAllocationMethod: '按车位数量', sortOrder: 363 },
+  { code: '03.06.03', name: '充电桩工程', parentCode: '03.06', level: 3, fullPath: '建安工程费 > 设备工程 > 充电桩工程', defaultMeasureBasis: '充电桩数量', defaultUnit: '个', defaultTaxRate: 0.09, defaultAllocationMethod: '按充电桩数量', sortOrder: 363 },
 
   { code: '04', name: '室外景观及配套工程', level: 1, fullPath: '室外景观及配套工程', defaultAllocationMethod: '按建筑面积', sortOrder: 40 },
   { code: '04.01', name: '室外综合管网', parentCode: '04', level: 2, fullPath: '室外景观及配套工程 > 室外综合管网', sortOrder: 41 },
-  { code: '04.01.01', name: '综合管网工程', parentCode: '04.01', level: 3, fullPath: '室外景观及配套工程 > 室外综合管网 > 综合管网工程', defaultMeasureBasis: '景观面积', defaultUnit: '㎡', defaultTaxRate: 0.09, defaultAllocationMethod: '按建筑面积', sortOrder: 411 },
+  { code: '04.01.01', name: '综合管网工程', parentCode: '04.01', level: 3, fullPath: '室外景观及配套工程 > 室外综合管网 > 综合管网工程', defaultMeasureBasis: '景观面积', defaultUnit: '㎡', defaultTaxRate: 0.09, defaultAllocationMethod: '按景观面积', sortOrder: 411 },
   { code: '04.02', name: '景观工程', parentCode: '04', level: 2, fullPath: '室外景观及配套工程 > 景观工程', sortOrder: 42 },
   { code: '04.02.01', name: '硬景工程', parentCode: '04.02', level: 3, fullPath: '室外景观及配套工程 > 景观工程 > 硬景工程', defaultMeasureBasis: '硬景面积', defaultUnit: '㎡', defaultTaxRate: 0.09, defaultAllocationMethod: '按景观面积', sortOrder: 421 },
   { code: '04.02.02', name: '软景工程', parentCode: '04.02', level: 3, fullPath: '室外景观及配套工程 > 景观工程 > 软景工程', defaultMeasureBasis: '软景面积', defaultUnit: '㎡', defaultTaxRate: 0.09, defaultAllocationMethod: '按景观面积', sortOrder: 422 },
   { code: '04.03', name: '道路及总平工程', parentCode: '04', level: 2, fullPath: '室外景观及配套工程 > 道路及总平工程', sortOrder: 43 },
-  { code: '04.03.01', name: '道路工程', parentCode: '04.03', level: 3, fullPath: '室外景观及配套工程 > 道路及总平工程 > 道路工程', defaultMeasureBasis: '景观面积', defaultUnit: '㎡', defaultTaxRate: 0.09, defaultAllocationMethod: '按建筑面积', sortOrder: 431 },
+  { code: '04.03.01', name: '道路工程', parentCode: '04.03', level: 3, fullPath: '室外景观及配套工程 > 道路及总平工程 > 道路工程', defaultMeasureBasis: '景观面积', defaultUnit: '㎡', defaultTaxRate: 0.09, defaultAllocationMethod: '按景观面积', sortOrder: 431 },
 
   { code: '05', name: '精装修工程', level: 1, fullPath: '精装修工程', defaultAllocationMethod: '按建筑面积', sortOrder: 50 },
   { code: '05.01', name: '公区精装修', parentCode: '05', level: 2, fullPath: '精装修工程 > 公区精装修', defaultMeasureBasis: '建筑面积', defaultUnit: '㎡', defaultTaxRate: 0.09, defaultAllocationMethod: '按建筑面积', sortOrder: 51 },
@@ -405,12 +422,28 @@ const costSubjects: CostSubjectSeed[] = [
   { code: '09', name: '税金及附加', level: 1, fullPath: '税金及附加', defaultAllocationMethod: '按销售收入', sortOrder: 90 },
   { code: '09.01', name: '增值税', parentCode: '09', level: 2, fullPath: '税金及附加 > 增值税', defaultMeasureBasis: '销售收入', defaultUnit: '元', defaultTaxRate: 0.09, defaultAllocationMethod: '按销售收入', sortOrder: 91 },
   { code: '09.02', name: '附加税', parentCode: '09', level: 2, fullPath: '税金及附加 > 附加税', defaultMeasureBasis: '增值税', defaultUnit: '元', defaultTaxRate: 0.12, defaultAllocationMethod: '按销售收入', sortOrder: 92 },
-  { code: '09.03', name: '土地增值税', parentCode: '09', level: 2, fullPath: '税金及附加 > 土地增值税', defaultMeasureBasis: '销售收入', defaultUnit: '元', defaultTaxRate: 0, defaultAllocationMethod: '按受益对象', sortOrder: 93 },
-  { code: '09.04', name: '企业所得税', parentCode: '09', level: 2, fullPath: '税金及附加 > 企业所得税', defaultMeasureBasis: '税前利润', defaultUnit: '元', defaultTaxRate: 0.25, defaultAllocationMethod: '按销售收入', sortOrder: 94 }
+  { code: '09.03', name: '土地增值税', parentCode: '09', level: 2, fullPath: '税金及附加 > 土地增值税', defaultMeasureBasis: '土增税清算基础', defaultUnit: '元', defaultTaxRate: 0, defaultAllocationMethod: '按受益对象', sortOrder: 93 },
+  { code: '09.04', name: '企业所得税', parentCode: '09', level: 2, fullPath: '税金及附加 > 企业所得税', defaultMeasureBasis: '所得税计税基础', defaultUnit: '元', defaultTaxRate: 0.25, defaultAllocationMethod: '按销售收入', sortOrder: 94 }
 ];
 
+function defaultPricingUnit(defaultUnit?: string | null) {
+  if (defaultUnit === 'm') return '元/m';
+  if (defaultUnit === 'm³') return '元/m³';
+  if (defaultUnit === '个') return '元/个';
+  if (defaultUnit === '台') return '元/台';
+  if (defaultUnit === '套') return '元/套';
+  if (defaultUnit === '户') return '元/户';
+  if (defaultUnit === '樘') return '元/樘';
+  if (defaultUnit === '座') return '元/座';
+  if (defaultUnit === '点位') return '元/点位';
+  if (defaultUnit === 'kVA') return '元/kVA';
+  if (defaultUnit === '元') return '元/项';
+  if (defaultUnit === '%') return '按合同金额%';
+  return '元/㎡';
+}
+
 const detailSubjects: DetailSubjectSeed[] = costSubjects
-  .filter((subject) => subject.level >= 2 && subject.code !== '09')
+  .filter((subject) => subject.level >= 2 && !subject.code.startsWith('09'))
   .filter((subject) => !costSubjects.some((child) => child.parentCode === subject.code))
   .map((subject) => ({
     id: 'detail-' + subject.code.replace(/\./g, '-'),
@@ -421,7 +454,7 @@ const detailSubjects: DetailSubjectSeed[] = costSubjects
     measurementBasis: subject.defaultMeasureBasis || '建筑面积',
     defaultIndicatorSource: subject.defaultMeasureBasis || '建筑面积',
     defaultQuantityUnit: subject.defaultUnit || '㎡',
-    defaultPricingUnit: subject.defaultUnit === 'm' ? '元/m' : subject.defaultUnit === '个' ? '元/个' : subject.defaultUnit === '台' ? '元/台' : subject.defaultUnit === '元' ? '元/项' : subject.defaultUnit === '%' ? '按合同金额%' : '元/㎡',
+    defaultPricingUnit: defaultPricingUnit(subject.defaultUnit),
     defaultTaxRate: subject.defaultTaxRate ?? 0.09,
     defaultProductType: subject.code === '03.06.03' ? '地下车位' : undefined,
     defaultCostObject: subject.code === '03.06.03' ? '地下车位/地库' : undefined,
@@ -434,7 +467,10 @@ const detailSubjects: DetailSubjectSeed[] = costSubjects
 
 const excelMappings: ExcelMappingSeed[] = [
   { id: 'excel-map-project-overview-land-area', sheetName: '项目概况', row: 8, column: 2, excelFieldName: '占地面积', excelUnit: '㎡', systemModule: 'ProjectOverviewIndicator', systemField: 'landArea' },
+  { id: 'excel-map-project-overview-base-area', sheetName: '项目概况', row: 9, column: 2, excelFieldName: '基底面积', excelUnit: '㎡', systemModule: 'ProjectOverviewIndicator', systemField: 'baseArea' },
   { id: 'excel-map-project-overview-total-area', sheetName: '项目概况', row: 10, column: 2, excelFieldName: '总建筑面积', excelUnit: '㎡', systemModule: 'ProjectOverviewIndicator', systemField: 'totalBuildingArea' },
+  { id: 'excel-map-project-overview-above-area', sheetName: '项目概况', row: 11, column: 2, excelFieldName: '地上建筑面积', excelUnit: '㎡', systemModule: 'ProjectOverviewIndicator', systemField: 'aboveGroundArea' },
+  { id: 'excel-map-project-overview-underground-area', sheetName: '项目概况', row: 12, column: 2, excelFieldName: '地下建筑面积', excelUnit: '㎡', systemModule: 'ProjectOverviewIndicator', systemField: 'undergroundArea' },
   { id: 'excel-map-project-overview-saleable-area', sheetName: '项目概况', row: 13, column: 2, excelFieldName: '可售面积', excelUnit: '㎡', systemModule: 'ProjectOverviewIndicator', systemField: 'saleableArea' },
   { id: 'excel-map-project-overview-parking-count', sheetName: '项目概况', row: 14, column: 2, excelFieldName: '车位数量', excelUnit: '个', systemModule: 'ProjectOverviewIndicator', systemField: 'parkingCount' },
   { id: 'excel-map-project-overview-charging-pile-count', sheetName: '项目概况', row: 15, column: 2, excelFieldName: '充电桩数量', excelUnit: '个', systemModule: 'ProjectOverviewIndicator', systemField: 'chargingPileCount', remark: '充电桩数量为概况指标，不映射为业态' },
@@ -448,26 +484,34 @@ const excelMappings: ExcelMappingSeed[] = [
   { id: 'excel-map-target-cost-amount-tax-excluded', sheetName: '目标成本测算', row: 5, column: 13, excelFieldName: '不含税金额', excelFormula: '含税金额/(1+税率)', systemModule: 'EstimateDetailLine', systemField: 'amountTaxExcluded' },
   { id: 'excel-map-target-cost-tax-amount', sheetName: '目标成本测算', row: 5, column: 14, excelFieldName: '税额', excelFormula: '含税金额-不含税金额', systemModule: 'EstimateDetailLine', systemField: 'taxAmount' },
   { id: 'excel-map-income-parking', sheetName: '收入明细表', row: 8, column: 5, excelFieldName: '车位收入', excelFormula: '车位数量*车位单价', excelUnit: '个', systemModule: 'RevenueEstimate', systemField: 'measurementQuantity', remark: '车位收入按 quantity 方式测算' },
+  { id: 'excel-map-dashboard-sales-revenue', sheetName: '目标成本汇总表', row: 4, column: 3, excelFieldName: '销售收入', systemModule: 'ProjectCostDashboard', systemField: 'salesRevenue' },
   { id: 'excel-map-dashboard-pre-tax-profit', sheetName: '目标成本汇总表', row: 6, column: 3, excelFieldName: '税前经营利润', systemModule: 'ProjectCostDashboard', systemField: 'preTaxOperatingProfit' },
   { id: 'excel-map-dashboard-income-tax', sheetName: '目标成本汇总表', row: 8, column: 3, excelFieldName: '所得税', systemModule: 'ProjectCostDashboard', systemField: 'incomeTax' },
   { id: 'excel-map-dashboard-net-profit', sheetName: '目标成本汇总表', row: 9, column: 3, excelFieldName: '税后净利', excelFormula: '税前经营利润-所得税', systemModule: 'ProjectCostDashboard', systemField: 'netProfitAfterTax' }
 ];
 
-const calculationRuleSeeds = [
-  ['core_enums_required', '核心枚举必须存在', 'blocker'],
-  ['enum_code_unique', '同一 dictionaryType 下 code 不得重复', 'blocker'],
-  ['residential_template_enabled', '住宅系统模板必须存在并启用', 'blocker'],
-  ['system_template_locked', '系统模板必须 locked，不可直接修改', 'blocker'],
-  ['system_template_copyable', '系统模板必须 copyable', 'blocker'],
-  ['charging_pile_not_product_type', '充电桩不得写入业态表', 'blocker'],
-  ['parking_income_quantity', '车位收入必须按 quantity 方式测算', 'blocker'],
-  ['cost_subject_tree_valid', '成本科目树必须存在且 parentCode 不断裂', 'blocker'],
-  ['detail_subject_attached', '明细科目必须全部挂接成本科目树', 'blocker'],
-  ['detail_subject_references_valid', '明细科目必须可引用单位、税率、测算依据', 'blocker'],
-  ['excel_mapping_complete', 'Excel 映射必须有文件名、工作表、行、列', 'blocker'],
-  ['target_summary_metrics_required', '目标成本汇总指标必须存在', 'blocker'],
-  ['calculation_checks_seeded', '计算校验规则必须导入', 'blocker']
-] as const;
+const calculationRuleSeeds: CalculationRuleSeed[] = [
+  { code: 'schema_fields_valid', name: 'schema 字段必须可被 seed 正常写入', level: 'blocker' },
+  { code: 'unique_keys_valid', name: '唯一键 / upsert where 条件必须正确', level: 'blocker' },
+  { code: 'core_enums_required', name: '核心枚举必须存在', level: 'blocker' },
+  { code: 'measurement_basis_required', name: '测算依据字典必须补齐', level: 'blocker' },
+  { code: 'allocation_basis_required', name: '分摊口径字典必须补齐', level: 'blocker' },
+  { code: 'residential_template_enabled', name: '住宅系统模板必须存在并启用', level: 'blocker' },
+  { code: 'system_template_locked', name: '系统模板必须 locked，不可直接修改', level: 'blocker' },
+  { code: 'system_template_copyable', name: '系统模板必须 copyable', level: 'blocker' },
+  { code: 'charging_pile_not_product_type', name: '充电桩不得写入业态表', level: 'blocker' },
+  { code: 'parking_income_quantity', name: '车位收入必须按 quantity / 个 / 元每个方式测算', level: 'blocker' },
+  { code: 'cost_subject_tree_valid', name: '成本科目树必须存在且 parentCode 不断裂', level: 'blocker' },
+  { code: 'tax_subject_excluded_from_detail', name: '税金类科目不得进入普通 DetailSubject / TemplateCostRule', level: 'blocker' },
+  { code: 'detail_subject_attached', name: '明细科目必须全部挂接成本科目树', level: 'blocker' },
+  { code: 'detail_subject_references_valid', name: '明细科目必须可引用单位、税率、测算依据、分摊口径', level: 'blocker' },
+  { code: 'excel_mapping_complete', name: 'Excel 映射必须有文件名、工作表、行、列', level: 'blocker' },
+  { code: 'target_summary_metrics_required', name: '目标成本汇总指标必须存在', level: 'blocker' },
+  { code: 'calculation_checks_seeded', name: '计算校验规则必须导入并最后执行', level: 'blocker' },
+  { code: 'excel_mapping_volume_warning', name: 'Excel 映射数量偏少', level: 'warning' },
+  { code: 'cost_subject_v60_sync_warning', name: '成本科目树未完全同步 V60 母版', level: 'warning' },
+  { code: 'detail_subject_volume_warning', name: '明细科目数量偏少', level: 'warning' }
+];
 
 async function upsertAdmin() {
   const email = process.env.ADMIN_EMAIL || 'admin@lqdc.local';
@@ -477,31 +521,22 @@ async function upsertAdmin() {
   await prisma.user.upsert({
     where: { email },
     update: { name, role: 'admin' },
-    create: {
-      email,
-      name,
-      passwordHash: await bcrypt.hash(password, 10),
-      role: 'admin'
-    }
+    create: { email, name, passwordHash: await bcrypt.hash(password, 10), role: 'admin' }
   });
 }
 
 async function upsertDictionaryItems(items: DictionarySeed[]) {
   for (const item of items) {
     await prisma.dictionaryItem.upsert({
-      where: {
-        dictionaryType_dictionaryCode: {
-          dictionaryType: item.type,
-          dictionaryCode: item.code
-        }
-      },
+      where: { dictionaryType_dictionaryCode: { dictionaryType: item.type, dictionaryCode: item.code } },
       update: {
         dictionaryName: item.name,
         defaultPrecisionLevel: item.precision,
         defaultSubjectDepth: item.depth,
         isEnabled: true,
         sortOrder: item.sortOrder,
-        remark: item.remark
+        remark: item.remark,
+        updatedBy: 'system-seed'
       },
       create: {
         dictionaryType: item.type,
@@ -584,12 +619,7 @@ async function seedProductsAndSpecialOptions() {
     });
 
     await prisma.templateProduct.upsert({
-      where: {
-        templateId_name: {
-          templateId: SYSTEM_TEMPLATE_ID,
-          name: item.name
-        }
-      },
+      where: { templateId_name: { templateId: SYSTEM_TEMPLATE_ID, name: item.name } },
       update: {
         category: item.category,
         isSaleable: item.isSaleable,
@@ -615,6 +645,21 @@ async function seedProductsAndSpecialOptions() {
   }
 
   await upsertDictionaryItems(dictionaryItems.filter((item) => item.type === 'special_option'));
+}
+
+function measureUnitFromBasisName(name: string) {
+  if (name.includes('数量') || name.includes('户数') || name.includes('出入口')) return '个';
+  if (name.includes('单元')) return '个';
+  if (name.includes('长度')) return 'm';
+  if (name.includes('价款') || name.includes('金额') || name.includes('收入') || name.includes('增值税') || name.includes('利润') || name.includes('基础')) return '元';
+  return '㎡';
+}
+
+function pricingUnitFromQuantityUnit(unit: string) {
+  if (unit === '个') return '元/个';
+  if (unit === 'm') return '元/m';
+  if (unit === '元') return '元/项';
+  return '元/㎡';
 }
 
 async function seedMetricsBasisAndUnits() {
@@ -647,18 +692,8 @@ async function seedMetricsBasisAndUnits() {
 
   for (const unit of units) {
     await prisma.unitDictionary.upsert({
-      where: {
-        unitType_unitName: {
-          unitType: unit.unitType,
-          unitName: unit.unitName
-        }
-      },
-      update: {
-        unitDescription: unit.description,
-        isEnabled: true,
-        sortOrder: unit.sortOrder,
-        updatedBy: 'system-seed'
-      },
+      where: { unitType_unitName: { unitType: unit.unitType, unitName: unit.unitName } },
+      update: { unitDescription: unit.description, isEnabled: true, sortOrder: unit.sortOrder, updatedBy: 'system-seed' },
       create: {
         unitType: unit.unitType,
         unitName: unit.unitName,
@@ -672,18 +707,14 @@ async function seedMetricsBasisAndUnits() {
   }
 
   for (const basis of dictionaryItems.filter((item) => item.type === 'measurement_basis')) {
+    const quantityUnit = measureUnitFromBasisName(basis.name);
     await prisma.measureBasisRule.upsert({
-      where: {
-        costCode_basisName: {
-          costCode: 'SYSTEM',
-          basisName: basis.name
-        }
-      },
+      where: { costCode_basisName: { costCode: 'SYSTEM', basisName: basis.name } },
       update: {
         metricKey: basis.code,
         metricScope: basis.code.startsWith('product_') ? 'product_type' : 'project',
-        quantityUnit: basis.name.includes('数量') || basis.name.includes('户数') || basis.name.includes('出入口') ? '个' : basis.name.includes('长度') ? 'm' : basis.name.includes('价款') || basis.name.includes('金额') ? '元' : '㎡',
-        pricingUnit: basis.name.includes('数量') || basis.name.includes('户数') || basis.name.includes('出入口') ? '元/个' : basis.name.includes('长度') ? '元/m' : basis.name.includes('价款') || basis.name.includes('金额') ? '元/项' : '元/㎡',
+        quantityUnit,
+        pricingUnit: pricingUnitFromQuantityUnit(quantityUnit),
         defaultCoefficient: 1,
         quantityFormula: '工程量 = 指标数量 × 含量',
         amountFormula: '含税金额 = 工程量 × 含税单价；不含税金额 = 含税金额 ÷（1 + 税率）；税额 = 含税金额 - 不含税金额',
@@ -696,8 +727,8 @@ async function seedMetricsBasisAndUnits() {
         basisName: basis.name,
         metricKey: basis.code,
         metricScope: basis.code.startsWith('product_') ? 'product_type' : 'project',
-        quantityUnit: basis.name.includes('数量') || basis.name.includes('户数') || basis.name.includes('出入口') ? '个' : basis.name.includes('长度') ? 'm' : basis.name.includes('价款') || basis.name.includes('金额') ? '元' : '㎡',
-        pricingUnit: basis.name.includes('数量') || basis.name.includes('户数') || basis.name.includes('出入口') ? '元/个' : basis.name.includes('长度') ? '元/m' : basis.name.includes('价款') || basis.name.includes('金额') ? '元/项' : '元/㎡',
+        quantityUnit,
+        pricingUnit: pricingUnitFromQuantityUnit(quantityUnit),
         defaultCoefficient: 1,
         quantityFormula: '工程量 = 指标数量 × 含量',
         amountFormula: '含税金额 = 工程量 × 含税单价；不含税金额 = 含税金额 ÷（1 + 税率）；税额 = 含税金额 - 不含税金额',
@@ -742,14 +773,36 @@ async function seedCostSubjectTree() {
   }
 }
 
+async function cleanupTaxDetailArtifacts() {
+  await prisma.detailSubject.deleteMany({
+    where: {
+      OR: [
+        { id: { startsWith: 'detail-09' } },
+        { detailSubjectCode: { startsWith: '09.' } },
+        { subjectFullPath: { contains: '税金及附加' } }
+      ]
+    }
+  });
+
+  await prisma.templateCostRule.deleteMany({
+    where: {
+      templateId: SYSTEM_TEMPLATE_ID,
+      OR: [
+        { costCode: { startsWith: '09.' } },
+        { category: '税金及附加' },
+        { subjectName: { in: ['增值税', '附加税', '土地增值税', '企业所得税'] } }
+      ]
+    }
+  });
+}
+
 async function seedDetailSubjectTree() {
+  await cleanupTaxDetailArtifacts();
   const subjectByCode = new Map((await prisma.costSubject.findMany()).map((subject) => [subject.code, subject]));
 
   for (const detail of detailSubjects) {
     const subject = subjectByCode.get(detail.costSubjectCode);
-    if (!subject) {
-      throw new Error('缺少明细科目对应成本科目：' + detail.costSubjectCode + ' ' + detail.detailSubjectName);
-    }
+    if (!subject) throw new Error('缺少明细科目对应成本科目：' + detail.costSubjectCode + ' ' + detail.detailSubjectName);
 
     await prisma.detailSubject.upsert({
       where: { id: detail.id },
@@ -799,9 +852,10 @@ async function seedDetailSubjectTree() {
 
 async function seedTaxAllocationAndTaxAggregation() {
   await upsertDictionaryItems(dictionaryItems.filter((item) => ['tax_rate', 'allocation_basis', 'tax_aggregation_basis'].includes(item.type)));
+  await cleanupTaxDetailArtifacts();
 
   const templateTaxRules = [
-    { id: 'template-tax-vat', name: '增值税', rate: 0.09, scope: '一般计税', sortOrder: 10, remark: '应交增值税 = 销项税 - 进项税' },
+    { id: 'template-tax-vat', name: '增值税', rate: 0.09, scope: '一般计税', sortOrder: 10, remark: '应交增值税 = 销项税 - 进项税；税金类科目不进入普通 DetailSubject' },
     { id: 'template-tax-urban-maintenance', name: '城建税', rate: 0.07, scope: '附加税', sortOrder: 20, remark: '附加税基数为应交增值税' },
     { id: 'template-tax-education', name: '教育费附加', rate: 0.03, scope: '附加税', sortOrder: 30, remark: '附加税基数为应交增值税' },
     { id: 'template-tax-local-education', name: '地方教育附加', rate: 0.02, scope: '附加税', sortOrder: 40, remark: '附加税基数为应交增值税' },
@@ -814,6 +868,37 @@ async function seedTaxAllocationAndTaxAggregation() {
       where: { id: rule.id },
       update: { templateId: SYSTEM_TEMPLATE_ID, name: rule.name, rate: rule.rate, scope: rule.scope, remark: rule.remark, sortOrder: rule.sortOrder },
       create: { id: rule.id, templateId: SYSTEM_TEMPLATE_ID, name: rule.name, rate: rule.rate, scope: rule.scope, remark: rule.remark, sortOrder: rule.sortOrder }
+    });
+  }
+
+  const taxEstimateSeeds = [
+    { id: 'seed-tax-estimate-vat', taxType: '增值税', taxRate: 0.09, remark: '税金类科目进入 TaxEstimate，不进入普通 DetailSubject' },
+    { id: 'seed-tax-estimate-surtax', taxType: '附加税', taxRate: 0.12, remark: '附加税 = 应交增值税 × 附加税率' },
+    { id: 'seed-tax-estimate-land-vat', taxType: '土地增值税', taxRate: 0, remark: '按土增税清算基础测算' },
+    { id: 'seed-tax-estimate-income-tax', taxType: '企业所得税', taxRate: 0.25, remark: '按所得税计税基础 / 税前利润测算' }
+  ];
+
+  for (const tax of taxEstimateSeeds) {
+    await prisma.taxEstimate.upsert({
+      where: { id: tax.id },
+      update: {
+        projectId: SYSTEM_PROJECT_ID,
+        versionId: SYSTEM_VERSION_ID,
+        taxType: tax.taxType,
+        taxRate: tax.taxRate,
+        updatedBy: 'system-seed',
+        remark: tax.remark
+      },
+      create: {
+        id: tax.id,
+        projectId: SYSTEM_PROJECT_ID,
+        versionId: SYSTEM_VERSION_ID,
+        taxType: tax.taxType,
+        taxRate: tax.taxRate,
+        createdBy: 'system-seed',
+        updatedBy: 'system-seed',
+        remark: tax.remark
+      }
     });
   }
 
@@ -875,7 +960,7 @@ async function seedExcelMappings() {
         systemModule: item.systemModule,
         systemField: item.systemField,
         mappingStatus: 'active',
-        importBatch: 'seed-04-07-v1',
+        importBatch: 'seed-04-08A-v1',
         updatedBy: 'system-seed',
         remark: item.remark
       },
@@ -896,7 +981,7 @@ async function seedExcelMappings() {
         systemModule: item.systemModule,
         systemField: item.systemField,
         mappingStatus: 'active',
-        importBatch: 'seed-04-07-v1',
+        importBatch: 'seed-04-08A-v1',
         createdBy: 'system-seed',
         updatedBy: 'system-seed',
         remark: item.remark
@@ -906,34 +991,36 @@ async function seedExcelMappings() {
 }
 
 async function seedCalculationChecks() {
-  for (const [code, name, level] of calculationRuleSeeds) {
+  for (const rule of calculationRuleSeeds) {
     await prisma.calculationCheck.upsert({
-      where: { id: 'seed-check-rule-' + code },
+      where: { id: 'seed-check-rule-' + rule.code },
       update: {
         projectId: SYSTEM_PROJECT_ID,
         versionId: SYSTEM_VERSION_ID,
         checkObjectType: 'seed_rule',
-        checkRule: name,
-        checkLevel: level,
+        checkRule: rule.name,
+        checkLevel: rule.level,
         checkResult: 'pending',
         errorMessage: null,
         isProcessed: false,
+        processedBy: null,
+        processedAt: null,
         updatedBy: 'system-seed',
-        remark: '04-07 Seed 数据验收规则：' + code
+        remark: '04-08A Seed 修正验收规则：' + rule.code
       },
       create: {
-        id: 'seed-check-rule-' + code,
+        id: 'seed-check-rule-' + rule.code,
         projectId: SYSTEM_PROJECT_ID,
         versionId: SYSTEM_VERSION_ID,
         checkObjectType: 'seed_rule',
-        checkRule: name,
-        checkLevel: level,
+        checkRule: rule.name,
+        checkLevel: rule.level,
         checkResult: 'pending',
         errorMessage: null,
         isProcessed: false,
         createdBy: 'system-seed',
         updatedBy: 'system-seed',
-        remark: '04-07 Seed 数据验收规则：' + code
+        remark: '04-08A Seed 修正验收规则：' + rule.code
       }
     });
   }
@@ -948,6 +1035,32 @@ async function runBatch(batchResults: BatchResult[], batchNo: number, batchName:
     batchResults.push({ batchNo, batchName, status: '失败', message });
     throw error;
   }
+}
+
+function relatedMessages(code: string, messages: string[]) {
+  return messages.filter((message) => {
+    if (code === 'schema_fields_valid') return message.includes('schema 字段');
+    if (code === 'unique_keys_valid') return message.includes('唯一键') || message.includes('重复');
+    if (code === 'core_enums_required') return message.includes('核心枚举缺失');
+    if (code === 'measurement_basis_required') return message.includes('测算依据字典缺失');
+    if (code === 'allocation_basis_required') return message.includes('分摊口径字典缺失');
+    if (code === 'residential_template_enabled') return message.includes('住宅模板');
+    if (code === 'system_template_locked') return message.includes('locked') || message.includes('直接修改');
+    if (code === 'system_template_copyable') return message.includes('copyable') || message.includes('不可复制');
+    if (code === 'charging_pile_not_product_type') return message.includes('充电桩被创建为业态');
+    if (code === 'parking_income_quantity') return message.includes('车位收入');
+    if (code === 'cost_subject_tree_valid') return message.includes('成本科目树');
+    if (code === 'tax_subject_excluded_from_detail') return message.includes('税金类科目进入普通');
+    if (code === 'detail_subject_attached') return message.includes('未挂接成本科目树');
+    if (code === 'detail_subject_references_valid') return message.includes('无法引用');
+    if (code === 'excel_mapping_complete') return message.includes('Excel 映射缺少');
+    if (code === 'target_summary_metrics_required') return message.includes('目标成本汇总指标');
+    if (code === 'calculation_checks_seeded') return message.includes('计算校验规则');
+    if (code === 'excel_mapping_volume_warning') return message.includes('Excel 映射数量偏少');
+    if (code === 'cost_subject_v60_sync_warning') return message.includes('成本科目树未完全同步');
+    if (code === 'detail_subject_volume_warning') return message.includes('明细科目数量偏少');
+    return false;
+  });
 }
 
 async function validateSeed(batchResults: BatchResult[]) {
@@ -969,8 +1082,20 @@ async function validateSeed(batchResults: BatchResult[]) {
   const enumKeys = new Set<string>();
   for (const row of enumRows) {
     const key = row.dictionaryType + ':' + row.dictionaryCode;
-    if (enumKeys.has(key)) blockers.push('枚举 code 重复：' + key);
+    if (enumKeys.has(key)) blockers.push('唯一键/枚举 code 重复：' + key);
     enumKeys.add(key);
+  }
+
+  const requiredMeasurementBasisCodes = ['base_area', 'sales_revenue', 'vat_amount', 'pre_tax_profit', 'income_tax_base', 'land_vat_base'];
+  for (const code of requiredMeasurementBasisCodes) {
+    const item = await prisma.dictionaryItem.findUnique({ where: { dictionaryType_dictionaryCode: { dictionaryType: 'measurement_basis', dictionaryCode: code } } });
+    if (!item?.isEnabled) blockers.push('测算依据字典缺失：' + code);
+  }
+
+  const requiredAllocationBasisCodes = ['civil_defense_area', 'heating_area', 'landscape_area', 'basement_parking_area', 'charging_pile_count'];
+  for (const code of requiredAllocationBasisCodes) {
+    const item = await prisma.dictionaryItem.findUnique({ where: { dictionaryType_dictionaryCode: { dictionaryType: 'allocation_basis', dictionaryCode: code } } });
+    if (!item?.isEnabled) blockers.push('分摊口径字典缺失：' + code);
   }
 
   const template = await prisma.template.findUnique({ where: { id: SYSTEM_TEMPLATE_ID } });
@@ -979,28 +1104,17 @@ async function validateSeed(batchResults: BatchResult[]) {
   if (!template?.description?.includes('copyable=true')) blockers.push('系统模板不可复制或未记录 copyable');
 
   const chargingPileProductCount = await prisma.productTypePreset.count({
-    where: {
-      OR: [
-        { key: { contains: 'charging', mode: 'insensitive' } },
-        { name: { contains: '充电桩' } }
-      ]
-    }
+    where: { OR: [{ key: { contains: 'charging', mode: 'insensitive' } }, { name: { contains: '充电桩' } }] }
   });
-  const chargingPileTemplateProductCount = await prisma.templateProduct.count({
-    where: { templateId: SYSTEM_TEMPLATE_ID, name: { contains: '充电桩' } }
-  });
+  const chargingPileTemplateProductCount = await prisma.templateProduct.count({ where: { templateId: SYSTEM_TEMPLATE_ID, name: { contains: '充电桩' } } });
   if (chargingPileProductCount > 0 || chargingPileTemplateProductCount > 0) blockers.push('充电桩被创建为业态');
 
   const chargingPileMetric = await prisma.projectMetricDefinition.findUnique({ where: { key: 'charging_pile_count' } });
-  const chargingPileOption = await prisma.dictionaryItem.findUnique({
-    where: { dictionaryType_dictionaryCode: { dictionaryType: 'special_option', dictionaryCode: 'charging_pile' } }
-  });
+  const chargingPileOption = await prisma.dictionaryItem.findUnique({ where: { dictionaryType_dictionaryCode: { dictionaryType: 'special_option', dictionaryCode: 'charging_pile' } } });
   if (!chargingPileMetric || !chargingPileOption) blockers.push('充电桩未作为项目概况指标和条件性科目开关');
 
-  const parkingIncome = await prisma.dictionaryItem.findUnique({
-    where: { dictionaryType_dictionaryCode: { dictionaryType: 'revenue_type', dictionaryCode: 'parking_sale' } }
-  });
-  if (!parkingIncome?.remark?.includes('measurementMode=quantity') || !parkingIncome.remark.includes('pricingUnit=元/个')) blockers.push('车位收入按面积测算或未按 quantity 记录');
+  const parkingIncome = await prisma.dictionaryItem.findUnique({ where: { dictionaryType_dictionaryCode: { dictionaryType: 'revenue_type', dictionaryCode: 'parking_sale' } } });
+  if (!parkingIncome?.remark?.includes('measurementMode=quantity') || !parkingIncome.remark.includes('pricingUnit=元/个')) blockers.push('车位收入按面积测算或未按 quantity / 个 / 元每个记录');
 
   const subjects = await prisma.costSubject.findMany();
   if (subjects.length === 0) blockers.push('成本科目树缺失');
@@ -1016,77 +1130,72 @@ async function validateSeed(batchResults: BatchResult[]) {
     if (!subjectIds.has(detail.costSubjectId)) blockers.push('明细科目未挂接成本科目树：' + detail.detailSubjectName);
   }
 
+  const taxDetailCount = await prisma.detailSubject.count({
+    where: { OR: [{ detailSubjectCode: { startsWith: '09.' } }, { subjectFullPath: { contains: '税金及附加' } }] }
+  });
+  const taxCostRuleCount = await prisma.templateCostRule.count({
+    where: { templateId: SYSTEM_TEMPLATE_ID, OR: [{ costCode: { startsWith: '09.' } }, { category: '税金及附加' }] }
+  });
+  if (taxDetailCount > 0 || taxCostRuleCount > 0) blockers.push('税金类科目进入普通 DetailSubject / TemplateCostRule');
+
   const basisNames = new Set((await prisma.dictionaryItem.findMany({ where: { dictionaryType: 'measurement_basis' }, select: { dictionaryName: true } })).map((item) => item.dictionaryName));
+  const allocationBasisNames = new Set((await prisma.dictionaryItem.findMany({ where: { dictionaryType: 'allocation_basis' }, select: { dictionaryName: true } })).map((item) => item.dictionaryName));
   const unitNames = new Set((await prisma.unitDictionary.findMany({ select: { unitName: true } })).map((unit) => unit.unitName));
   for (const detail of details) {
     if (!detail.measurementBasis || !basisNames.has(detail.measurementBasis)) blockers.push('明细科目无法引用测算依据：' + detail.detailSubjectName + ' / ' + detail.measurementBasis);
     if (!detail.defaultQuantityUnit || !unitNames.has(detail.defaultQuantityUnit)) blockers.push('明细科目无法引用计量单位：' + detail.detailSubjectName + ' / ' + detail.defaultQuantityUnit);
     if (!detail.defaultPricingUnit || !unitNames.has(detail.defaultPricingUnit)) blockers.push('明细科目无法引用计价单位：' + detail.detailSubjectName + ' / ' + detail.defaultPricingUnit);
+    if (!detail.defaultAllocationBasis || !allocationBasisNames.has(detail.defaultAllocationBasis)) blockers.push('明细科目无法引用分摊口径：' + detail.detailSubjectName + ' / ' + detail.defaultAllocationBasis);
     if (detail.defaultTaxRate === null || detail.defaultTaxRate === undefined) blockers.push('明细科目无法引用税率：' + detail.detailSubjectName);
   }
 
   const incompleteMappings = await prisma.excelMapping.count({
-    where: {
-      OR: [
-        { excelFileName: '' },
-        { sheetName: '' },
-        { excelRow: null },
-        { excelColumn: null }
-      ]
-    }
+    where: { OR: [{ excelFileName: '' }, { sheetName: '' }, { excelRow: null }, { excelColumn: null }] }
   });
   const mappingCount = await prisma.excelMapping.count({ where: { excelFileName: EXCEL_FILE_NAME } });
-  if (mappingCount === 0 || incompleteMappings > 0) blockers.push('Excel 映射缺少文件名、工作表、行列');
+  if (mappingCount === 0 || incompleteMappings > 0) blockers.push('Excel 映射缺少文件名、工作表、行、列');
 
   const summaryMetricCount = await prisma.dictionaryItem.count({ where: { dictionaryType: 'target_cost_summary_metric', isEnabled: true } });
   if (summaryMetricCount === 0) blockers.push('目标成本汇总指标缺失');
 
-  const calculationCheckCount = await prisma.calculationCheck.count({
-    where: { projectId: SYSTEM_PROJECT_ID, versionId: SYSTEM_VERSION_ID, checkObjectType: 'seed_rule' }
-  });
+  const calculationCheckCount = await prisma.calculationCheck.count({ where: { projectId: SYSTEM_PROJECT_ID, versionId: SYSTEM_VERSION_ID, checkObjectType: 'seed_rule' } });
   if (calculationCheckCount < calculationRuleSeeds.length) blockers.push('计算校验规则未导入');
 
-  if (details.length < 30) warnings.push('明细科目数量偏少，后续需要继续按 Excel 母版完整补齐所有明细行');
-  if (mappingCount < 10) warnings.push('Excel 映射数量偏少，后续需要按母版完整补齐所有工作表字段映射');
+  const taxRuleCount = await prisma.templateTaxRule.count({ where: { templateId: SYSTEM_TEMPLATE_ID } });
+  const taxEstimateCount = await prisma.taxEstimate.count({ where: { projectId: SYSTEM_PROJECT_ID, versionId: SYSTEM_VERSION_ID } });
+  if (taxRuleCount === 0 || taxEstimateCount === 0) blockers.push('税金类科目未进入 TaxRule / TaxEstimate 相关规则');
 
-  for (const [code, name] of calculationRuleSeeds) {
-    const relatedBlockers = blockers.filter((blocker) => {
-      if (code === 'core_enums_required') return blocker.includes('核心枚举缺失');
-      if (code === 'enum_code_unique') return blocker.includes('枚举 code 重复');
-      if (code === 'residential_template_enabled') return blocker.includes('住宅模板');
-      if (code === 'system_template_locked') return blocker.includes('locked') || blocker.includes('直接修改');
-      if (code === 'system_template_copyable') return blocker.includes('copyable') || blocker.includes('不可复制');
-      if (code === 'charging_pile_not_product_type') return blocker.includes('充电桩被创建为业态');
-      if (code === 'parking_income_quantity') return blocker.includes('车位收入');
-      if (code === 'cost_subject_tree_valid') return blocker.includes('成本科目树');
-      if (code === 'detail_subject_attached') return blocker.includes('未挂接成本科目树');
-      if (code === 'detail_subject_references_valid') return blocker.includes('无法引用');
-      if (code === 'excel_mapping_complete') return blocker.includes('Excel 映射');
-      if (code === 'target_summary_metrics_required') return blocker.includes('目标成本汇总指标');
-      if (code === 'calculation_checks_seeded') return blocker.includes('计算校验规则');
-      return false;
-    });
+  if (mappingCount < 30) warnings.push('Excel 映射数量偏少，后续需要按 V60 母版完整补齐所有工作表字段映射');
+  if (subjects.length < 80) warnings.push('成本科目树未完全同步 V60 母版，后续需要继续补齐完整一级至明细科目树');
+  if (details.length < 50) warnings.push('明细科目数量偏少，后续需要继续按 Excel 母版完整补齐所有明细行');
+
+  for (const rule of calculationRuleSeeds) {
+    const blockerMatches = relatedMessages(rule.code, blockers);
+    const warningMatches = relatedMessages(rule.code, warnings);
+    const result = blockerMatches.length > 0 ? 'failed' : warningMatches.length > 0 ? 'warning' : 'passed';
+    const message = [...blockerMatches, ...warningMatches].join('；') || null;
 
     await prisma.calculationCheck.upsert({
-      where: { id: 'seed-check-rule-' + code },
+      where: { id: 'seed-check-rule-' + rule.code },
       update: {
-        checkRule: name,
-        checkResult: relatedBlockers.length > 0 ? 'failed' : 'passed',
-        errorMessage: relatedBlockers.join('；') || null,
+        checkRule: rule.name,
+        checkLevel: rule.level,
+        checkResult: result,
+        errorMessage: message,
         isProcessed: true,
         processedBy: 'system-seed',
         processedAt: new Date(),
         updatedBy: 'system-seed'
       },
       create: {
-        id: 'seed-check-rule-' + code,
+        id: 'seed-check-rule-' + rule.code,
         projectId: SYSTEM_PROJECT_ID,
         versionId: SYSTEM_VERSION_ID,
         checkObjectType: 'seed_rule',
-        checkRule: name,
-        checkLevel: 'blocker',
-        checkResult: relatedBlockers.length > 0 ? 'failed' : 'passed',
-        errorMessage: relatedBlockers.join('；') || null,
+        checkRule: rule.name,
+        checkLevel: rule.level,
+        checkResult: result,
+        errorMessage: message,
         isProcessed: true,
         processedBy: 'system-seed',
         processedAt: new Date(),
@@ -1096,18 +1205,18 @@ async function validateSeed(batchResults: BatchResult[]) {
     });
   }
 
-  console.log('\n04-07 Seed 数据验收结果');
+  console.log('\n04-08A Seed 修正验收结果');
   console.table(batchResults.map((result) => ({ 批次: result.batchNo, 名称: result.batchName, 结果: result.status, 说明: result.message || '' })));
-  console.log('\n阻断错误：');
+  console.log('\n阻断错误 blocker：');
   console.log(blockers.length === 0 ? '无' : blockers.map((item) => '- ' + item).join('\n'));
-  console.log('\n警告问题：');
+  console.log('\n警告问题 warning：');
   console.log(warnings.length === 0 ? '无' : warnings.map((item) => '- ' + item).join('\n'));
   console.log('\n可第二阶段后置的问题：');
   console.log(deferred.map((item) => '- ' + item).join('\n'));
   console.log('\n是否允许进入下一步：' + (blockers.length === 0 ? '允许' : '不允许'));
 
   if (blockers.length > 0) {
-    throw new Error('04-07 Seed 数据验收未通过，存在阻断错误：' + blockers.join('；'));
+    throw new Error('04-08A Seed 修正验收未通过，存在阻断错误：' + blockers.join('；'));
   }
 }
 
