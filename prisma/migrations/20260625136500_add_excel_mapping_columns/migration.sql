@@ -1,0 +1,27 @@
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "excelFileName" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "excelFileVersion" TEXT;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "sheetName" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "excelRow" INTEGER;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "excelColumn" INTEGER;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "excelFieldName" TEXT;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "excelSubjectCode" TEXT;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "excelSubjectName" TEXT;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "excelFormula" TEXT;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "excelUnit" TEXT;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "excelTaxRate" TEXT;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "excelAllocationBasis" TEXT;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "systemModule" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "systemField" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "mappingStatus" TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "importBatch" TEXT;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "createdBy" TEXT;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "updatedBy" TEXT;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "remark" TEXT;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "ExcelMapping" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+CREATE INDEX IF NOT EXISTS "ExcelMapping_excelFileVersion_idx" ON "ExcelMapping"("excelFileVersion");
+CREATE INDEX IF NOT EXISTS "ExcelMapping_sheetName_idx" ON "ExcelMapping"("sheetName");
+CREATE INDEX IF NOT EXISTS "ExcelMapping_excelSubjectCode_idx" ON "ExcelMapping"("excelSubjectCode");
+CREATE INDEX IF NOT EXISTS "ExcelMapping_systemModule_idx" ON "ExcelMapping"("systemModule");
+CREATE INDEX IF NOT EXISTS "ExcelMapping_mappingStatus_idx" ON "ExcelMapping"("mappingStatus");
