@@ -13,6 +13,8 @@ function safeNext(value: string) {
   if (!value.startsWith('/')) return '/projects';
   if (value.startsWith('//')) return '/projects';
   if (value.startsWith('/login')) return '/projects';
+  if (value === '/workspace') return '/projects';
+  if (value.includes('/dashboard-lite')) return '/projects';
   return value;
 }
 
