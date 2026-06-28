@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get('lqdc_session')?.value;
 
   if (pathname === '/login' && session) {
-    return NextResponse.redirect(new URL('/workspace', request.url));
+    return NextResponse.redirect(new URL('/projects', request.url));
   }
 
   if (isProtected(pathname) && !session) {
