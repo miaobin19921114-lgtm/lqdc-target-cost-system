@@ -36,7 +36,7 @@ export default async function AccountPage() {
           <p className="subtitle">这里用于查看当前登录账户、进入模板中心和退出登录。后续可继续增加个人模板、地区指标库和账户设置。</p>
         </div>
         <div className="actions" style={{ marginTop: 0 }}>
-          <Link href="/workspace" className="btn btn-primary">返回工作台</Link>
+          <Link href="/projects" className="btn btn-primary">返回项目中心</Link>
           <Link href="/templates" className="btn">模板中心</Link>
           <Link href="/projects" className="btn">项目列表</Link>
         </div>
@@ -59,7 +59,7 @@ export default async function AccountPage() {
       <section className="card">
         <h2>快捷入口</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 12 }}>
-          <Link href="/workspace" className="btn btn-primary">工作台</Link>
+          <Link href="/projects" className="btn btn-primary">项目中心</Link>
           <Link href="/projects/new" className="btn">新建项目</Link>
           <Link href="/projects" className="btn">项目列表</Link>
           <Link href="/templates" className="btn">个人模板</Link>
