@@ -65,7 +65,7 @@ export default async function ProductTypesPage({ params, searchParams }: { param
             <form action={`/api/projects/${project.id}/products/presets`} method="post">
               <button className="btn btn-primary">生成模板业态</button>
             </form>
-            <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
+            <Link href={`/projects/${project.id}`} className="btn">返回项目测算中心</Link>
           </div>
         </div>
 

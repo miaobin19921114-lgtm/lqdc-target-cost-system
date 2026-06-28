@@ -31,7 +31,7 @@ export default async function ParkingConfigPage({ params, searchParams }: { para
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/products`} className="btn btn-primary">业态面积表</Link>
-            <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
+            <Link href={`/projects/${project.id}`} className="btn">返回项目测算中心</Link>
           </div>
         </div>
 

@@ -85,7 +85,7 @@ export default async function CostDictionaryPage({ params, searchParams }: { par
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/costs`} className="btn btn-primary">目标成本测算</Link>
-            <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
+            <Link href={`/projects/${project.id}`} className="btn">返回项目测算中心</Link>
           </div>
         </div>
 

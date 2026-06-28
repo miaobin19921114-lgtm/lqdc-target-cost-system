@@ -45,7 +45,7 @@ export default function KnowledgePage() {
           <p className="subtitle">这里沉淀跨项目复用的个人资料和经验，后续接入上传、标签、全文检索、AI问答和项目调用。</p>
         </div>
         <div className="actions" style={{ marginTop: 0 }}>
-          <Link href="/projects" className="btn">返回个人工作台</Link>
+          <Link href="/projects" className="btn">返回项目中心</Link>
           <Link href="/templates" className="btn">系统模板</Link>
         </div>
       </div>

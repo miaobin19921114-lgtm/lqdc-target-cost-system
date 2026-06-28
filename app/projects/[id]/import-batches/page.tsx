@@ -44,7 +44,7 @@ export default async function ImportBatchesPage({ params, searchParams }: { para
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${params.id}/export`} className="btn btn-primary">返回 Excel 导入</Link>
-            <Link href={`/projects/${params.id}`} className="btn">返回工作台</Link>
+            <Link href={`/projects/${params.id}`} className="btn">返回项目测算中心</Link>
           </div>
         </div>
 

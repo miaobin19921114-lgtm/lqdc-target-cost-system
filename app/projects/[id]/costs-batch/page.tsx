@@ -186,7 +186,7 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
           <Link href={`/projects/${project.id}/detail-rule-calculation`} className="btn">规则驱动明细测算</Link>
           <Link href={`/projects/${project.id}/detail-calculation-results`} className="btn">明细测算结果</Link>
           <Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总表</Link>
-          <Link href={`/projects/${project.id}`} className="btn">返回工作台</Link>
+          <Link href={`/projects/${project.id}`} className="btn">返回项目测算中心</Link>
         </div>
       </div>
 

@@ -14,8 +14,8 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
       <section style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
         <div style={{ width: '100%', maxWidth: 430, background: '#fff', border: '1px solid #d9e2ec', borderRadius: 22, boxShadow: '0 24px 70px rgba(15,58,74,.18)', padding: 30 }}>
           <p style={{ margin: 0, color: '#0f4c5c', fontWeight: 900, fontSize: 13 }}>地产成本智算平台</p>
-          <h2 style={{ margin: '8px 0 6px', fontSize: 28 }}>登录个人工作台</h2>
-          <p className="meta" style={{ marginBottom: 18 }}>支持邮箱 / 手机号 + 密码登录。登录后直接进入个人工作台。</p>
+          <h2 style={{ margin: '8px 0 6px', fontSize: 28 }}>登录项目中心</h2>
+          <p className="meta" style={{ marginBottom: 18 }}>支持邮箱 / 手机号 + 密码登录。登录后直接进入项目中心。</p>
           <div style={{ background: '#fff9db', border: '1px solid #ffd8a8', color: '#8a6d00', borderRadius: 10, padding: 10, marginBottom: 12, fontSize: 13 }}>当前版本暂未开放注册，如需新增账号请由管理员后台创建。</div>
           {searchParams?.error ? <div style={{ background: '#fff5f5', border: '1px solid #ffc9c9', color: '#c92a2a', borderRadius: 10, padding: 10, marginBottom: 12 }}>账号或密码不正确。</div> : null}
           {searchParams?.wechat === 'unconfigured' ? <div style={{ background: '#fff7e6', border: '1px solid #ffd8a8', color: '#9a5b00', borderRadius: 10, padding: 10, marginBottom: 12 }}>微信登录尚未配置 AppID / 回调地址，暂时不可用。</div> : null}
@@ -23,7 +23,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             <input type="hidden" name="next" value={searchParams?.next || '/projects'} />
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: '#475467' }}>邮箱 / 手机号<input name="identifier" placeholder="请输入邮箱或手机号" required style={{ height: 42, border: '1px solid #d9e2ec', borderRadius: 10, padding: '0 12px', fontSize: 15 }} /></label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: '#475467' }}>密码<input name="password" type="password" placeholder="请输入密码" required style={{ height: 42, border: '1px solid #d9e2ec', borderRadius: 10, padding: '0 12px', fontSize: 15 }} /></label>
-            <button style={{ height: 44, border: 0, borderRadius: 12, background: '#0f4c5c', color: '#fff', fontWeight: 900, fontSize: 15 }}>登录个人工作台</button>
+            <button style={{ height: 44, border: 0, borderRadius: 12, background: '#0f4c5c', color: '#fff', fontWeight: 900, fontSize: 15 }}>登录项目中心</button>
           </form>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0', color: '#98a2b3', fontSize: 12 }}><span style={{ height: 1, background: '#eef2f6', flex: 1 }} />其他方式<span style={{ height: 1, background: '#eef2f6', flex: 1 }} /></div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

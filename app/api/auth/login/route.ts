@@ -10,9 +10,9 @@ function getBaseUrl(request: Request) {
 }
 
 function safeNext(value: string) {
-  if (!value.startsWith('/')) return '/workspace';
-  if (value.startsWith('//')) return '/workspace';
-  if (value.startsWith('/login')) return '/workspace';
+  if (!value.startsWith('/')) return '/projects';
+  if (value.startsWith('//')) return '/projects';
+  if (value.startsWith('/login')) return '/projects';
   return value;
 }
 
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const identifier = String(form.get('identifier') || form.get('email') || '').trim();
   const password = String(form.get('password') || '');
-  const next = safeNext(String(form.get('next') || '/workspace'));
+  const next = safeNext(String(form.get('next') || '/projects'));
   const adminPhone = process.env.ADMIN_PHONE || '';
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@lqdc.local';
   const loginKey = identifier === adminPhone && adminPhone ? adminEmail : identifier;

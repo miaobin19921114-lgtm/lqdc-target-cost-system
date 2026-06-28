@@ -70,7 +70,7 @@ export default function ExportPage({ params, searchParams }: { params: { id: str
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${params.id}/cost-mapping`} className="btn">科目映射</Link>
             <Link href={`/projects/${params.id}/import-batches`} className="btn">导入批次</Link>
-            <Link href={`/projects/${params.id}`} className="btn btn-primary">返回工作台</Link>
+            <Link href={`/projects/${params.id}`} className="btn btn-primary">返回项目测算中心</Link>
             <a href={`/api/export?projectId=${params.id}`} className="btn">导出示例 Excel</a>
           </div>
         </div>

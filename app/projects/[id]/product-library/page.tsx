@@ -59,7 +59,7 @@ export default function ProductLibraryPage({ params }: { params: { id: string } 
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${params.id}/products`} className="btn btn-primary">业态面积表</Link>
-            <Link href={`/projects/${params.id}`} className="btn">返回工作台</Link>
+            <Link href={`/projects/${params.id}`} className="btn">返回项目测算中心</Link>
           </div>
         </div>
 

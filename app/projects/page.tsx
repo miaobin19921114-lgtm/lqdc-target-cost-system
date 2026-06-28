@@ -78,7 +78,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
         <div className="page-header">
           <div>
             <p className="eyebrow">地产成本智算平台</p>
-            <h1 className="title">个人工作台</h1>
+            <h1 className="title">项目中心</h1>
             <p className="subtitle">先管理项目，再沉淀个人知识库和系统模板；项目测算、知识沉淀、模板复用分层管理。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
