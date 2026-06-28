@@ -124,7 +124,6 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
                   </div>
                   <div className="actions">
                     <Link href={`/projects/${project.id}`} className="btn btn-primary">进入项目测算中心</Link>
-                    <Link href={`/projects/${project.id}/dashboard-lite`} className="btn">经营总控</Link>
                     <Link href={`/projects/${project.id}/versions`} className="btn">版本管理</Link>
                     <form action={`/api/projects/${project.id}/delete`} method="post"><button className="btn" style={{ color: '#c92a2a' }}>删除项目</button></form>
                   </div>

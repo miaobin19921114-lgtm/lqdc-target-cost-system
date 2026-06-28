@@ -63,7 +63,7 @@ export default async function SalesSchedulePage({ params, searchParams }: { para
   const payRateTotal = downPaymentRate + mortgageRate + tailRate;
 
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1380 }}>
-    <div className="page-header"><div><p className="eyebrow">收入测算</p><h1 className="title">去化节奏测算</h1><p className="subtitle">把销售收入、商业专项收入、车位收入转换成月度签约和回款节奏；现在已保存到 SalesSchedulePlan / SalesScheduleLine。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/revenue-summary`} className="btn">收入汇总</Link><Link href={`/projects/${project.id}/dashboard-lite`} className="btn btn-primary">经营总控</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税金明细</Link><Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">收入测算</p><h1 className="title">去化节奏测算</h1><p className="subtitle">把销售收入、商业专项收入、车位收入转换成月度签约和回款节奏；现在已保存到 SalesSchedulePlan / SalesScheduleLine。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/revenue-summary`} className="btn btn-primary">收入汇总</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税金明细</Link><Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link></div></div>
     {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb', background: '#f0fff4' }}>去化节奏已保存到数据库。</div> : null}
     {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8' }}>当前版本已锁定，不能保存去化计划。</div> : null}
 

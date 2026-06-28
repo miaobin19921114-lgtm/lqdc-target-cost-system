@@ -63,7 +63,7 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
     ['业态产品', 'product-maintenance'],
     ['目标成本测算', 'costs-batch'],
     ['目标成本汇总', 'summary'],
-    ['经营总控', 'dashboard-lite'],
+    ['收入汇总', 'revenue-summary'],
     ['投决评审', 'decision']
   ] as const;
   const flow = [
@@ -72,7 +72,7 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
     ['3 目标成本测算', 'costs-batch', '录入目标成本并归集到科目和业态', 'done'],
     ['4 成本明细', 'building-details', '录入土建、安装、设备、精装、景观等专业明细', 'done'],
     ['5 目标成本汇总', 'summary', '按一级、二级科目汇总成本、单方和占比', 'done'],
-    ['6 经营测算', 'dashboard-lite', '汇总收入、成本、税费、利润和关键经营指标', 'done'],
+    ['6 经营测算', 'revenue-summary', '汇总收入、成本、税费、利润和关键经营指标', 'done'],
     ['7 收入测算', 'revenue-summary', '维护住宅、商业、车位和其他收入', 'done'],
     ['8 税费利润', 'tax-details', '检查增值税、土增税、所得税和业态利润', 'done'],
     ['9 汇报输出', 'decision', '输出投决评审、经营报告、Excel和自检成果', 'done'],
@@ -95,7 +95,7 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
           <div style={{ width: 28, height: 28, borderRadius: 6, background: '#0b7285', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>项</div>
           <div><b>项目测算中心</b><div style={{ fontSize: 11, opacity: .75 }}>{project.name}</div></div>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Link href="/projects" className="btn" style={{ minHeight: 34, color: '#fff', background: 'transparent', borderColor: 'rgba(255,255,255,.35)' }}>返回项目中心</Link><Link href={`/projects/${project.id}/dashboard-lite`} className="btn" style={{ minHeight: 34, background: '#fff', color: '#12384b' }}>经营总控</Link><Link href={`/projects/${project.id}/decision`} className="btn" style={{ minHeight: 34, background: '#fff', color: '#12384b' }}>投决评审</Link></div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Link href="/projects" className="btn" style={{ minHeight: 34, color: '#fff', background: 'transparent', borderColor: 'rgba(255,255,255,.35)' }}>返回项目中心</Link><Link href={`/projects/${project.id}/decision`} className="btn" style={{ minHeight: 34, background: '#fff', color: '#12384b' }}>投决评审</Link></div>
       </div>
 
       <div className="sys-shell" style={{ display: 'grid', gridTemplateColumns: '260px 1fr 300px', gap: 12, padding: 12 }}>

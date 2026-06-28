@@ -77,7 +77,7 @@ export default async function BossReportPage({ params }: { params: { id: string 
   ] as const;
 
   return <main className="page"><div className="container" style={{ maxWidth: 1280 }}>
-    <div className="page-header no-print"><div><p className="eyebrow">老板汇报版</p><h1 className="title">{project.name}</h1><p className="subtitle">一页看结论：收入、成本、利润、税费、风险和下一步动作。口径已统一为商业专项收入 + 有效末级成本。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/dashboard-lite`} className="btn">经营总控</Link><Link href={`/projects/${project.id}/report`} className="btn">经营报告</Link><Link href={`/projects/${project.id}/report-export`} className="btn">PDF/Word导出</Link><Link href={`/projects/${project.id}`} className="btn btn-primary">返回工作台</Link></div></div>
+    <div className="page-header no-print"><div><p className="eyebrow">老板汇报版</p><h1 className="title">{project.name}</h1><p className="subtitle">一页看结论：收入、成本、利润、税费、风险和下一步动作。口径已统一为商业专项收入 + 有效末级成本。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/report`} className="btn">经营报告</Link><Link href={`/projects/${project.id}/report-export`} className="btn">PDF/Word导出</Link><Link href={`/projects/${project.id}`} className="btn btn-primary">返回工作台</Link></div></div>
 
     <section className="card" style={{ marginBottom: 16, borderColor: levelColor(decision.level) }}><div className="meta">核心结论</div><div style={{ fontSize: 34, fontWeight: 900, color: levelColor(decision.level), marginTop: 8 }}>{decision.level}</div><p style={{ fontWeight: 800, lineHeight: 1.8 }}>{decision.reason}</p><p className="meta">当前版本：{version?.name || '当前版本'}｜阶段：{version?.stage || '投拓阶段'}｜城市/区域：{project.city || '-'} / {project.district || '-'}</p></section>
 

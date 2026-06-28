@@ -274,10 +274,10 @@ export default async function IndicatorCheckPage({ params }: { params: { id: str
       group: '收入/成本/税费联动校验',
       item: '收入成本经营基础',
       current: `含税收入${fmt(revenueTotal)}元，含税成本${fmt(costTotal)}元`,
-      standard: '收入和成本均存在，经营总控才有判断基础',
+      standard: '收入和成本均存在，经营测算才有判断基础',
       diff: revenueTotal > 0 && costTotal > 0 ? `成本收入比${pct(costTotal / revenueTotal)}` : '收入或成本为空',
       level: revenueTotal > 0 && costTotal > 0 ? 'ok' : 'warn',
-      actionHref: 'dashboard-lite'
+      actionHref: 'revenue-summary'
     },
     {
       group: '收入/成本/税费联动校验',
@@ -316,7 +316,7 @@ export default async function IndicatorCheckPage({ params }: { params: { id: str
           <Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link>
           <Link href={`/projects/${project.id}/revenue`} className="btn">收入测算</Link>
           <Link href={`/projects/${project.id}/costs-batch`} className="btn">目标成本</Link>
-          <Link href={`/projects/${project.id}/dashboard-lite`} className="btn btn-primary">经营总控</Link>
+          <Link href={`/projects/${project.id}/revenue-summary`} className="btn btn-primary">收入汇总</Link>
         </div>
       </div>
 

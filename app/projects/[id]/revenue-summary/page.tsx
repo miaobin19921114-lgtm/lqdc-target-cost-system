@@ -51,12 +51,12 @@ export default async function RevenueSummaryPage({ params }: { params: { id: str
   const warnings = [
     { name: '可售面积', ok: totalArea > 0, text: totalArea > 0 ? `可售面积 ${fmt(totalArea)}㎡` : '可售面积未维护，收入单方无法判断', href: 'overview' },
     { name: '充电桩收入', ok: chargingRevenueRows === 0, text: chargingRevenueRows ? `发现 ${chargingRevenueRows} 条疑似充电桩收入行` : '未发现充电桩作为收入业态', href: 'product-maintenance' },
-    { name: '商业专项', ok: revenue.commercial.taxInclusive >= 0, text: '商业专项收入已进入经营总控和税金明细', href: 'commercial-revenue' },
+    { name: '商业专项', ok: revenue.commercial.taxInclusive >= 0, text: '商业专项收入已进入收入汇总和税金明细', href: 'commercial-revenue' },
     { name: '车位收入', ok: revenue.parking.taxInclusive >= 0, text: '车位收入已单独归集', href: 'parking-revenue' }
   ];
 
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1280 }}>
-    <div className="page-header"><div><p className="eyebrow">收入测算</p><h1 className="title">收入汇总</h1><p className="subtitle">收入汇总是经营测算的收入入口：统一查看销售收入、商业专项收入、车位收入和其他收入，金额单位为万元，单方为元/㎡。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/revenue`} className="btn">销售收入测算</Link><Link href={`/projects/${project.id}/commercial-revenue`} className="btn">商业收入</Link><Link href={`/projects/${project.id}/parking-revenue`} className="btn">车位收入</Link><Link href={`/projects/${project.id}/other-revenue`} className="btn">其他收入</Link><Link href={`/projects/${project.id}/dashboard-lite`} className="btn btn-primary">经营总控</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">收入测算</p><h1 className="title">收入汇总</h1><p className="subtitle">收入汇总是经营测算的收入入口：统一查看销售收入、商业专项收入、车位收入和其他收入，金额单位为万元，单方为元/㎡。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/revenue`} className="btn">销售收入测算</Link><Link href={`/projects/${project.id}/commercial-revenue`} className="btn">商业收入</Link><Link href={`/projects/${project.id}/parking-revenue`} className="btn">车位收入</Link><Link href={`/projects/${project.id}/other-revenue`} className="btn">其他收入</Link></div></div>
 
     <section className="card" style={{ marginBottom: 16 }}><h2>收入核心看板</h2><div className="summary-strip" style={{ marginTop: 12 }}><StatCard label="总含税收入（万元）" value={fmt(revenue.taxInclusive)} /><StatCard label="总不含税收入（万元）" value={fmt(revenue.taxExclusive)} /><StatCard label="销项税额（万元）" value={fmt(revenue.outputVat)} /><StatCard label="综合可售单方（元/㎡）" value={fmt(avgSaleablePrice)} note="含商业、车位和其他收入" /><StatCard label="普通可售单方（元/㎡）" value={fmt(ordinarySaleablePrice)} note="仅普通销售收入/总可售面积" /></div></section>
 

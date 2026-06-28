@@ -51,7 +51,6 @@ export const projectNavGroups = [
   {
     title: '经营测算',
     items: [
-      ['经营总控', 'dashboard-lite', 'done'],
       ['收入汇总', 'revenue-summary', 'done'],
       ['销售收入测算', 'revenue', 'done'],
       ['商业收入测算', 'commercial-revenue', 'done'],

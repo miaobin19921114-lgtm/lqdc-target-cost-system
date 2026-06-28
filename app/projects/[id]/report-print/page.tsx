@@ -168,7 +168,7 @@ export default async function PrintableOperatingReport({ params }: { params: { i
   ];
 
   return <main className="print-report">
-    <div className="no-print toolbar"><Link href={`/projects/${project.id}/report`} className="btn">经营报告</Link><Link href={`/projects/${project.id}/dashboard-lite`} className="btn">经营总控</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税费测算总表</Link><span className="btn btn-primary">打印：Ctrl/Cmd + P</span></div>
+    <div className="no-print toolbar"><Link href={`/projects/${project.id}/report`} className="btn">经营报告</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税费测算总表</Link><span className="btn btn-primary">打印：Ctrl/Cmd + P</span></div>
     <section className="cover block"><div className="eyebrow">源信达地产目标成本测算系统</div><h1>{project.name}</h1><h2>项目经营测算报告</h2><p>当前版本：{version?.name || '当前版本'}　阶段：{version?.stage || '投拓阶段'}</p><p>城市/区域：{project.city || '-'} / {project.district || '-'}</p><div className="decision" style={{ color: decision.color }}>{decision.level}</div><p>税后净利 {fmt(tax.netProfit)} 万元，销售净利率 {pct(netMargin)}</p></section>
     <section className="block"><h2>一、经营结论</h2><ol><li>{decision.reason}</li><li>含税收入 {fmt(revenue.taxInclusive)} 万元，含税目标成本 {fmt(cost.taxInclusive)} 万元，税费合计 {fmt(tax.totalTax)} 万元。</li><li>毛利率 {pct(grossMargin)}，税后净利率 {pct(netMargin)}，综合税负率 {pct(taxBurden)}。</li><li>下一步动作：{decision.action}</li></ol></section>
     <section className="block"><h2>二、核心指标</h2><table><tbody>{indicators.map(([name, value]) => <tr key={name}><td>{name}</td><td>{value}</td></tr>)}</tbody></table></section>

@@ -25,7 +25,6 @@ export function ProjectRouteNav({ projectId, projectName }: { projectId: string;
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Link href={`/projects/${projectId}`} style={topLink}>项目测算中心</Link>
-          <Link href={`/projects/${projectId}/dashboard-lite`} style={topLink}>经营总控</Link>
           <Link href="/projects" style={topLink}>项目中心</Link>
         </div>
       </div>
