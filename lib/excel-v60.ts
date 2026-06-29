@@ -44,6 +44,65 @@ export type ExcelSheetResult = {
   issueCount: number;
 };
 
+export type ExcelPreviewResponse = Awaited<ReturnType<typeof parseV60WorkbookPreview>>;
+
+export type ParsedOverviewField = {
+  field: string;
+  value: string;
+};
+
+export type ParsedControlField = {
+  field: string;
+  value: string;
+};
+
+export type ParsedRevenueRow = {
+  productName: string;
+  saleableArea: number;
+  salePrice: number;
+  taxRate: number;
+  remark: string;
+};
+
+export type ParsedCostRow = {
+  sheetName: string;
+  professionalGroup: string;
+  costCode: string;
+  detailName: string;
+  regionOrProductType: string;
+  measureBasis: string;
+  quantity: number;
+  unit: string;
+  taxInclusiveUnitPrice: number;
+  taxRate: number;
+  remark: string;
+};
+
+export type ParsedAllocationRow = {
+  costCode: string;
+  detailName: string;
+  allocationMethod: string;
+  productTypeName: string;
+  allocationWeight: number;
+  allocationAmount: number;
+  remark: string;
+};
+
+export type ParsedTaxField = {
+  field: string;
+  value: string;
+};
+
+export type ParsedV60ImportData = {
+  overview: ParsedOverviewField[];
+  controlCenter: ParsedControlField[];
+  revenues: ParsedRevenueRow[];
+  costs: ParsedCostRow[];
+  allocations: ParsedAllocationRow[];
+  landVat: ParsedTaxField[];
+  taxes: ParsedTaxField[];
+};
+
 type WorkbookSource = {
   project?: any;
   version?: any;
@@ -281,6 +340,154 @@ function cellToText(cell: ExcelJS.Cell) {
     if (value instanceof Date) return value.toISOString();
   }
   return String(value);
+}
+
+function textAt(row: ExcelJS.Row, col: number) {
+  return cellToText(row.getCell(col)).trim();
+}
+
+function numberText(value: string) {
+  return value.replace(/,/g, '').replace(/，/g, '').trim();
+}
+
+function numberAt(row: ExcelJS.Row, col: number) {
+  const raw = numberText(textAt(row, col));
+  if (!raw) return 0;
+  const numeric = Number(raw.replace('%', ''));
+  if (!Number.isFinite(numeric)) return 0;
+  if (raw.includes('%')) return numeric / 100;
+  return numeric;
+}
+
+function taxRateAt(row: ExcelJS.Row, col: number, fallback = 0.09) {
+  const raw = numberText(textAt(row, col));
+  if (!raw) return fallback;
+  const numeric = Number(raw.replace('%', ''));
+  if (!Number.isFinite(numeric)) return fallback;
+  if (raw.includes('%')) return numeric / 100;
+  return numeric > 1 ? numeric / 100 : numeric;
+}
+
+function eachDataRow<T>(workbook: ExcelJS.Workbook, sheetName: string, mapper: (row: ExcelJS.Row, rowNumber: number) => T | null) {
+  const sheet = workbook.getWorksheet(sheetName);
+  const rows: T[] = [];
+  if (!sheet) return rows;
+  for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    const hasValue = Array.from({ length: Math.min(sheet.columnCount || 1, 12) }).some((_, index) => textAt(row, index + 1));
+    if (!hasValue) continue;
+    const mapped = mapper(row, rowNumber);
+    if (mapped) rows.push(mapped);
+  }
+  return rows;
+}
+
+export async function parseV60WorkbookImportData(buffer: Buffer) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer as any);
+
+  const overview = eachDataRow(workbook, '项目概况', (row) => {
+    const field = textAt(row, 1);
+    if (!field) return null;
+    return { field, value: textAt(row, 2) };
+  });
+
+  const controlCenter = eachDataRow(workbook, '测算控制中心', (row) => {
+    const field = textAt(row, 1);
+    if (!field) return null;
+    return { field, value: textAt(row, 2) };
+  });
+
+  const revenues = eachDataRow(workbook, '收入明细表', (row) => {
+    const productName = textAt(row, 1);
+    if (!productName) return null;
+    return {
+      productName,
+      saleableArea: numberAt(row, 2),
+      salePrice: numberAt(row, 3),
+      taxRate: taxRateAt(row, 4),
+      remark: textAt(row, 8)
+    };
+  });
+
+  const simpleCost = (sheetName: string, professionalGroup: string) => eachDataRow(workbook, sheetName, (row) => {
+    const costCode = textAt(row, 1);
+    const detailName = textAt(row, 2);
+    if (!costCode && !detailName) return null;
+    return {
+      sheetName,
+      professionalGroup,
+      costCode,
+      detailName,
+      regionOrProductType: '',
+      measureBasis: textAt(row, 3),
+      quantity: numberAt(row, 4),
+      unit: textAt(row, 5),
+      taxInclusiveUnitPrice: numberAt(row, 6),
+      taxRate: taxRateAt(row, 7),
+      remark: textAt(row, 9)
+    };
+  });
+
+  const professionalCosts = eachDataRow(workbook, '各专业明细表', (row) => {
+    const professionalGroup = textAt(row, 1);
+    const costCode = textAt(row, 2);
+    const detailName = textAt(row, 3);
+    if (!costCode && !detailName) return null;
+    return {
+      sheetName: '各专业明细表',
+      professionalGroup,
+      costCode,
+      detailName,
+      regionOrProductType: textAt(row, 4),
+      measureBasis: textAt(row, 5),
+      quantity: numberAt(row, 6),
+      unit: textAt(row, 7),
+      taxInclusiveUnitPrice: numberAt(row, 8),
+      taxRate: taxRateAt(row, 9),
+      remark: textAt(row, 11)
+    };
+  });
+
+  const allocations = eachDataRow(workbook, '成本分摊测算表', (row) => {
+    const costCode = textAt(row, 1);
+    if (!costCode && !textAt(row, 2)) return null;
+    return {
+      costCode,
+      detailName: textAt(row, 2),
+      allocationMethod: textAt(row, 3),
+      productTypeName: textAt(row, 4),
+      allocationWeight: numberAt(row, 5),
+      allocationAmount: numberAt(row, 6),
+      remark: textAt(row, 7)
+    };
+  });
+
+  const landVat = eachDataRow(workbook, '土地增值税测算表', (row) => {
+    const field = textAt(row, 1);
+    if (!field) return null;
+    return { field, value: textAt(row, 2) };
+  });
+
+  const taxes = eachDataRow(workbook, '税金明细表', (row) => {
+    const field = textAt(row, 1);
+    if (!field) return null;
+    return { field, value: textAt(row, 2) };
+  });
+
+  return {
+    overview,
+    controlCenter,
+    revenues,
+    costs: [
+      ...simpleCost('土地费用明细表', '土地费用'),
+      ...simpleCost('前期费用明细表', '前期费用'),
+      ...professionalCosts
+    ],
+    allocations,
+    landVat,
+    taxes
+  };
 }
 
 function findFormulaErrors(workbook: ExcelJS.Workbook) {

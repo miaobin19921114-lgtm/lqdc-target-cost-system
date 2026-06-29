@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
-type ImportState = '未上传' | '文件已选择' | '解析中' | '预览完成' | '存在阻断错误' | '解析失败';
+type ImportState = '未上传' | '文件已选择' | '解析中' | '预览完成' | '存在阻断错误' | '解析失败' | '导入中' | '导入成功' | '导入失败';
 
 type Issue = {
   level: 'error' | 'warning' | 'info';
@@ -52,6 +52,23 @@ type PreviewResult = {
   sheets: SheetResult[];
   issues: Issue[];
   parsedDataPreview: Record<string, string[][]>;
+};
+
+type ImportMode = 'overwrite_current' | 'create_version';
+
+type ConfirmResult = {
+  importId: string;
+  projectId: string;
+  versionId: string;
+  targetVersionId: string;
+  importMode: ImportMode;
+  importedModules: Array<{ module: string; status: string; rowCount: number }>;
+  recalculationStatus: string;
+  resultSummary: {
+    errorCount: number;
+    warningCount: number;
+    importedRows: number;
+  };
 };
 
 type Props = {
@@ -104,6 +121,23 @@ function sheetStatusText(status: SheetResult['status']) {
   return '已解析';
 }
 
+function importModeText(mode: ImportMode) {
+  return mode === 'overwrite_current' ? '覆盖当前版本' : '新建版本导入';
+}
+
+function moduleText(module: string) {
+  const names: Record<string, string> = {
+    projectOverview: '项目概况',
+    controlCenter: '测算控制中心',
+    incomeDetails: '收入明细表',
+    costDetails: '成本明细表',
+    costAllocation: '成本分摊测算表',
+    landVat: '土地增值税测算表',
+    taxDetails: '税金明细表'
+  };
+  return names[module] || module;
+}
+
 export function ExcelWorkspace({ projectId, versionId, projectName, versionName, versionStatus }: Props) {
   const [activeTab, setActiveTab] = useState<'import' | 'export'>('import');
   const [file, setFile] = useState<File | null>(null);
@@ -111,11 +145,22 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
   const [state, setState] = useState<ImportState>('未上传');
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [message, setMessage] = useState('');
+  const [importMode, setImportMode] = useState<ImportMode>('overwrite_current');
+  const [confirmWarnings, setConfirmWarnings] = useState(false);
+  const [newVersionName, setNewVersionName] = useState(`${versionName}-Excel导入版`);
+  const [confirmResult, setConfirmResult] = useState<ConfirmResult | null>(null);
 
   const templateHref = '/api/excel/template?templateVersion=V60';
   const exportHref = `/api/projects/${projectId}/versions/${versionId}/excel/export?exportType=full&templateVersion=V60`;
   const previewUrl = `/api/projects/${projectId}/versions/${versionId}/excel/import/preview`;
+  const confirmUrl = `/api/projects/${projectId}/versions/${versionId}/excel/import/confirm`;
   const previewSheetNames = useMemo(() => Object.keys(preview?.parsedDataPreview || {}).slice(0, 6), [preview]);
+  const currentVersionLocked = versionStatus === 'locked' || versionStatus === 'final' || versionStatus === '已锁定' || versionStatus === '定稿';
+  const confirmDisabled = !preview
+    || state === '导入中'
+    || preview.summary.errorCount > 0
+    || (preview.summary.warningCount > 0 && !confirmWarnings)
+    || (importMode === 'overwrite_current' && currentVersionLocked);
 
   async function runPreview() {
     if (!file) {
@@ -127,6 +172,8 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
     setState('解析中');
     setMessage('');
     setPreview(null);
+    setConfirmResult(null);
+    setConfirmWarnings(false);
 
     const form = new FormData();
     form.append('file', file);
@@ -141,6 +188,7 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
         return;
       }
       setPreview(json.data);
+      setConfirmWarnings(json.data.summary.warningCount === 0);
       setState(json.data.summary.errorCount > 0 ? '存在阻断错误' : '预览完成');
     } catch (error) {
       setState('解析失败');
@@ -151,6 +199,8 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
   function selectFile(nextFile: File | null) {
     setFile(nextFile);
     setPreview(null);
+    setConfirmResult(null);
+    setConfirmWarnings(false);
     setMessage('');
     if (!nextFile) {
       setSelectedAt('');
@@ -159,6 +209,54 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
     }
     setSelectedAt(new Date().toLocaleString('zh-CN'));
     setState('文件已选择');
+  }
+
+  async function runConfirmImport() {
+    if (!preview) return;
+    if (preview.summary.errorCount > 0) {
+      setMessage('预览结果存在阻断问题，不能确认导入。');
+      return;
+    }
+    if (preview.summary.warningCount > 0 && !confirmWarnings) {
+      setMessage('请先确认 warning 后再导入。');
+      return;
+    }
+    if (importMode === 'overwrite_current' && currentVersionLocked) {
+      setMessage('当前版本已锁定，不能覆盖导入。');
+      return;
+    }
+    if (importMode === 'overwrite_current') {
+      const confirmed = window.confirm('覆盖当前版本会删除当前版本导入范围内的旧收入、成本和税金数据，然后写入本次 Excel 解析结果。是否继续？');
+      if (!confirmed) return;
+    }
+
+    setState('导入中');
+    setMessage('');
+    setConfirmResult(null);
+    try {
+      const response = await fetch(confirmUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          importId: preview.importId,
+          importMode,
+          confirmWarnings,
+          newVersionName
+        })
+      });
+      const json = await response.json();
+      if (!response.ok || !json.success) {
+        setState('导入失败');
+        setMessage(json.error?.message || '确认导入失败。');
+        return;
+      }
+      setConfirmResult(json.data);
+      setState('导入成功');
+      setMessage(json.message || '导入成功');
+    } catch (error) {
+      setState('导入失败');
+      setMessage(error instanceof Error ? error.message : '确认导入失败。');
+    }
   }
 
   return (
@@ -181,7 +279,7 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <div>
                 <h2 style={{ marginBottom: 6 }}>导入预览</h2>
-                <p className="meta" style={{ marginBottom: 0 }}>本批只做上传解析与预览，不做确认导入落库。</p>
+                <p className="meta" style={{ marginBottom: 0 }}>上传解析通过后，可确认导入并写入当前项目版本。</p>
               </div>
               <a className="btn" href={templateHref}>下载标准模板</a>
             </div>
@@ -207,7 +305,6 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
               <button type="button" className="btn btn-primary" onClick={runPreview} disabled={!file || state === '解析中'}>
                 {state === '解析中' ? '解析中...' : '开始解析预览'}
               </button>
-              <button type="button" className="btn" disabled>确认导入暂未开放，本批仅支持预览</button>
             </div>
 
             {message ? <div style={{ marginTop: 14, border: '1px solid #ffc9c9', background: '#fff5f5', color: '#c92a2a', borderRadius: 10, padding: 12 }}>{message}</div> : null}
@@ -230,6 +327,70 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
                   ].map(([label, value]) => <div className="stat" key={String(label)}><div className="stat-label">{label}</div><div className="stat-value">{value}</div></div>)}
                 </div>
               </section>
+
+              <section className="card">
+                <h2>确认导入</h2>
+                <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button type="button" style={tabStyle(importMode === 'overwrite_current')} onClick={() => setImportMode('overwrite_current')}>覆盖当前版本</button>
+                    <button type="button" style={tabStyle(importMode === 'create_version')} onClick={() => setImportMode('create_version')}>新建版本导入</button>
+                  </div>
+                  {importMode === 'create_version' ? (
+                    <label style={{ display: 'grid', gap: 6, maxWidth: 420, fontWeight: 800 }}>
+                      新版本名称
+                      <input value={newVersionName} onChange={(event) => setNewVersionName(event.target.value)} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }} />
+                    </label>
+                  ) : null}
+                  {preview.summary.warningCount > 0 ? (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
+                      <input type="checkbox" checked={confirmWarnings} onChange={(event) => setConfirmWarnings(event.target.checked)} />
+                      我已确认警告，继续导入
+                    </label>
+                  ) : null}
+                  <div className="actions">
+                    <button type="button" className="btn btn-primary" onClick={runConfirmImport} disabled={confirmDisabled}>
+                      {state === '导入中' ? '导入中...' : '确认导入'}
+                    </button>
+                    {importMode === 'overwrite_current' && currentVersionLocked ? <span className="meta" style={{ color: '#c92a2a' }}>当前版本已锁定，不能覆盖导入。</span> : null}
+                    {preview.summary.errorCount > 0 ? <span className="meta" style={{ color: '#c92a2a' }}>存在阻断问题，需修正后重新预览。</span> : null}
+                  </div>
+                </div>
+              </section>
+
+              {confirmResult ? (
+                <section className="card">
+                  <h2>导入结果</h2>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, marginTop: 12 }}>
+                    <div className="stat"><div className="stat-label">导入状态</div><div className="stat-value" style={{ color: '#2b8a3e' }}>成功</div></div>
+                    <div className="stat"><div className="stat-label">导入模式</div><div className="stat-value">{importModeText(confirmResult.importMode)}</div></div>
+                    <div className="stat"><div className="stat-label">目标版本</div><div className="stat-value">{confirmResult.targetVersionId}</div></div>
+                    <div className="stat"><div className="stat-label">复算状态</div><div className="stat-value">{confirmResult.recalculationStatus === 'success' ? '成功' : confirmResult.recalculationStatus}</div></div>
+                    <div className="stat"><div className="stat-label">写入行数</div><div className="stat-value">{confirmResult.resultSummary.importedRows}</div></div>
+                    <div className="stat"><div className="stat-label">警告数量</div><div className="stat-value">{confirmResult.resultSummary.warningCount}</div></div>
+                  </div>
+                  <div style={{ overflowX: 'auto', marginTop: 12 }}>
+                    <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse' }}>
+                      <thead><tr>{['写入模块', '状态', '写入行数'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead>
+                      <tbody>
+                        {confirmResult.importedModules.map((item) => (
+                          <tr key={item.module}>
+                            <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>{moduleText(item.module)}</td>
+                            <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{item.status === 'success' ? '成功' : item.status}</td>
+                            <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{item.rowCount}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="actions" style={{ marginTop: 14 }}>
+                    <a className="btn" href={`/projects/${projectId}/overview`}>查看项目概况</a>
+                    <a className="btn" href={`/projects/${projectId}/revenue`}>查看收入明细</a>
+                    <a className="btn" href={`/projects/${projectId}/costs-batch`}>查看成本明细</a>
+                    <a className="btn" href={`/projects/${projectId}/summary`}>查看目标成本汇总</a>
+                    <a className="btn btn-primary" href={`/api/projects/${projectId}/versions/${confirmResult.targetVersionId}/excel/export?exportType=full&templateVersion=V60`}>导出 Excel</a>
+                  </div>
+                </section>
+              ) : null}
 
               <section className="card">
                 <h2>Sheet 解析结果</h2>

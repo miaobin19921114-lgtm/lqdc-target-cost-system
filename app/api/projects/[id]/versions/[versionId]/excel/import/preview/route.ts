@@ -7,6 +7,7 @@ import {
   parseV60WorkbookPreview,
   safeExcelFileName
 } from '@/lib/excel-v60';
+import { saveExcelImportPreview } from '@/lib/excel-import-store';
 
 function invalidFile(message: string, code = 'EXCEL_FILE_TYPE_INVALID') {
   const error = excelError(code, message);
@@ -62,6 +63,15 @@ export async function POST(request: Request, { params }: { params: { id: string;
       versionId: version.id,
       projectName: project.name,
       versionName: version.name
+    });
+
+    saveExcelImportPreview({
+      importId: result.data.importId,
+      projectId: project.id,
+      versionId: version.id,
+      fileName: safeName,
+      buffer,
+      preview: result.data
     });
 
     return NextResponse.json(result);
