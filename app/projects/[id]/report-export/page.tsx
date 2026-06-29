@@ -31,7 +31,7 @@ export default async function ReportExportPage({ params }: { params: { id: strin
 
   const exportRows = [
     ['老板汇报版', '一页式老板汇报，适合快速看结论、指标和风险。', 'boss-report', '浏览器打印或另存 PDF'],
-    ['经营报告', '完整经营测算报告，包含投决、敏感性、核心指标和成本税费摘要。', 'report', '浏览器打印或复制到 Word'],
+    ['经营报告', '完整经营测算报告，包含敏感性、核心指标和成本税费摘要。', 'report', '浏览器打印或复制到 Word'],
     ['打印版经营报告', '排版更适合直接打印/另存 PDF。', 'report-print', 'Ctrl/Cmd + P'],
     ['敏感性报告', '售价、成本、土地成本压力测试。', 'sensitivity-report', '打印或另存 PDF'],
     ['税务报告', '增值税、附加、土增税、所得税测算。', 'tax-report', '打印或另存 PDF'],

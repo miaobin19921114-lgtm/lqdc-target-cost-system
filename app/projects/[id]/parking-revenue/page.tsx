@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { calculateRevenueLine } from '@/lib/calculations';
+import { LOCKED_VERSION_EDIT_MESSAGE } from '@/lib/v1-maintenance-copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,7 +67,7 @@ export default async function ParkingRevenuePage({ params, searchParams }: { par
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1280 }}>
     <div className="page-header"><div><p className="eyebrow">收入测算</p><h1 className="title">车位收入测算</h1><p className="subtitle">车位销售按“个数 × 单个车位含税销售单价”测算；车位数量来自项目概况，不按面积单价。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}/revenue`} className="btn">收入明细</Link><Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link></div></div>
     {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb', background: '#f0fff4' }}>车位收入已保存并同步。{searchParams?.rows ? `本次处理 ${searchParams.rows} 行。` : ''}</div> : null}
-    {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8' }}>当前版本已锁定，不能保存车位收入。</div> : null}
+    {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8' }}>{LOCKED_VERSION_EDIT_MESSAGE}</div> : null}
 
     <section className="card" style={{ marginBottom: 16 }}><div className="summary-strip"><div className="stat"><div className="stat-label">可售/可测车位</div><div className="stat-value">{fmt(totalCount)}个</div></div><div className="stat"><div className="stat-label">含税车位收入</div><div className="stat-value">{fmt(total)}元</div></div><div className="stat"><div className="stat-label">不含税收入</div><div className="stat-value">{fmt(net)}元</div></div><div className="stat"><div className="stat-label">销项税额</div><div className="stat-value">{fmt(fee)}元</div></div><div className="stat"><div className="stat-label">同步差异</div><div className="stat-value" style={{ color: Math.abs(diffTotal) > 1 ? '#e03131' : '#2f9e44' }}>{fmt(diffTotal)}元</div></div></div></section>
 

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { isChargingProductName, isCommercialRevenueProductName, isOtherRevenueProductName, isParkingProductName } from '@/lib/tax-summary';
+import { LOCKED_VERSION_EDIT_MESSAGE } from '@/lib/v1-maintenance-copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,7 +71,7 @@ export default async function CommercialRevenuePage({ params, searchParams }: { 
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1380 }}>
     <div className="page-header"><div><p className="eyebrow">收入测算</p><h1 className="title">商业收入测算</h1><p className="subtitle">商业收入挂接项目概况里的商业业态，再在该业态下拆一层、二层、自持出租等细分口径。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/revenue-summary`} className="btn">收入汇总</Link><Link href={`/projects/${project.id}/revenue`} className="btn">销售收入</Link><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link></div></div>
     {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb', background: '#f0fff4' }}>商业收入已保存到独立商业收入表。{searchParams?.rows ? `本次处理 ${searchParams.rows} 行。` : ''}</div> : null}
-    {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8' }}>当前版本已锁定，不能保存商业收入。</div> : null}
+    {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8' }}>{LOCKED_VERSION_EDIT_MESSAGE}</div> : null}
 
     <section className="card" style={{ marginBottom: 16 }}><div className="summary-strip"><div className="stat"><div className="stat-label">商业业态数</div><div className="stat-value">{commercialProducts.length}</div></div><div className="stat"><div className="stat-label">细分收入项</div><div className="stat-value">{activeRows.length}</div></div><div className="stat"><div className="stat-label">预计含税商业收入</div><div className="stat-value">{fmt(total)}元</div></div><div className="stat"><div className="stat-label">预计不含税收入</div><div className="stat-value">{fmt(net)}元</div></div><div className="stat"><div className="stat-label">预计销项税</div><div className="stat-value">{fmt(fee)}元</div></div></div></section>
     <section className="card" style={{ marginBottom: 16, borderColor: '#d0ebff', background: '#f8fbff' }}><b>口径说明</b><p className="meta" style={{ margin: '6px 0 0' }}>项目概况中的“底商/商业/商铺”等是项目业态；本页细分行存入 CommercialRevenueLine，不再伪装成新的 ProductType。</p></section>

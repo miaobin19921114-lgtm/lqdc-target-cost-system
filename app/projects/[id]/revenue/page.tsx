@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { isChargingProductName, isCommercialBaseProductName, isCommercialRevenueProductName, isOtherRevenueProductName, isParkingProductName } from '@/lib/tax-summary';
+import { LOCKED_VERSION_EDIT_MESSAGE } from '@/lib/v1-maintenance-copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,7 +78,7 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
 
       {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb', background: '#f0fff4' }}>销售收入单价已保存，并已同步收入明细。{searchParams?.rows ? `本次处理 ${searchParams.rows} 行。` : ''}</div> : null}
       {searchParams?.synced === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb', background: '#f0fff4' }}>销售收入已同步。{searchParams?.rows ? `本次同步 ${searchParams.rows} 行。` : ''}</div> : null}
-      {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8' }}>当前版本已锁定，不能同步收入明细。</div> : null}
+      {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8' }}>{LOCKED_VERSION_EDIT_MESSAGE}</div> : null}
       {excludedCommercialParents.length ? <div className="card" style={{ marginBottom: 16, borderColor: '#d0ebff', background: '#f8fbff' }}><b>已排除商业父业态</b><p className="meta" style={{ margin: '6px 0 0' }}>{excludedCommercialParents.map((item) => item.name).join('、')} 已在“商业收入”页面拆分为一层、二层、自持出租等明细，本页不再按父业态整体计入销售收入。</p></div> : null}
 
       <section className="card" style={{ marginBottom: 16 }}>

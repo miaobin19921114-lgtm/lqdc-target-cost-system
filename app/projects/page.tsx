@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { NON_V1_SCOPE_MESSAGE } from '@/lib/v1-maintenance-copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
             <div>
               <p className="eyebrow">项目中心</p>
               <h2 style={{ margin: 0 }}>我的项目</h2>
-              <p className="meta">优先进入项目测算中心，完成项目概况、收入、成本、税费、投决和报告。</p>
+              <p className="meta">优先进入项目测算中心，完成目标成本测算、Excel 导入导出、成本汇总分析、税费利润分析和版本管理。</p>
             </div>
             <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
           </div>
@@ -71,14 +72,14 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
             <div>
               <p className="eyebrow">后续版本能力</p>
               <h2 style={{ margin: 0 }}>知识库与模板能力</h2>
-              <p className="meta">该功能不属于 V1.0.0 范围，后续版本再开放。</p>
+              <p className="meta">{NON_V1_SCOPE_MESSAGE}</p>
             </div>
             <span className="badge">建设中</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
             {laterVersionCards.map((name) => <div key={name} style={{ border: '1px dashed var(--border)', borderRadius: 12, padding: 14, background: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}><b>{name}</b><span style={{ fontSize: 12, color: '#8a6d00', background: '#fff9db', border: '1px solid #ffd8a8', borderRadius: 999, padding: '3px 8px' }}>后续版本</span></div>
-              <p className="meta">该功能不属于 V1.0.0 范围，后续版本再开放。</p>
+              <p className="meta">{NON_V1_SCOPE_MESSAGE}</p>
             </div>)}
           </div>
         </section>

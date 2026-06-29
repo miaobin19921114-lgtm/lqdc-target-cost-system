@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { LOCKED_VERSION_EDIT_MESSAGE } from '@/lib/v1-maintenance-copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +58,7 @@ export default async function OtherRevenuePage({ params, searchParams }: { param
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1380 }}>
     <div className="page-header"><div><p className="eyebrow">收入测算</p><h1 className="title">其他收入测算</h1><p className="subtitle">税收返还、产业奖励、财政补贴、土地款返还等政策性收益单独测算，不与住宅、商业、车位销售收入混算。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/revenue-summary`} className="btn">收入汇总</Link><Link href={`/projects/${project.id}/tax-details`} className="btn">税金明细</Link><Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link></div></div>
     {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb', background: '#f0fff4' }}>其他收入已保存到独立其他收入表。{searchParams?.rows ? `本次处理 ${searchParams.rows} 行。` : ''}</div> : null}
-    {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8' }}>当前版本已锁定，不能保存其他收入。</div> : null}
+    {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8' }}>{LOCKED_VERSION_EDIT_MESSAGE}</div> : null}
 
     <section className="card" style={{ marginBottom: 16 }}><div className="summary-strip"><div className="stat"><div className="stat-label">其他收入项</div><div className="stat-value">{activeRows.length}</div></div><div className="stat"><div className="stat-label">预计含税金额</div><div className="stat-value">{fmt(total)}元</div></div><div className="stat"><div className="stat-label">预计不含税金额</div><div className="stat-value">{fmt(net)}元</div></div><div className="stat"><div className="stat-label">预计税额</div><div className="stat-value">{fmt(fee)}元</div></div><div className="stat"><div className="stat-label">待确认/不确定</div><div className="stat-value" style={{ color: uncertainCount ? '#f08c00' : '#2f9e44' }}>{uncertainCount}</div></div></div></section>
 

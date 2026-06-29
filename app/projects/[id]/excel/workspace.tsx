@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { LOCKED_VERSION_EDIT_MESSAGE } from '@/lib/v1-maintenance-copy';
 
 type ImportState = '未上传' | '文件已选择' | '解析中' | '预览完成' | '存在阻断错误' | '解析失败' | '导入中' | '导入成功' | '导入失败';
 
@@ -222,7 +223,7 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
       return;
     }
     if (importMode === 'overwrite_current' && currentVersionLocked) {
-      setMessage('当前版本已锁定，不能覆盖导入。');
+      setMessage(LOCKED_VERSION_EDIT_MESSAGE);
       return;
     }
     if (importMode === 'overwrite_current') {
@@ -351,7 +352,7 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
                     <button type="button" className="btn btn-primary" onClick={runConfirmImport} disabled={confirmDisabled}>
                       {state === '导入中' ? '导入中...' : '确认导入'}
                     </button>
-                    {importMode === 'overwrite_current' && currentVersionLocked ? <span className="meta" style={{ color: '#c92a2a' }}>当前版本已锁定，不能覆盖导入。</span> : null}
+                    {importMode === 'overwrite_current' && currentVersionLocked ? <span className="meta" style={{ color: '#c92a2a' }}>{LOCKED_VERSION_EDIT_MESSAGE}</span> : null}
                     {preview.summary.errorCount > 0 ? <span className="meta" style={{ color: '#c92a2a' }}>存在阻断问题，需修正后重新预览。</span> : null}
                   </div>
                 </div>

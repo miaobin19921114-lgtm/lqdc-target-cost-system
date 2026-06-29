@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { getOrCreateActiveVersion, isVersionLocked } from '@/lib/project-version';
+import { LOCKED_VERSION_EDIT_MESSAGE } from '@/lib/v1-maintenance-copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +50,7 @@ export default async function ImportBatchesPage({ params, searchParams }: { para
         </div>
 
         {searchParams?.undone === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>已撤销该导入批次，删除成本明细 {searchParams.deleted || 0} 行。</div> : null}
-        {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>当前版本已锁定，不能撤销导入批次。</div> : null}
+        {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8' }}>{LOCKED_VERSION_EDIT_MESSAGE}</div> : null}
         {searchParams?.missing === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffc9c9' }}>未找到该导入批次。</div> : null}
 
         <section className="card" style={{ marginBottom: 16 }}>
