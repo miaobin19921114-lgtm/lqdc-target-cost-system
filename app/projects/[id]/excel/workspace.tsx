@@ -109,9 +109,9 @@ function levelColor(level: Issue['level']) {
 }
 
 function statusColor(status: ImportState) {
-  if (status === '存在阻断错误' || status === '解析失败') return '#c92a2a';
-  if (status === '解析中') return '#0b7285';
-  if (status === '预览完成') return '#2b8a3e';
+  if (status === '存在阻断错误' || status === '解析失败' || status === '导入失败') return '#c92a2a';
+  if (status === '解析中' || status === '导入中') return '#0b7285';
+  if (status === '预览完成' || status === '导入成功') return '#2b8a3e';
   return '#667085';
 }
 

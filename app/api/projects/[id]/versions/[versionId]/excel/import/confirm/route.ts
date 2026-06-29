@@ -329,7 +329,6 @@ export async function POST(request: Request, { params }: { params: { id: string;
           }
         });
         targetVersionId = created.id;
-        await tx.project.update({ where: { id: params.id }, data: { activeVersionId: targetVersionId } });
       }
 
       await writeImportData(tx, {

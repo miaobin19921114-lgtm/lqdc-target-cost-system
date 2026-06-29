@@ -46,7 +46,7 @@ export default async function ProjectExcelPage({ params, searchParams }: { param
           <div>
             <p className="eyebrow">Excel 导入导出</p>
             <h1 className="title">标准 V60 模板导入预览与完整导出</h1>
-            <p className="subtitle">第一批仅支持标准 V60 母版：模板下载、上传解析预览、问题展示和当前项目版本完整 Excel 导出，不写入真实业务数据。</p>
+            <p className="subtitle">当前支持标准 V60 母版：模板下载、上传解析预览、问题展示、确认导入落库和当前项目版本完整 Excel 导出。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/versions`} className="btn">版本管理</Link>
