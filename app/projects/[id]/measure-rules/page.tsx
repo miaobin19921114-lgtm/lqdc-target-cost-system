@@ -38,7 +38,7 @@ export default async function MeasureRulesPage({ params, searchParams }: { param
   const keyword = String(searchParams?.q || '').trim();
   const onlyStage = searchParams?.onlyStage === '1';
 
-  const rules = await prisma.measureBasisRule.findMany({
+  const baseRules = await prisma.measureBasisRule.findMany({
     where: {
       enabled: true,
       ...(keyword ? {
@@ -51,9 +51,19 @@ export default async function MeasureRulesPage({ params, searchParams }: { param
         ]
       } : {})
     },
-    include: { stageRules: { where: { enabled: true }, orderBy: [{ stage: 'asc' }, { priority: 'asc' }] } },
     orderBy: [{ costCode: 'asc' }, { priority: 'asc' }, { basisName: 'asc' }]
   });
+  const stageRules = await prisma.measureBasisStageRule.findMany({
+    where: { enabled: true, basisRuleId: { in: baseRules.map((rule) => rule.id) } },
+    orderBy: [{ stage: 'asc' }, { priority: 'asc' }]
+  });
+  const stageRulesByBasisRuleId = new Map<string, typeof stageRules>();
+  for (const stageRule of stageRules) {
+    const items = stageRulesByBasisRuleId.get(stageRule.basisRuleId) || [];
+    items.push(stageRule);
+    stageRulesByBasisRuleId.set(stageRule.basisRuleId, items);
+  }
+  const rules = baseRules.map((rule) => ({ ...rule, stageRules: stageRulesByBasisRuleId.get(rule.id) || [] }));
 
   const costSubjects = await prisma.costSubject.findMany({
     where: { code: { in: Array.from(new Set(rules.map((rule) => rule.costCode))) } },

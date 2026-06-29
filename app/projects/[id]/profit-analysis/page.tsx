@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
 import { getCostSettings } from '@/lib/cost-product-settings';
 import { normalizeProjectVersionCostLineAmounts } from '@/lib/normalize-cost-line-amounts';
+import { getProjectVersionRevenueLines } from '@/lib/project-version-revenue-lines';
 import { getProductTaxLiquidationObjectMap } from '@/lib/product-tax-liquidation-object-values';
 import { getTaxLiquidationObject } from '@/lib/tax-liquidation-object';
 import { costTotals, effectiveCostRows, landVatSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
@@ -87,10 +88,11 @@ export default async function ProfitAnalysisPage({ params }: { params: { id: str
   const version = await prisma.projectVersion.findFirst({
     where: project.activeVersionId ? { id: project.activeVersionId, projectId: params.id } : { projectId: params.id },
     orderBy: { createdAt: 'asc' },
-    include: { products: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true, taxes: true }
+    include: { products: true, revenues: { include: { productType: true } }, taxes: true }
   });
 
   if (version) await normalizeProjectVersionCostLineAmounts(version.id);
+  const { commercialRevenueLines, otherRevenueLines } = await getProjectVersionRevenueLines(version?.id);
 
   const costsForVersion = version ? await prisma.costLine.findMany({ where: { projectVersionId: version.id }, include: { productType: true, costSubject: true } }) : [];
   const projectRules = version ? await prisma.projectCostRule.findMany({ where: { projectVersionId: version.id }, select: { costCode: true, allocationMethod: true, remark: true } }) : [];
@@ -107,12 +109,12 @@ export default async function ProfitAnalysisPage({ params }: { params: { id: str
   const productMap = new Map<string, ReturnType<typeof blankProduct>>();
   activeProducts.forEach((product) => productMap.set(product.id, blankProduct(product, taxObjectMap.get(product.id))));
 
-  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines: version?.commercialRevenueLines || [], otherRevenueLines: version?.otherRevenueLines || [], vatRate });
+  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines, otherRevenueLines, vatRate });
   const cost = costTotals(effective.effective);
   const revenueProductIds = new Set<string>((version?.revenues || []).map((row) => row.productTypeId).filter((id): id is string => Boolean(id)));
   activeProducts.filter((product) => product.isSaleable && !revenueProductIds.has(product.id)).forEach((product) => addRevenue(productMap.get(product.id)!, calculateRevenueLine(n(product.saleableArea), n(product.salePrice), vatRate)));
   (version?.revenues || []).forEach((row) => { const item = productMap.get(row.productTypeId); if (item) addRevenue(item, row); });
-  (version?.commercialRevenueLines || []).forEach((row) => { const item = productMap.get(row.parentProductTypeId); if (item) addRevenue(item, row); });
+  commercialRevenueLines.forEach((row) => { const item = productMap.get(row.parentProductTypeId); if (item) addRevenue(item, row); });
 
   effective.effective.forEach((row) => {
     const directProduct = row.productTypeId ? activeProducts.find((product) => product.id === row.productTypeId) : null;

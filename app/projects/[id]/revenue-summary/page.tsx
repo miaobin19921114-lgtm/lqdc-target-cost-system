@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { getProjectVersionRevenueLines } from '@/lib/project-version-revenue-lines';
 import { isChargingProductName, n, revenueFromProjectData } from '@/lib/tax-summary';
 
 export const dynamic = 'force-dynamic';
@@ -32,11 +33,12 @@ export default async function RevenueSummaryPage({ params }: { params: { id: str
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { products: true, taxes: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true }
+    include: { products: true, taxes: true, revenues: { include: { productType: true } } }
   });
+  const { commercialRevenueLines, otherRevenueLines } = await getProjectVersionRevenueLines(version?.id);
 
   const vatRate = n(version?.taxes?.vatRate || 0.09);
-  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines: version?.commercialRevenueLines || [], otherRevenueLines: version?.otherRevenueLines || [], vatRate });
+  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines, otherRevenueLines, vatRate });
   const totalArea = n(project.saleableArea);
   const chargingRevenueRows = (version?.revenues || []).filter((row) => isChargingProductName(row.productType?.name)).length;
   const avgSaleablePrice = unitPrice(revenue.taxInclusive, totalArea);

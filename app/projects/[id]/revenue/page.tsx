@@ -22,13 +22,14 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { products: true, taxes: true, revenues: { include: { productType: true } }, commercialRevenueLines: true }
+    include: { products: true, taxes: true, revenues: { include: { productType: true } } }
   });
+  const commercialRevenueLines = version ? await prisma.commercialRevenueLine.findMany({ where: { projectVersionId: version.id } }) : [];
 
   const taxRate = Number(version?.taxes?.vatRate || 0.09);
   const revenueMap = new Map((version?.revenues || []).map((item) => [item.productTypeId, item]));
   const products = version?.products || [];
-  const commercialParentIds = new Set<string>((version?.commercialRevenueLines || [])
+  const commercialParentIds = new Set<string>(commercialRevenueLines
     .filter((line) => Number(line.taxInclusiveRevenue || 0) > 0)
     .map((line) => line.parentProductTypeId)
     .filter((id): id is string => Boolean(id)));

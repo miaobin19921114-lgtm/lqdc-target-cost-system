@@ -3,6 +3,7 @@ import { NonV1Placeholder } from '@/components/non-v1-placeholder';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { getProjectVersionRevenueLines } from '@/lib/project-version-revenue-lines';
 import { costTotals, effectiveCostRows, fullTaxSummary, landVatSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
 import { getCostSettings } from '@/lib/cost-product-settings';
 import { normalizeProjectVersionCostLineAmounts } from '@/lib/normalize-cost-line-amounts';
@@ -79,10 +80,11 @@ export default async function TaxReportPage({ params }: { params: { id: string }
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { taxes: true, products: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true }
+    include: { taxes: true, products: true, revenues: { include: { productType: true } } }
   });
 
   if (version) await normalizeProjectVersionCostLineAmounts(version.id);
+  const { commercialRevenueLines, otherRevenueLines } = await getProjectVersionRevenueLines(version?.id);
 
   const costsForVersion = version ? await prisma.costLine.findMany({ where: { projectVersionId: version.id }, include: { costSubject: true, productType: true } }) : [];
   const projectRules = version ? await prisma.projectCostRule.findMany({ where: { projectVersionId: version.id }, select: { costCode: true, allocationMethod: true, remark: true } }) : [];
@@ -95,7 +97,7 @@ export default async function TaxReportPage({ params }: { params: { id: string }
   const dictRows = await prisma.costDictionaryRow.findMany({ where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } }, select: { costCode: true } });
   const leafCodes = new Set<string>(dictRows.map((row) => row.costCode).filter((code): code is string => Boolean(code)));
   const effective = effectiveCostRows(costsForVersion, leafCodes);
-  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines: version?.commercialRevenueLines || [], otherRevenueLines: version?.otherRevenueLines || [], vatRate });
+  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines, otherRevenueLines, vatRate });
   const cost = costTotals(effective.effective);
   const quickTax = fullTaxSummary({ revenueExclusive: revenue.taxExclusive, outputVat: revenue.outputVat, inputVat: cost.inputVat, costExclusive: cost.taxExclusive, landCost: cost.landCost, devCost: cost.devCost, saleManageFinance: cost.saleManageFinance, surchargeRate, incomeTaxRate });
 
@@ -107,7 +109,7 @@ export default async function TaxReportPage({ params }: { params: { id: string }
   const revenueProductIds = new Set<string>((version?.revenues || []).map((row) => row.productTypeId).filter((id): id is string => Boolean(id)));
   activeProducts.filter((product) => product.isSaleable && !revenueProductIds.has(product.id)).forEach((product) => addRevenue(objectMap.get(product.id)!, calculateRevenueLine(n(product.saleableArea), n(product.salePrice), vatRate)));
   (version?.revenues || []).forEach((row) => { const item = objectMap.get(row.productTypeId); if (item) addRevenue(item, row); });
-  (version?.commercialRevenueLines || []).forEach((row) => { const item = objectMap.get(row.parentProductTypeId); if (item) addRevenue(item, row); });
+  commercialRevenueLines.forEach((row) => { const item = objectMap.get(row.parentProductTypeId); if (item) addRevenue(item, row); });
 
   effective.effective.forEach((row) => {
     const method = readProjectAllocationMethod(row.costSubject.code, row.allocationMethod, ruleMap, 'landVat') || row.allocationMethod;

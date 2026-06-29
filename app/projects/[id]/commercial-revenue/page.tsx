@@ -36,11 +36,12 @@ export default async function CommercialRevenuePage({ params, searchParams }: { 
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { products: true, taxes: true, commercialRevenueLines: true }
+    include: { products: true, taxes: true }
   });
+  const commercialRevenueLines = version ? await prisma.commercialRevenueLine.findMany({ where: { projectVersionId: version.id } }) : [];
 
   const commercialProducts = (version?.products || []).filter((item) => item.isActive && item.isSaleable && isCommercialProduct(item.name));
-  const lineMap = new Map((version?.commercialRevenueLines || []).map((line) => [`${line.parentProductTypeId}-${line.subType}`, line]));
+  const lineMap = new Map(commercialRevenueLines.map((line) => [`${line.parentProductTypeId}-${line.subType}`, line]));
   const rows = commercialProducts.flatMap((parent) => subTypes.map((sub) => {
     const line = lineMap.get(`${parent.id}-${sub.name}`);
     const mode = line?.mode || sub.mode;

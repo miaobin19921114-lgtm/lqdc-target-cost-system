@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { getProjectVersionRevenueLines } from '@/lib/project-version-revenue-lines';
 import { costTotals, effectiveCostRows, n, revenueFromProjectData } from '@/lib/tax-summary';
 
 export const dynamic = 'force-dynamic';
@@ -19,14 +20,15 @@ export default async function SummaryCheckPage({ params }: { params: { id: strin
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { products: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true, costs: { include: { productType: true, costSubject: true } }, taxes: true }
+    include: { products: true, revenues: { include: { productType: true } }, costs: { include: { productType: true, costSubject: true } }, taxes: true }
   });
+  const { commercialRevenueLines, otherRevenueLines } = await getProjectVersionRevenueLines(version?.id);
 
   const dictRows = await prisma.costDictionaryRow.findMany({ where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } }, select: { costCode: true } });
   const leafCodes = new Set<string>(dictRows.map((row) => row.costCode).filter((code): code is string => Boolean(code)));
   const vatRate = n(version?.taxes?.vatRate || 0.09);
   const effective = effectiveCostRows(version?.costs || [], leafCodes);
-  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines: version?.commercialRevenueLines || [], otherRevenueLines: version?.otherRevenueLines || [], vatRate });
+  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines, otherRevenueLines, vatRate });
   const cost = costTotals(effective.effective);
   const activeProducts = (version?.products || []).filter((p) => p.isActive);
   const saleableProductArea = activeProducts.reduce((sum, p) => sum + n(p.saleableArea), 0);

@@ -14,12 +14,16 @@ export async function POST(request: Request, { params }: { params: { id: string;
   const url = baseUrl(request);
   const back = `${url}/projects/${params.id}/import-batches`;
   const batch = await prisma.importBatch.findFirst({
-    where: { id: params.batchId, projectVersion: { projectId: params.id } },
-    include: { projectVersion: true }
+    where: { id: params.batchId }
   });
 
   if (!batch) return NextResponse.redirect(`${back}?missing=1`, 303);
-  if (isVersionLocked(batch.projectVersion)) return NextResponse.redirect(`${back}?locked=1`, 303);
+  const projectVersion = await prisma.projectVersion.findFirst({
+    where: { id: batch.projectVersionId, projectId: params.id }
+  });
+
+  if (!projectVersion) return NextResponse.redirect(`${back}?missing=1`, 303);
+  if (isVersionLocked(projectVersion)) return NextResponse.redirect(`${back}?locked=1`, 303);
   if (batch.status === 'undone') return NextResponse.redirect(`${back}?undone=1&deleted=0`, 303);
 
   const deleted = await prisma.costLine.deleteMany({ where: { importBatchId: batch.id } });

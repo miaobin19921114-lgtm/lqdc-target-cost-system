@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { getProjectVersionRevenueLines } from '@/lib/project-version-revenue-lines';
 import { costTotals, effectiveCostRows, fullTaxSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
 
 export const dynamic = 'force-dynamic';
@@ -15,8 +16,9 @@ export default async function ReportExportPage({ params }: { params: { id: strin
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { products: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true, costs: { include: { costSubject: true, productType: true } }, taxes: true }
+    include: { products: true, revenues: { include: { productType: true } }, costs: { include: { costSubject: true, productType: true } }, taxes: true }
   });
+  const { commercialRevenueLines, otherRevenueLines } = await getProjectVersionRevenueLines(version?.id);
 
   const vatRate = n(version?.taxes?.vatRate || 0.09);
   const surchargeRate = n(version?.taxes?.urbanMaintenanceTaxRate || 0.07) + n(version?.taxes?.educationSurchargeRate || 0.03) + n(version?.taxes?.localEducationSurchargeRate || 0.02);
@@ -24,7 +26,7 @@ export default async function ReportExportPage({ params }: { params: { id: strin
   const dictRows = await prisma.costDictionaryRow.findMany({ where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } }, select: { costCode: true } });
   const leafCodes = new Set(dictRows.map((row) => row.costCode).filter((code): code is string => Boolean(code)));
   const effective = effectiveCostRows(version?.costs || [], leafCodes);
-  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines: version?.commercialRevenueLines || [], otherRevenueLines: version?.otherRevenueLines || [], vatRate });
+  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines, otherRevenueLines, vatRate });
   const cost = costTotals(effective.effective);
   const tax = fullTaxSummary({ revenueExclusive: revenue.taxExclusive, outputVat: revenue.outputVat, inputVat: cost.inputVat, costExclusive: cost.taxExclusive, landCost: cost.landCost, devCost: cost.devCost, saleManageFinance: cost.saleManageFinance, surchargeRate, incomeTaxRate });
   const netMargin = revenue.taxInclusive ? tax.netProfit / revenue.taxInclusive : 0;

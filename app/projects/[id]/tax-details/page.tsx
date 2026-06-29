@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { getProjectVersionRevenueLines } from '@/lib/project-version-revenue-lines';
 import { costTotals, effectiveCostRows, fullTaxSummary, landVatSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
 import { getCostSettings } from '@/lib/cost-product-settings';
 import { normalizeProjectVersionCostLineAmounts } from '@/lib/normalize-cost-line-amounts';
@@ -63,11 +64,11 @@ function addRevenue(target: ReturnType<typeof blankObject>, row: { taxInclusiveR
   target.outputVat += n(row.taxAmount);
 }
 
-function addRevenueToObjects(targets: Map<string, ReturnType<typeof blankObject>>, products: any[], version: any, vatRate: number) {
+function addRevenueToObjects(targets: Map<string, ReturnType<typeof blankObject>>, products: any[], version: any, vatRate: number, commercialRevenueLines: Array<{ parentProductTypeId: string; taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown }>) {
   const revenueProductIds = new Set<string>((version?.revenues || []).map((row: any) => row.productTypeId).filter((id: unknown): id is string => Boolean(id)));
   products.filter((product) => product.isSaleable && !revenueProductIds.has(product.id)).forEach((product) => addRevenue(targets.get(product.id)!, calculateRevenueLine(n(product.saleableArea), n(product.salePrice), vatRate)));
   (version?.revenues || []).forEach((row: any) => { const item = targets.get(row.productTypeId); if (item) addRevenue(item, row); });
-  (version?.commercialRevenueLines || []).forEach((row: any) => { const item = targets.get(row.parentProductTypeId); if (item) addRevenue(item, row); });
+  commercialRevenueLines.forEach((row) => { const item = targets.get(row.parentProductTypeId); if (item) addRevenue(item, row); });
 }
 
 function allocateCostsToObjects(args: {
@@ -109,10 +110,11 @@ export default async function TaxDetailsPage({ params }: { params: { id: string 
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { taxes: true, products: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true }
+    include: { taxes: true, products: true, revenues: { include: { productType: true } } }
   });
 
   if (version) await normalizeProjectVersionCostLineAmounts(version.id);
+  const { commercialRevenueLines, otherRevenueLines } = await getProjectVersionRevenueLines(version?.id);
 
   const costsForVersion = version ? await prisma.costLine.findMany({ where: { projectVersionId: version.id }, include: { costSubject: true, productType: true } }) : [];
   const projectRules = version ? await prisma.projectCostRule.findMany({ where: { projectVersionId: version.id }, select: { costCode: true, allocationMethod: true, remark: true } }) : [];
@@ -130,18 +132,18 @@ export default async function TaxDetailsPage({ params }: { params: { id: string 
   const saleableProducts = activeProducts.filter((item) => item.isSaleable);
   const disabledProducts = allProducts.filter((item) => !item.isActive).length;
 
-  const revenue = revenueFromProjectData({ products: allProducts, revenues: version?.revenues || [], commercialRevenueLines: version?.commercialRevenueLines || [], otherRevenueLines: version?.otherRevenueLines || [], vatRate });
+  const revenue = revenueFromProjectData({ products: allProducts, revenues: version?.revenues || [], commercialRevenueLines, otherRevenueLines, vatRate });
   const cost = costTotals(effective.effective);
   const quickTax = fullTaxSummary({ revenueExclusive: revenue.taxExclusive, outputVat: revenue.outputVat, inputVat: cost.inputVat, costExclusive: cost.taxExclusive, landCost: cost.landCost, devCost: cost.devCost, saleManageFinance: cost.saleManageFinance, surchargeRate, incomeTaxRate });
 
   const incomeTaxObjectMap = new Map<string, ReturnType<typeof blankObject>>();
   activeProducts.forEach((product) => incomeTaxObjectMap.set(product.id, blankObject(product, productCostGroupName(product))));
-  addRevenueToObjects(incomeTaxObjectMap, activeProducts, version, vatRate);
+  addRevenueToObjects(incomeTaxObjectMap, activeProducts, version, vatRate, commercialRevenueLines);
   allocateCostsToObjects({ targets: incomeTaxObjectMap, costs: effective.effective, activeProducts, saleableProducts, ruleMap, purpose: 'incomeTax' });
 
   const landVatObjectMap = new Map<string, ReturnType<typeof blankObject>>();
   activeProducts.forEach((product) => landVatObjectMap.set(product.id, blankObject(product, productCostGroupName(product))));
-  addRevenueToObjects(landVatObjectMap, activeProducts, version, vatRate);
+  addRevenueToObjects(landVatObjectMap, activeProducts, version, vatRate, commercialRevenueLines);
   allocateCostsToObjects({ targets: landVatObjectMap, costs: effective.effective, activeProducts, saleableProducts, ruleMap, purpose: 'landVat' });
 
   const clearingMap = new Map<string, any>();

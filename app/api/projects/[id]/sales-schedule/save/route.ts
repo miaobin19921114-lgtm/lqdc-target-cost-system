@@ -31,12 +31,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const fullVersion = await prisma.projectVersion.findUnique({
     where: { id: version.id },
-    include: { products: true, taxes: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true }
+    include: { products: true, taxes: true, revenues: { include: { productType: true } } }
   });
   if (!fullVersion) return NextResponse.redirect(`${back}?saved=0`, 303);
+  const commercialRevenueLines = await prisma.commercialRevenueLine.findMany({ where: { projectVersionId: fullVersion.id } });
+  const otherRevenueLines = await prisma.otherRevenueLine.findMany({ where: { projectVersionId: fullVersion.id } });
 
   const vatRate = n(fullVersion.taxes?.vatRate || 0.09);
-  const revenue = revenueFromProjectData({ products: fullVersion.products, revenues: fullVersion.revenues, commercialRevenueLines: fullVersion.commercialRevenueLines, otherRevenueLines: fullVersion.otherRevenueLines, vatRate });
+  const revenue = revenueFromProjectData({ products: fullVersion.products, revenues: fullVersion.revenues, commercialRevenueLines, otherRevenueLines, vatRate });
   const salesBase = revenue.ordinary.taxInclusive + revenue.commercial.taxInclusive + revenue.parking.taxInclusive;
   const months = clamp(Math.round(toNumber(form, 'months', 12)), 1, 36);
   const downPaymentRate = toNumber(form, 'downPaymentRate', 30) / 100;

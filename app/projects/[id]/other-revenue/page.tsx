@@ -26,10 +26,11 @@ export default async function OtherRevenuePage({ params, searchParams }: { param
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { taxes: true, otherRevenueLines: true }
+    include: { taxes: true }
   });
+  const otherRevenueLines = version ? await prisma.otherRevenueLine.findMany({ where: { projectVersionId: version.id } }) : [];
 
-  const lineMap = new Map((version?.otherRevenueLines || []).map((line) => [line.incomeType, line]));
+  const lineMap = new Map(otherRevenueLines.map((line) => [line.incomeType, line]));
   const rows = incomeTypes.map((item) => {
     const line = lineMap.get(item.name);
     const amount = Number(line?.amount || 0);

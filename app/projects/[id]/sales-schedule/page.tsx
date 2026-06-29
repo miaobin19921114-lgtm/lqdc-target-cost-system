@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { getProjectVersionRevenueLines } from '@/lib/project-version-revenue-lines';
 import { n, revenueFromProjectData } from '@/lib/tax-summary';
 import { LOCKED_VERSION_EDIT_MESSAGE } from '@/lib/v1-maintenance-copy';
 
@@ -25,21 +26,23 @@ export default async function SalesSchedulePage({ params, searchParams }: { para
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { products: true, taxes: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true, salesSchedulePlans: { include: { lines: true }, orderBy: { updatedAt: 'desc' }, take: 1 } }
+    include: { products: true, taxes: true, revenues: { include: { productType: true } } }
   });
+  const { commercialRevenueLines, otherRevenueLines } = await getProjectVersionRevenueLines(version?.id);
+  const plan = version ? await prisma.salesSchedulePlan.findFirst({ where: { projectVersionId: version.id }, orderBy: { updatedAt: 'desc' } }) : null;
+  const planLines = plan ? await prisma.salesScheduleLine.findMany({ where: { planId: plan.id }, orderBy: { monthIndex: 'asc' } }) : [];
 
   const vatRate = n(version?.taxes?.vatRate || 0.09);
-  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines: version?.commercialRevenueLines || [], otherRevenueLines: version?.otherRevenueLines || [], vatRate });
+  const revenue = revenueFromProjectData({ products: version?.products || [], revenues: version?.revenues || [], commercialRevenueLines, otherRevenueLines, vatRate });
   const salesBase = revenue.ordinary.taxInclusive + revenue.commercial.taxInclusive + revenue.parking.taxInclusive;
   const policyIncome = revenue.other.taxInclusive;
-  const plan = version?.salesSchedulePlans?.[0];
   const months = clamp(Number(plan?.months || 12), 1, 36);
   const downPaymentRate = Number(plan?.downPaymentRate || 0.3);
   const mortgageRate = Number(plan?.mortgageRate || 0.65);
   const tailRate = Number(plan?.tailRate || 0.05);
   const mortgageDelay = clamp(Number(plan?.mortgageDelay || 2), 0, 36);
   const tailDelay = clamp(Number(plan?.tailDelay || 6), 0, 36);
-  const lineMap = new Map((plan?.lines || []).map((line) => [line.monthIndex, line]));
+  const lineMap = new Map(planLines.map((line) => [line.monthIndex, line]));
   const defaultRate = months ? 100 / months : 0;
   const ratios = Array.from({ length: months }, (_, index) => Number(lineMap.get(index + 1)?.sellThroughRate || defaultRate / 100) * 100);
   const ratioTotal = ratios.reduce((sum, item) => sum + item, 0);

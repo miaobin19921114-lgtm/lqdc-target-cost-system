@@ -29,10 +29,17 @@ export default async function ImportBatchesPage({ params, searchParams }: { para
   const batches = version
     ? await prisma.importBatch.findMany({
         where: { projectVersionId: version.id, importType: 'cost' },
-        orderBy: { createdAt: 'desc' },
-        include: { _count: { select: { costLines: true } } }
+        orderBy: { createdAt: 'desc' }
       })
     : [];
+  const costLineCounts = batches.length
+    ? await prisma.costLine.groupBy({
+        by: ['importBatchId'],
+        where: { importBatchId: { in: batches.map((batch) => batch.id) } },
+        _count: { _all: true }
+      })
+    : [];
+  const costLineCountByBatchId = new Map(costLineCounts.map((item) => [item.importBatchId, item._count._all]));
 
   return (
     <main className="page">
@@ -77,7 +84,7 @@ export default async function ImportBatchesPage({ params, searchParams }: { para
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{modeText(batch.importMode)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{statusText(batch.status)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{batch.rowCount}</td>
-                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{batch._count.costLines}</td>
+                    <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{costLineCountByBatchId.get(batch.id) || 0}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{money(batch.taxInclusiveTotal)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{money(batch.taxExclusiveTotal)}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{money(batch.taxAmountTotal)}</td>

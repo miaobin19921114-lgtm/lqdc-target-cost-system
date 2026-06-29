@@ -57,14 +57,12 @@ function matchProductName(name: string | null | undefined, regionOrProductType: 
 
 async function findRule(prisma: PrismaClient, costCode: string, basisName: string, stage: string) {
   const direct = await prisma.measureBasisRule.findFirst({
-    where: { costCode, basisName, enabled: true },
-    include: { stageRules: { where: { stage, enabled: true }, orderBy: [{ isDefault: 'desc' }, { priority: 'asc' }] } }
+    where: { costCode, basisName, enabled: true }
   });
   if (direct) return direct;
 
   const candidates = await prisma.measureBasisRule.findMany({
     where: { enabled: true, OR: [{ costCode }, { costCode: { startsWith: `${costCode}.` } }] },
-    include: { stageRules: { where: { stage, enabled: true }, orderBy: [{ isDefault: 'desc' }, { priority: 'asc' }] } },
     orderBy: [{ priority: 'asc' }, { basisName: 'asc' }],
     take: 20
   });

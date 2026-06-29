@@ -40,6 +40,8 @@ export default async function ProjectCheckPage({ params }: { params: { id: strin
   const project = await prisma.project.findUnique({ where: { id: params.id }, select: { id: true, name: true } });
   if (!project) return <main className="page">项目不存在</main>;
 
+  const projectVersions = await prisma.projectVersion.findMany({ where: { projectId: params.id }, select: { id: true } });
+  const projectVersionIds = projectVersions.map((version) => version.id);
   const [templateCount, defaultTemplateCount, templateProductCount, templateCostRuleCount, templateTaxRuleCount, costSubjectCount, importBatchCount, mappingCount, uploadDirReady] = await Promise.all([
     prisma.template.count({ where: { isActive: true } }),
     prisma.template.count({ where: { isActive: true, OR: [{ isDefault: true }, { ownerId: null }] } }),
@@ -47,7 +49,7 @@ export default async function ProjectCheckPage({ params }: { params: { id: strin
     prisma.templateCostRule.count(),
     prisma.templateTaxRule.count(),
     prisma.costSubject.count({ where: { enabled: true } }),
-    prisma.importBatch.count({ where: { projectVersion: { projectId: params.id } } }),
+    prisma.importBatch.count({ where: { projectVersionId: { in: projectVersionIds } } }),
     prisma.costDictionaryRow.count({ where: { projectId: params.id, sourceTable: 'Excel科目映射' } }),
     checkUploadDir()
   ]);

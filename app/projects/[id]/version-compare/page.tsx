@@ -16,8 +16,25 @@ export default async function VersionComparePage({ params, searchParams }: { par
   const versions = await prisma.projectVersion.findMany({
     where: { projectId: params.id },
     orderBy: { createdAt: 'asc' },
-    include: { products: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true, costs: { include: { productType: true, costSubject: true } }, taxes: true }
+    include: { products: true, revenues: { include: { productType: true } }, costs: { include: { productType: true, costSubject: true } }, taxes: true }
   });
+  const versionIds = versions.map((version) => version.id);
+  const [commercialRevenueLines, otherRevenueLines] = await Promise.all([
+    prisma.commercialRevenueLine.findMany({ where: { projectVersionId: { in: versionIds } } }),
+    prisma.otherRevenueLine.findMany({ where: { projectVersionId: { in: versionIds } } })
+  ]);
+  const commercialRevenueLinesByVersionId = new Map<string, typeof commercialRevenueLines>();
+  for (const line of commercialRevenueLines) {
+    const items = commercialRevenueLinesByVersionId.get(line.projectVersionId) || [];
+    items.push(line);
+    commercialRevenueLinesByVersionId.set(line.projectVersionId, items);
+  }
+  const otherRevenueLinesByVersionId = new Map<string, typeof otherRevenueLines>();
+  for (const line of otherRevenueLines) {
+    const items = otherRevenueLinesByVersionId.get(line.projectVersionId) || [];
+    items.push(line);
+    otherRevenueLinesByVersionId.set(line.projectVersionId, items);
+  }
   const base = versions.find((v) => v.id === searchParams?.baseId) || versions[0];
   const target = versions.find((v) => v.id === searchParams?.targetId) || versions.find((v) => v.id === project.activeVersionId) || versions[versions.length - 1];
 
@@ -30,7 +47,13 @@ export default async function VersionComparePage({ params, searchParams }: { par
     const surchargeRate = n(version.taxes?.urbanMaintenanceTaxRate || 0.07) + n(version.taxes?.educationSurchargeRate || 0.03) + n(version.taxes?.localEducationSurchargeRate || 0.02);
     const incomeTaxRate = n(version.taxes?.incomeTaxRate || 0.25);
     const effective = effectiveCostRows(version.costs || [], leafCodes);
-    const revenue = revenueFromProjectData({ products: version.products || [], revenues: version.revenues || [], commercialRevenueLines: version.commercialRevenueLines || [], otherRevenueLines: version.otherRevenueLines || [], vatRate });
+    const revenue = revenueFromProjectData({
+      products: version.products || [],
+      revenues: version.revenues || [],
+      commercialRevenueLines: commercialRevenueLinesByVersionId.get(version.id) || [],
+      otherRevenueLines: otherRevenueLinesByVersionId.get(version.id) || [],
+      vatRate
+    });
     const cost = costTotals(effective.effective);
     const tax = fullTaxSummary({ revenueExclusive: revenue.taxExclusive, outputVat: revenue.outputVat, inputVat: cost.inputVat, costExclusive: cost.taxExclusive, landCost: cost.landCost, devCost: cost.devCost, saleManageFinance: cost.saleManageFinance, surchargeRate, incomeTaxRate });
     return { revenue: revenue.taxInclusive, cost: cost.taxInclusive, netProfit: tax.netProfit, netMargin: revenue.taxInclusive ? tax.netProfit / revenue.taxInclusive : 0, products: version.products.length, costs: version.costs.length, revenues: version.revenues.length };

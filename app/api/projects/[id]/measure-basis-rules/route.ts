@@ -16,34 +16,41 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 
   const rules = await prisma.measureBasisRule.findMany({
     where: { enabled: true },
-    orderBy: [{ costCode: 'asc' }, { priority: 'asc' }, { basisName: 'asc' }],
-    include: {
-      stageRules: {
-        where: { enabled: true, stage },
-        orderBy: [{ isDefault: 'desc' }, { priority: 'asc' }]
-      }
-    }
+    orderBy: [{ costCode: 'asc' }, { priority: 'asc' }, { basisName: 'asc' }]
   });
+  const stageRules = await prisma.measureBasisStageRule.findMany({
+    where: { enabled: true, stage, basisRuleId: { in: rules.map((rule) => rule.id) } },
+    orderBy: [{ isDefault: 'desc' }, { priority: 'asc' }]
+  });
+  const stageRulesByBasisRuleId = new Map<string, typeof stageRules>();
+  for (const stageRule of stageRules) {
+    const items = stageRulesByBasisRuleId.get(stageRule.basisRuleId) || [];
+    items.push(stageRule);
+    stageRulesByBasisRuleId.set(stageRule.basisRuleId, items);
+  }
 
   const result = rules
-    .map((rule) => ({
-      id: rule.id,
-      costCode: rule.costCode,
-      basisName: rule.basisName,
-      metricKey: rule.metricKey,
-      metricScope: rule.metricScope,
-      quantityUnit: rule.quantityUnit,
-      pricingUnit: rule.pricingUnit,
-      defaultCoefficient: Number(rule.defaultCoefficient || 1),
-      quantityFormula: rule.quantityFormula,
-      amountFormula: rule.amountFormula,
-      applicableProductType: rule.applicableProductType,
-      allowManualOverride: rule.allowManualOverride,
-      priority: rule.stageRules[0]?.priority ?? rule.priority,
-      isDefault: rule.stageRules[0]?.isDefault ?? false,
-      remark: rule.remark,
-      stageMatched: rule.stageRules.length > 0
-    }))
+    .map((rule) => {
+      const matchedStageRules = stageRulesByBasisRuleId.get(rule.id) || [];
+      return {
+        id: rule.id,
+        costCode: rule.costCode,
+        basisName: rule.basisName,
+        metricKey: rule.metricKey,
+        metricScope: rule.metricScope,
+        quantityUnit: rule.quantityUnit,
+        pricingUnit: rule.pricingUnit,
+        defaultCoefficient: Number(rule.defaultCoefficient || 1),
+        quantityFormula: rule.quantityFormula,
+        amountFormula: rule.amountFormula,
+        applicableProductType: rule.applicableProductType,
+        allowManualOverride: rule.allowManualOverride,
+        priority: matchedStageRules[0]?.priority ?? rule.priority,
+        isDefault: matchedStageRules[0]?.isDefault ?? false,
+        remark: rule.remark,
+        stageMatched: matchedStageRules.length > 0
+      };
+    })
     .sort((a, b) => Number(b.stageMatched) - Number(a.stageMatched) || Number(b.isDefault) - Number(a.isDefault) || a.priority - b.priority);
 
   return NextResponse.json({ stage, rules: result });

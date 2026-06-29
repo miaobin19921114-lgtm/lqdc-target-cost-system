@@ -35,14 +35,19 @@ function statusText(value?: string | null) {
 
 export default async function ImportBatchDetailPage({ params }: { params: { id: string; batchId: string } }) {
   const batch = await prisma.importBatch.findFirst({
-    where: { id: params.batchId, projectVersion: { projectId: params.id } },
-    include: {
-      projectVersion: { include: { project: true } },
-      costLines: { include: { costSubject: true }, orderBy: [{ professionalGroup: 'asc' }, { sortOrder: 'asc' }] }
-    }
+    where: { id: params.batchId }
   });
+  const projectVersion = batch ? await prisma.projectVersion.findFirst({
+    where: { id: batch.projectVersionId, projectId: params.id },
+    include: { project: true }
+  }) : null;
+  const costLines = batch && projectVersion ? await prisma.costLine.findMany({
+    where: { importBatchId: batch.id },
+    include: { costSubject: true },
+    orderBy: [{ professionalGroup: 'asc' }, { sortOrder: 'asc' }]
+  }) : [];
 
-  if (!batch) {
+  if (!batch || !projectVersion) {
     return (
       <main className="page">
         <div className="container">
@@ -55,7 +60,7 @@ export default async function ImportBatchDetailPage({ params }: { params: { id: 
     );
   }
 
-  const locked = isVersionLocked(batch.projectVersion);
+  const locked = isVersionLocked(projectVersion);
 
   return (
     <main className="page">
@@ -63,7 +68,7 @@ export default async function ImportBatchDetailPage({ params }: { params: { id: 
         <div className="page-header">
           <div>
             <p className="eyebrow">导入批次详情</p>
-            <h1 className="title">{batch.projectVersion.project.name} · {batch.fileName}</h1>
+            <h1 className="title">{projectVersion.project.name} · {batch.fileName}</h1>
             <p className="subtitle">查看本批次导入的成本明细行。撤销时只删除当前批次关联的成本行。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
@@ -79,7 +84,7 @@ export default async function ImportBatchDetailPage({ params }: { params: { id: 
             <div><span className="meta">模式</span><div style={{ fontWeight: 900 }}>{modeText(batch.importMode)}</div></div>
             <div><span className="meta">状态</span><div style={{ fontWeight: 900 }}>{statusText(batch.status)}</div></div>
             <div><span className="meta">导入行数</span><div style={{ fontWeight: 900 }}>{batch.rowCount}</div></div>
-            <div><span className="meta">当前关联行</span><div style={{ fontWeight: 900 }}>{batch.costLines.length}</div></div>
+            <div><span className="meta">当前关联行</span><div style={{ fontWeight: 900 }}>{costLines.length}</div></div>
             <div><span className="meta">清空旧导入行</span><div style={{ fontWeight: 900 }}>{batch.deletedCount}</div></div>
             <div><span className="meta">含税合计</span><div style={{ fontWeight: 900 }}>{money(batch.taxInclusiveTotal)} 元</div></div>
             <div><span className="meta">不含税合计</span><div style={{ fontWeight: 900 }}>{money(batch.taxExclusiveTotal)} 元</div></div>
@@ -100,7 +105,7 @@ export default async function ImportBatchDetailPage({ params }: { params: { id: 
                 <tr>{['序号', '工作表/分组', '编码', '科目路径', '明细科目', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额', '不含税金额', '税额'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr>
               </thead>
               <tbody>
-                {batch.costLines.map((line, index) => (
+                {costLines.map((line, index) => (
                   <tr key={line.id}>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{index + 1}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{line.professionalGroup || '-'}</td>
@@ -117,7 +122,7 @@ export default async function ImportBatchDetailPage({ params }: { params: { id: 
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{money(line.taxAmount)}</td>
                   </tr>
                 ))}
-                {!batch.costLines.length ? (
+                {!costLines.length ? (
                   <tr><td colSpan={13} style={{ padding: 18, color: 'var(--muted)' }}>该批次暂无关联成本行，可能已被撤销或被后续更新覆盖。</td></tr>
                 ) : null}
               </tbody>

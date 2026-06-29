@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { getProjectVersionRevenueLines } from '@/lib/project-version-revenue-lines';
 import { fullTaxSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
 
 export const dynamic = 'force-dynamic';
@@ -53,8 +54,9 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { products: true, taxes: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true }
+    include: { products: true, taxes: true, revenues: { include: { productType: true } } }
   });
+  const { commercialRevenueLines, otherRevenueLines } = await getProjectVersionRevenueLines(version?.id);
 
   const vatRate = n(version?.taxes?.vatRate || 0.09);
   const surchargeRate = n(version?.taxes?.urbanMaintenanceTaxRate || 0.07) + n(version?.taxes?.educationSurchargeRate || 0.03) + n(version?.taxes?.localEducationSurchargeRate || 0.02);
@@ -62,7 +64,7 @@ export default async function TargetCostSummaryPage({ params }: { params: { id: 
   const allProducts = version?.products || [];
   const activeProducts = allProducts.filter((item) => item.isActive);
   const disabledProductCount = allProducts.length - activeProducts.length;
-  const revenue = revenueFromProjectData({ products: allProducts, revenues: version?.revenues || [], commercialRevenueLines: version?.commercialRevenueLines || [], otherRevenueLines: version?.otherRevenueLines || [], vatRate });
+  const revenue = revenueFromProjectData({ products: allProducts, revenues: version?.revenues || [], commercialRevenueLines, otherRevenueLines, vatRate });
 
   const summaryRows = version ? await prisma.$queryRawUnsafe<SummaryAggregateRow[]>(`
     SELECT "subjectCode", "subjectName", "summaryLevel", "taxInclusiveAmount"::text, "taxExclusiveAmount"::text, "taxAmount"::text,

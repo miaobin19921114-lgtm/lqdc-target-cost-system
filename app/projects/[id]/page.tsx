@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { projectNavGroups } from '@/components/project-navigation';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { getProjectVersionRevenueLines } from '@/lib/project-version-revenue-lines';
 import { costTotals, effectiveCostRows, n, revenueFromProjectData } from '@/lib/tax-summary';
 import { normalizeProjectVersionCostLineAmounts } from '@/lib/normalize-cost-line-amounts';
 import { NON_V1_SCOPE_MESSAGE } from '@/lib/v1-maintenance-copy';
@@ -33,9 +34,10 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    include: { products: true, revenues: { include: { productType: true } }, commercialRevenueLines: true, otherRevenueLines: true, costs: { include: { productType: true, costSubject: true } }, costRules: true, taxes: true }
+    include: { products: true, revenues: { include: { productType: true } }, costs: { include: { productType: true, costSubject: true } }, costRules: true, taxes: true }
   });
   if (version) await normalizeProjectVersionCostLineAmounts(version.id);
+  const { commercialRevenueLines, otherRevenueLines } = await getProjectVersionRevenueLines(version?.id);
 
   const products = version?.products || [];
   const activeProducts = products.filter((item) => item.isActive);
@@ -43,7 +45,7 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
   const dictRows = await prisma.costDictionaryRow.findMany({ where: { projectId: params.id, enabled: { not: '否' }, costCode: { not: null } }, select: { costCode: true } });
   const leafCodes = new Set(dictRows.map((row) => row.costCode).filter((code): code is string => Boolean(code)));
   const effective = effectiveCostRows(version?.costs || [], leafCodes);
-  const revenue = revenueFromProjectData({ products, revenues: version?.revenues || [], commercialRevenueLines: version?.commercialRevenueLines || [], otherRevenueLines: version?.otherRevenueLines || [], vatRate });
+  const revenue = revenueFromProjectData({ products, revenues: version?.revenues || [], commercialRevenueLines, otherRevenueLines, vatRate });
   const cost = costTotals(effective.effective);
   const buildingArea = Number(project.totalBuildingArea || 0);
   const saleableArea = Number(project.saleableArea || 0);
