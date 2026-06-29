@@ -81,7 +81,7 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
     ['12 模板沉淀', '/templates', '把项目规则沉淀为个人模板或系统模板', 'done']
   ] as const;
   const tools = [
-    ['Excel导入/导出', 'export'],
+    ['Excel导入导出', 'excel'],
     ['导入批次', 'import-batches'],
     ['科目映射', 'cost-mapping'],
     ['汇总校验', 'summary-check'],

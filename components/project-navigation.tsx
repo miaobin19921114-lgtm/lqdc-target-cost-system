@@ -68,7 +68,7 @@ export const projectNavGroups = [
       ['投决评审', 'decision', 'done'],
       ['经营报告', 'report', 'done'],
       ['敏感性分析', 'sensitivity', 'done'],
-      ['Excel 导入 / 导出', 'export', 'done'],
+      ['Excel 导入导出', 'excel', 'done'],
       ['导入批次', 'import-batches', 'done'],
       ['项目自检', 'check', 'done'],
       ['汇总校验', 'summary-check', 'done'],
