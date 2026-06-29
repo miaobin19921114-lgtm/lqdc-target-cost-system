@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { NonV1Placeholder } from '@/components/non-v1-placeholder';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +49,8 @@ const rows = [
 ];
 
 export default function ProductLibraryPage({ params }: { params: { id: string } }) {
+  if (process.env.NEXT_PUBLIC_ENABLE_NON_V1_PAGES !== 'true') return <NonV1Placeholder projectId={params.id} />;
+
   return (
     <main className="page">
       <div className="container" style={{ maxWidth: 1380 }}>

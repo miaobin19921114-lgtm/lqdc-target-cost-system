@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { NonV1Placeholder } from '@/components/non-v1-placeholder';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { costTotals, effectiveCostRows, fullTaxSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
@@ -11,6 +12,8 @@ function statusColor(value: number) { return value >= 0 ? '#2f9e44' : '#e03131';
 function levelColor(level: string) { return level === '建议推进' ? '#2f9e44' : level === '谨慎推进' ? '#f08c00' : '#e03131'; }
 
 export default async function BossReportPage({ params }: { params: { id: string } }) {
+  if (process.env.NEXT_PUBLIC_ENABLE_NON_V1_PAGES !== 'true') return <NonV1Placeholder projectId={params.id} />;
+
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
 

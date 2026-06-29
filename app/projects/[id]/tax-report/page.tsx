@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { NonV1Placeholder } from '@/components/non-v1-placeholder';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
@@ -70,6 +71,8 @@ function riskColor(level: string) {
 }
 
 export default async function TaxReportPage({ params }: { params: { id: string } }) {
+  if (process.env.NEXT_PUBLIC_ENABLE_NON_V1_PAGES !== 'true') return <NonV1Placeholder projectId={params.id} />;
+
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
 

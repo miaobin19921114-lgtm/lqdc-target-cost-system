@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { NonV1Placeholder } from '@/components/non-v1-placeholder';
 import { prisma } from '@/lib/prisma';
 import { priceIndicatorPresets } from '@/data/price-indicator-presets';
 
@@ -111,6 +112,8 @@ const tdStyle = { padding: 10, borderBottom: '1px solid #eef2f6' } as const;
 const thStyle = { textAlign: 'left' as const, padding: 10, borderBottom: '1px solid #e6edf5', color: '#667085', background: '#f8fafc', position: 'sticky' as const, top: 0 };
 
 export default async function PriceLibraryPage({ params, searchParams }: { params: { id: string }; searchParams?: Record<string, string | undefined> }) {
+  if (process.env.NEXT_PUBLIC_ENABLE_NON_V1_PAGES !== 'true') return <NonV1Placeholder projectId={params.id} />;
+
   const project = await prisma.project.findUnique({ where: { id: params.id }, select: { id: true, name: true, city: true, district: true } });
   if (!project) return <main className="page">项目不存在</main>;
 

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { NonV1Placeholder } from '@/components/non-v1-placeholder';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
 import { costTotals, effectiveCostRows, fullTaxSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
@@ -14,6 +15,8 @@ function riskColor(level: string) { return level === '高' ? '#e03131' : level =
 function unitCost(amountWan: number, area: number) { return area ? amountWan * 10000 / area : 0; }
 
 export default async function DecisionPage({ params }: { params: { id: string } }) {
+  if (process.env.NEXT_PUBLIC_ENABLE_NON_V1_PAGES !== 'true') return <NonV1Placeholder projectId={params.id} />;
+
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
 
