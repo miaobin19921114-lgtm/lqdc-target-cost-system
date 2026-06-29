@@ -33,7 +33,7 @@ export default async function AccountPage() {
         <div>
           <p className="eyebrow">个人账户</p>
           <h1 className="title">{user.name || user.email}</h1>
-          <p className="subtitle">这里用于查看当前登录账户和退出登录。后续可继续增加个人模板、地区指标库和账户设置。</p>
+          <p className="subtitle">这里用于查看当前登录账户和退出登录。V1 仅保留基础账户信息与登录状态管理。</p>
         </div>
         <div className="actions" style={{ marginTop: 0 }}>
           <Link href="/projects" className="btn btn-primary">返回项目中心</Link>

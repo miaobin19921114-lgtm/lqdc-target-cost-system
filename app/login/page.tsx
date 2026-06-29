@@ -4,6 +4,9 @@ function normalizeNext(value?: string) {
   if (!value) return '/projects';
   if (value === '/workspace') return '/projects';
   if (value.includes('/dashboard-lite')) return '/projects';
+  if (value.includes('/boss-report')) return '/projects';
+  if (value.includes('/sensitivity')) return '/projects';
+  if (value.includes('/tax-report')) return '/projects';
   return value;
 }
 
@@ -15,9 +18,9 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
       <section style={{ color: '#fff', padding: '72px 60px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         <div style={{ width: 46, height: 46, borderRadius: 12, background: '#12b5cb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 22 }}>成</div>
         <h1 style={{ fontSize: 42, lineHeight: 1.12, margin: '24px 0 12px' }}>地产成本<br />智算平台</h1>
-        <p style={{ maxWidth: 560, color: 'rgba(255,255,255,.78)', fontSize: 16 }}>面向个人和小团队的地产成本、招采、合约知识库与项目测算工具。支持项目中心、个人知识库、系统模板和项目测算中心分层管理。</p>
+        <p style={{ maxWidth: 560, color: 'rgba(255,255,255,.78)', fontSize: 16 }}>面向个人和小团队的地产目标成本测算工具。V1 聚焦项目中心、项目测算中心、Excel 工作台和系统自检主流程。</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 12, maxWidth: 560, marginTop: 34 }}>
-          {['项目测算', '知识沉淀', '模板复用'].map((item) => <div key={item} style={{ border: '1px solid rgba(255,255,255,.22)', borderRadius: 14, padding: 14, background: 'rgba(255,255,255,.08)' }}>{item}</div>)}
+          {['项目测算', 'Excel 导入导出', '系统自检'].map((item) => <div key={item} style={{ border: '1px solid rgba(255,255,255,.22)', borderRadius: 14, padding: 14, background: 'rgba(255,255,255,.08)' }}>{item}</div>)}
         </div>
       </section>
       <section style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>

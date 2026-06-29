@@ -4,7 +4,29 @@ import { NON_V1_SCOPE_MESSAGE } from '@/lib/v1-maintenance-copy';
 
 export const dynamic = 'force-dynamic';
 
-const laterVersionCards = ['知识库', '招采知识库', '合约知识库', '审批表知识库', 'AI 资料库', '系统模板', 'AI 提示词模板', '合约招采模板', '审批流程模板'] as const;
+const laterVersionCards = [
+  '个人知识库',
+  '系统模板',
+  'AI 资料库',
+  '招采知识库',
+  '合约知识库',
+  '审批表知识库',
+  'AI 深度测算',
+  '动态成本',
+  '合约规划',
+  '招采管理',
+  '现金流',
+  '审批流',
+  '多租户 SaaS',
+  'CAD 图纸识别',
+  '移动端 App',
+  '复杂权限',
+  '指标库大平台',
+  '量价指标库',
+  '市场价格库',
+  '历史项目库',
+  '高级老板看板'
+] as const;
 
 export default async function ProjectsPage({ searchParams }: { searchParams?: { deleted?: string } }) {
   const projects = await prisma.project.findMany({ orderBy: { updatedAt: 'desc' }, include: { versions: { orderBy: { createdAt: 'asc' } } } });
