@@ -3,20 +3,28 @@ export const projectNavGroups = [
     title: '基础数据',
     items: [
       ['项目概况', 'overview', 'done'],
-      ['业态产品 / 税务清算对象', 'product-maintenance', 'done'],
-      ['建造配置标准', 'construction-standards', 'done'],
-      ['工程量指标', 'quantity-indicators', 'done'],
-      ['版本管理', 'versions', 'done'],
-      ['指标校验', 'indicator-check', 'done'],
-      ['楼栋指标', '', 'planned']
+      ['业态产品', 'product-maintenance', 'done'],
+      ['版本管理', 'versions', 'done']
     ]
   },
   {
-    title: '目标成本',
+    title: '测算控制',
     items: [
+      ['测算控制中心', 'control-center', 'done'],
       ['目标成本测算', 'costs-batch', 'done'],
       ['目标成本汇总', 'summary', 'done'],
-      ['土地费', 'land', 'done'],
+      ['成本分摊测算', 'allocation', 'done']
+    ]
+  },
+  {
+    title: '收入成本明细',
+    items: [
+      ['收入明细', 'revenue', 'done'],
+      ['收入汇总', 'revenue-summary', 'done'],
+      ['商业收入', 'commercial-revenue', 'done'],
+      ['车位收入', 'parking-revenue', 'done'],
+      ['其他收入', 'other-revenue', 'done'],
+      ['成本明细', 'land', 'done'],
       ['前期费', 'pre-costs', 'done'],
       ['土建明细', 'building-details', 'done'],
       ['安装明细', 'installation-details', 'done'],
@@ -25,67 +33,40 @@ export const projectNavGroups = [
       ['室外管网', 'outdoor-pipe-details', 'done'],
       ['景观工程', 'landscape-details', 'done'],
       ['道路总平', 'road-details', 'done'],
-      ['围墙出入口', 'wall-gate-details', 'done'],
-      ['规则驱动明细测算', 'detail-rule-calculation', 'done'],
-      ['明细测算结果', 'detail-calculation-results', 'done'],
-      ['规则治理中心', 'rule-governance-center', 'done'],
-      ['项目模板选择', 'project-template-selection', 'done'],
-      ['版本快照生成', 'version-snapshot-generator', 'done'],
-      ['规则模板中心', 'rule-template-center', 'done'],
-      ['模板导入导出', 'template-import-export', 'done'],
-      ['模板版本管理', 'template-version-management', 'done'],
-      ['模板规则校验', 'template-rule-validation', 'done'],
-      ['L1-L5精度规则', 'precision-rule-matrix', 'done'],
-      ['模板规则编辑', 'template-rule-editor', 'done'],
-      ['模板科目开关', 'template-subject-switches', 'done'],
-      ['项目规则快照', 'project-rule-snapshot', 'done'],
-      ['版本规则快照', 'version-rule-snapshots', 'done'],
-      ['模板字段需求', 'template-field-requirements', 'done'],
-      ['字段定义库', 'template-field-definitions', 'done'],
-      ['字段定义编辑', 'template-field-editor', 'done'],
-      ['成本科目及测算规则库', 'cost-calculation-rules', 'done'],
-      ['量价指标库', 'price-library', 'done'],
-      ['Excel科目映射', 'cost-mapping', 'done']
+      ['围墙出入口', 'wall-gate-details', 'done']
     ]
   },
   {
-    title: '经营测算',
+    title: '税费利润',
     items: [
-      ['收入汇总', 'revenue-summary', 'done'],
-      ['销售收入测算', 'revenue', 'done'],
-      ['商业收入测算', 'commercial-revenue', 'done'],
-      ['车位收入测算', 'parking-revenue', 'done'],
-      ['其他收入测算', 'other-revenue', 'done'],
-      ['去化节奏测算', 'sales-schedule', 'done'],
-      ['税费测算总表', 'tax-details', 'done'],
-      ['土地增值税清算测算表', 'land-vat', 'done'],
+      ['税金测算', 'tax-details', 'done'],
+      ['土地增值税', 'land-vat', 'done'],
       ['业态利润分析', 'profit-analysis', 'done']
     ]
   },
   {
-    title: '汇报输出',
+    title: 'Excel',
     items: [
-      ['投决评审', 'decision', 'done'],
-      ['经营报告', 'report', 'done'],
-      ['敏感性分析', 'sensitivity', 'done'],
-      ['Excel 导入导出', 'excel', 'done'],
-      ['导入批次', 'import-batches', 'done'],
-      ['项目自检', 'check', 'done'],
-      ['汇总校验', 'summary-check', 'done'],
-      ['模板中心 / 规则管理', '/templates', 'done']
+      ['Excel 工作台', 'excel', 'done'],
+      ['模板下载', 'excel', 'done'],
+      ['导入预览', 'excel', 'done'],
+      ['确认导入', 'excel', 'done'],
+      ['导出', 'export', 'done'],
+      ['导入批次', 'import-batches', 'done']
+    ]
+  },
+  {
+    title: '系统',
+    items: [
+      ['成本科目及测算词典', 'cost-dictionary', 'done'],
+      ['系统自检', 'check', 'done'],
+      ['健康检查', '/health', 'done']
     ]
   }
 ] as const;
 
-export const projectOutputLabelMap = {
-  'report-print': '打印经营报告',
-  'sensitivity-report': '敏感性分析报告',
-  'tax-report': '税务报告'
-} as const;
-
 export const projectNavLabelMap = {
-  ...Object.fromEntries(projectNavGroups.flatMap((group) => group.items.filter(([, href]) => href).map(([name, href]) => [href, name]))),
-  ...projectOutputLabelMap
+  ...Object.fromEntries(projectNavGroups.flatMap((group) => group.items.filter(([, href]) => href).map(([name, href]) => [href, name])))
 } as Record<string, string>;
 
 export function ProjectTopNav({ projectId, projectName, current }: { projectId: string; projectName: string; current: string }) {

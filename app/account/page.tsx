@@ -33,11 +33,10 @@ export default async function AccountPage() {
         <div>
           <p className="eyebrow">个人账户</p>
           <h1 className="title">{user.name || user.email}</h1>
-          <p className="subtitle">这里用于查看当前登录账户、进入模板中心和退出登录。后续可继续增加个人模板、地区指标库和账户设置。</p>
+          <p className="subtitle">这里用于查看当前登录账户和退出登录。后续可继续增加个人模板、地区指标库和账户设置。</p>
         </div>
         <div className="actions" style={{ marginTop: 0 }}>
           <Link href="/projects" className="btn btn-primary">返回项目中心</Link>
-          <Link href="/templates" className="btn">模板中心</Link>
           <Link href="/projects" className="btn">项目列表</Link>
         </div>
       </div>
@@ -62,7 +61,6 @@ export default async function AccountPage() {
           <Link href="/projects" className="btn btn-primary">项目中心</Link>
           <Link href="/projects/new" className="btn">新建项目</Link>
           <Link href="/projects" className="btn">项目列表</Link>
-          <Link href="/templates" className="btn">个人模板</Link>
           <form action="/api/auth/logout" method="post" style={{ margin: 0 }}>
             <button className="btn" style={{ width: '100%' }}>退出登录</button>
           </form>

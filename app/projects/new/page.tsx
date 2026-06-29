@@ -46,7 +46,7 @@ export default async function NewProjectPage() {
   }));
 
   return <main className="page"><form action="/api/projects" method="post" className="container" style={{ maxWidth: 1180 }}>
-    <div className="page-header"><div><p className="eyebrow">项目初始化向导</p><h1 className="title">新建项目</h1><p className="subtitle">优先显示默认个人模板；系统模板只读。保存自定义业态时只写入个人模板，不改系统默认模板。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href="/templates" className="btn">模板中心</Link><Link href="/projects" className="btn">返回</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">项目初始化向导</p><h1 className="title">新建项目</h1><p className="subtitle">按 V1.0.0 流程创建项目，并生成项目概况、业态、科目和版本基础框架。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href="/projects" className="btn">返回</Link></div></div>
     <section className="card"><span className="badge">第1步</span><h2>测算阶段</h2><p className="meta">每个项目可按投拓、概念方案、方案、施工图、招采、动态、结算 7 个阶段沉淀不同版本。</p><label style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 360 }}>当前阶段<select name="stage" defaultValue={defaultVersionStage} style={{ height: 38, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 10px' }}>{versionStageOptions.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}</select></label></section>
     <section className="card"><span className="badge">第2步</span><h2>选择模板与业态</h2>{templates.length ? <ProductCascadeSelector templates={selectorTemplates} /> : <p className="meta">暂无模板，请先到模板中心检查。</p>}</section>
     <section className="card"><span className="badge">第3步</span><h2>系统模板规则：科目、税率与分摊方式</h2>{templates.length ? <CostRuleSelector templates={costRuleTemplates} /> : <p className="meta">暂无科目规则，请先到模板中心检查。</p>}</section>

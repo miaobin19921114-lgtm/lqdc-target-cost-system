@@ -71,7 +71,6 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
           <Link href={`/projects/${project.id}/commercial-revenue`} className="btn">商业收入</Link>
           <Link href={`/projects/${project.id}/parking-revenue`} className="btn">车位收入</Link>
           <Link href={`/projects/${project.id}/other-revenue`} className="btn">其他收入</Link>
-          <Link href={`/projects/${project.id}/indicator-check`} className="btn">指标校验中心</Link>
           <Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link>
         </div>
       </div>
