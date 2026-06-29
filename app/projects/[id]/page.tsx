@@ -56,8 +56,10 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
     ['测算控制中心', 'control-center'],
     ['目标成本测算', 'costs-batch'],
     ['目标成本汇总', 'summary'],
+    ['成本分摊', 'allocation'],
     ['收入明细', 'revenue'],
-    ['税金测算', 'tax-details']
+    ['税金测算', 'tax-details'],
+    ['业态利润分析', 'profit-analysis']
   ] as const;
   const flow = [
     ['1 基础数据', 'overview', '从项目概况、业态产品和版本管理开始，先把测算基础做准', 'done'],
@@ -68,15 +70,14 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
     ['6 成本分摊', 'allocation', '按业态和归属规则完成成本分摊测算', 'done'],
     ['7 收入测算', 'revenue', '维护住宅、商业、车位和其他收入', 'done'],
     ['8 税费利润', 'tax-details', '检查增值税、土增税、所得税和业态利润', 'done'],
-    ['9 Excel 与自检', 'excel', '完成模板下载、导入预览、确认导入、导出和系统自检', 'done']
+    ['9 Excel 工作台', 'excel', '完成模板下载、导入预览、确认导入和版本级工作台', 'done'],
+    ['10 经营看板', 'dashboard-lite', '查看 V1 经营总控指标', 'done']
   ] as const;
   const tools = [
     ['Excel工作台', 'excel'],
-    ['Excel导出', 'export'],
-    ['导入批次', 'import-batches'],
     ['成本科目及测算词典', 'cost-dictionary'],
-    ['系统自检', 'check'],
-    ['健康检查', '/health']
+    ['土地增值税', 'land-vat'],
+    ['经营看板', 'dashboard-lite']
   ] as const;
 
   return (
@@ -105,7 +106,7 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
           <div style={{ background: '#fff', border: '1px dashed #d0d5dd', borderRadius: 10, padding: 14 }}><b style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>后续版本能力<PlannedBadge /></b><p className="meta">{NON_V1_SCOPE_MESSAGE}</p></div>
         </section>
 
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本管理</b><p className="meta">当前阶段：{version?.stage || '投拓阶段'}；当前版本：{version?.name || '初始版本'}；状态：草稿。</p><Link className="btn btn-primary" href={`/projects/${project.id}/versions`}>进入版本管理</Link></div><div style={{ background: '#fff', border: '1px solid #c5eef3', borderRadius: 10, padding: 14 }}><b>Excel</b><p className="meta">模板下载、上传预览、确认导入、版本级工作台和导出统一从 Excel 工作台进入。</p><div className="actions"><Link className="btn btn-primary" href={`/projects/${project.id}/excel`}>Excel 工作台</Link><Link className="btn" href={`/projects/${project.id}/import-batches`}>导入批次</Link></div></div><div style={{ background: '#fff', border: '1px solid #d0ebff', borderRadius: 10, padding: 14 }}><b>系统检查</b><p className="meta">进入系统自检或健康检查，确认 V1 主流程环境状态。</p><div className="actions"><Link className="btn" href={`/projects/${project.id}/check`}>系统自检</Link><Link className="btn" href="/health">健康检查</Link></div></div></aside>
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本管理</b><p className="meta">当前阶段：{version?.stage || '投拓阶段'}；当前版本：{version?.name || '初始版本'}；状态：草稿。</p><Link className="btn btn-primary" href={`/projects/${project.id}/versions`}>进入版本管理</Link></div><div style={{ background: '#fff', border: '1px solid #c5eef3', borderRadius: 10, padding: 14 }}><b>Excel</b><p className="meta">模板下载、上传预览、确认导入和版本级工作台统一从 Excel 工作台进入。</p><div className="actions"><Link className="btn btn-primary" href={`/projects/${project.id}/excel`}>Excel 工作台</Link></div></div><div style={{ background: '#fff', border: '1px dashed #d0d5dd', borderRadius: 10, padding: 14 }}><b>后续能力</b><p className="meta">{NON_V1_SCOPE_MESSAGE}</p><PlannedBadge /></div></aside>
       </div>
       <style>{`@media (max-width: 1100px){.sys-shell,.sys-kpis,.sys-flow{grid-template-columns:1fr!important}.sys-shell{padding:8px!important}}`}</style>
     </main>

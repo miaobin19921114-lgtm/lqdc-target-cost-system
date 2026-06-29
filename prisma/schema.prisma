@@ -246,6 +246,7 @@ model ProjectVersion {
   name                   String
   stage                  String?
   status                 String        @default("draft")
+  isLocked               Boolean       @default(false)
   products               ProductType[]
   costRules              ProjectCostRule[]
   costs                  CostLine[]
@@ -283,6 +284,12 @@ model ProductType {
   isSaleable             Boolean @default(true)
   participateAllocation  Boolean @default(true)
   allocationWeight       Decimal @default(1)
+  taxLiquidationObject   String?
+  incomeTaxCostObject    String?
+  productCategory        String?
+  saleAttribute          String?
+  costObject             String?
+  clearingObject         String?
   remark                 String?
   isActive               Boolean @default(true)
   disabledAt             DateTime?
@@ -321,6 +328,9 @@ model CostSubject {
   name                    String
   level                   Int
   parentCode              String?
+  parentId                String?
+  parent                  CostSubject?  @relation("CostSubjectTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children                CostSubject[] @relation("CostSubjectTree")
   fullPath                String?
   defaultUnit             String?
   defaultTaxRate          Decimal    @default(0.09)
@@ -329,6 +339,8 @@ model CostSubject {
   enabled                 Boolean    @default(true)
   sortOrder               Int        @default(0)
   costs                   CostLine[]
+
+  @@index([parentId])
 }
 
 model ProjectMetricDefinition {
@@ -546,6 +558,10 @@ model TaxParameter {
   projectVersion             ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
   vatMethod                  String         @default("一般计税")
   vatRate                    Decimal        @default(0.09)
+  urbanMaintenanceRate       Decimal?
+  corporateIncomeTaxRate     Decimal?
+  landValueAddedTaxRate      Decimal?
+  remark                     String?
   deemedSalesRevenue         Decimal        @default(0)
   nonDeductibleInputTax      Decimal        @default(0)
   landDeductibleAmount       Decimal        @default(0)

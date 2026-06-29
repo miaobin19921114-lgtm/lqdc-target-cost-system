@@ -4,6 +4,7 @@ export const projectNavGroups = [
     items: [
       ['项目概况', 'overview', 'done'],
       ['业态产品', 'product-maintenance', 'done'],
+      ['成本科目及测算词典', 'cost-dictionary', 'done'],
       ['版本管理', 'versions', 'done']
     ]
   },
@@ -20,8 +21,7 @@ export const projectNavGroups = [
     title: '收入成本明细',
     items: [
       ['收入明细', 'revenue', 'done'],
-      ['成本明细', 'land', 'done'],
-      ['各专业明细', 'building-details', 'done']
+      ['成本明细', 'land', 'done']
     ]
   },
   {
@@ -35,20 +35,8 @@ export const projectNavGroups = [
   {
     title: 'Excel',
     items: [
-      ['Excel 工作台', 'excel', 'done'],
-      ['模板下载', 'excel', 'done'],
-      ['导入预览', 'excel', 'done'],
-      ['确认导入', 'excel', 'done'],
-      ['导出', 'export', 'done'],
-      ['导入批次', 'import-batches', 'done']
-    ]
-  },
-  {
-    title: '系统',
-    items: [
-      ['成本科目及测算词典', 'cost-dictionary', 'done'],
-      ['系统自检', 'check', 'done'],
-      ['健康检查', '/health', 'done']
+      ['轻量看板', 'dashboard-lite', 'done'],
+      ['Excel 工作台', 'excel', 'done']
     ]
   }
 ] as const;

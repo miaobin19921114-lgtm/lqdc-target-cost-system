@@ -7,7 +7,6 @@ const nonV1ProjectSegments = new Set([
   'construction-standards',
   'cost-calculation-rules',
   'cost-mapping',
-  'dashboard-lite',
   'decision',
   'detail-calculation-results',
   'detail-rule-calculation',
