@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getEditableActiveVersion } from '@/lib/project-version';
 
 const productPresets = [
   { category: '住宅类', name: '高层住宅', isSaleable: true, participateAllocation: true },
@@ -52,15 +53,14 @@ function getBaseUrl(request: Request) {
   return host ? `${proto}://${host}` : new URL(request.url).origin;
 }
 
-async function getOrCreateVersion(projectId: string) {
-  const existing = await prisma.projectVersion.findFirst({ where: { projectId }, orderBy: { createdAt: 'asc' } });
-  if (existing) return existing;
-  return prisma.projectVersion.create({ data: { projectId, name: '初始版本', status: 'draft' } });
-}
-
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
-  const version = await getOrCreateVersion(params.id);
+  const { version, locked } = await getEditableActiveVersion(params.id);
+  const baseUrl = getBaseUrl(request);
+  const returnPath = String(form.get('returnPath') || 'products');
+  if (!version) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath === 'overview' ? 'overview?productSaved=0' : 'products?productSaved=0'}`, 303);
+  if (locked) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${returnPath === 'overview' ? 'overview?locked=1' : 'products?locked=1'}`, 303);
+
   const existing = await prisma.productType.findMany({ where: { projectVersionId: version.id }, select: { name: true } });
   const existingNames = new Set(existing.map((item) => item.name));
 
@@ -78,8 +78,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
     });
   }
 
-  const baseUrl = getBaseUrl(request);
-  const returnPath = String(form.get('returnPath') || 'products');
   const target = returnPath === 'overview' ? 'overview?preset=1' : 'products?preset=1';
   return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${target}`, 303);
 }

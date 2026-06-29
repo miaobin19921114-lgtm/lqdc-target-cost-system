@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { rebuildProjectCostDictionary } from '@/lib/rebuild-project-cost-dictionary';
+import { getEditableActiveVersion } from '@/lib/project-version';
 
 function clean(form: FormData, name: string) {
   return String(form.get(name) || '').trim();
@@ -27,6 +28,9 @@ function getBaseUrl(request: Request) {
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
+  const { version, locked } = await getEditableActiveVersion(params.id);
+  if (!version) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/construction-standards?saved=0`, 303);
+  if (locked) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/construction-standards?locked=1`, 303);
 
   await prisma.project.update({
     where: { id: params.id },

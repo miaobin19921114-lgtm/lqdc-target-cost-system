@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getEditableActiveVersion } from '@/lib/project-version';
 
 const toNumber = (form: FormData, name: string) => Number(form.get(name) || 0);
 const clean = (value: FormDataEntryValue | null) => String(value || '').trim();
@@ -43,7 +44,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const dictionaryRowId = String(form.get('dictionaryRowId') || '');
   const dict = dictionaryRowId ? await prisma.costDictionaryRow.findUnique({ where: { id: dictionaryRowId } }) : null;
 
-  const version = await prisma.projectVersion.findFirst({ where: { projectId: params.id }, orderBy: { createdAt: 'asc' } }) || await prisma.projectVersion.create({ data: { projectId: params.id, name: '初始版本' } });
+  const { version, locked } = await getEditableActiveVersion(params.id);
+  if (!version) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/pre-costs?saved=0`, 303);
+  if (locked) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/pre-costs?locked=1`, 303);
 
   const code = dict?.costCode || '02';
   const subjectName = dict?.detailSubject || dict?.thirdSubject || dict?.secondSubject || dict?.firstSubject || '前期工程费';

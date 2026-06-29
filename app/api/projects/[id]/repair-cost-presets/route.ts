@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getEditableActiveVersion } from '@/lib/project-version';
 
 function getBaseUrl(request: Request) {
   return process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
@@ -20,8 +21,9 @@ function needText(value?: string | null) {
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const baseUrl = getBaseUrl(request);
-  const version = await prisma.projectVersion.findFirst({ where: { projectId: params.id }, orderBy: { createdAt: 'asc' } });
+  const { version, locked } = await getEditableActiveVersion(params.id);
   if (!version) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/check?repaired=0`, 303);
+  if (locked) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/check?locked=1`, 303);
 
   const dictionaryRows = await prisma.costDictionaryRow.findMany({ where: { projectId: params.id } });
   const dictionaryByCode = new Map(dictionaryRows.filter((row) => row.costCode).map((row) => [row.costCode as string, row]));

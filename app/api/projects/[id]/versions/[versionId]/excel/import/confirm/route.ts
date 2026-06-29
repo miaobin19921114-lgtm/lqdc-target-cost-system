@@ -302,7 +302,7 @@ export async function POST(request: Request, { params }: { params: { id: string;
   const currentVersion = project?.versions[0];
   if (!project || !currentVersion) return jsonError('EXCEL_IMPORT_PREVIEW_NOT_FOUND', '项目或版本不存在。', 404);
   if (projectLooksArchived(project)) return jsonError('EXCEL_IMPORT_PROJECT_ARCHIVED', '当前项目已归档，禁止导入。');
-  if (importMode === 'overwrite_current' && isVersionLocked(currentVersion)) return jsonError('EXCEL_IMPORT_VERSION_LOCKED', '当前版本已锁定，禁止覆盖导入。');
+  if (importMode === 'overwrite_current' && isVersionLocked(currentVersion)) return jsonError('VERSION_LOCKED', '当前版本已锁定，禁止覆盖导入。');
 
   let data: ParsedV60ImportData;
   try {
@@ -329,6 +329,13 @@ export async function POST(request: Request, { params }: { params: { id: string;
           }
         });
         targetVersionId = created.id;
+      }
+
+      const targetVersion = importMode === 'overwrite_current'
+        ? currentVersion
+        : await tx.projectVersion.findFirst({ where: { id: targetVersionId, projectId: params.id } });
+      if (!targetVersion || isVersionLocked(targetVersion)) {
+        throw new Error('VERSION_LOCKED: 目标版本已锁定，禁止确认导入。');
       }
 
       await writeImportData(tx, {
@@ -375,6 +382,9 @@ export async function POST(request: Request, { params }: { params: { id: string;
     const message = error instanceof Error ? error.message : '确认导入失败。';
     if (message.startsWith('EXCEL_IMPORT_HAS_BLOCKING_ERRORS:')) {
       return jsonError('EXCEL_IMPORT_HAS_BLOCKING_ERRORS', message.replace('EXCEL_IMPORT_HAS_BLOCKING_ERRORS:', '').trim());
+    }
+    if (message.startsWith('VERSION_LOCKED:')) {
+      return jsonError('VERSION_LOCKED', message.replace('VERSION_LOCKED:', '').trim());
     }
     if (message.includes('calculate') || message.includes('recalculate')) {
       return jsonError('EXCEL_IMPORT_RECALCULATION_FAILED', message, 500);

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isVersionLocked } from '@/lib/project-version';
 
 function getBaseUrl(request: Request) {
   const proto = request.headers.get('x-forwarded-proto') || 'https';
@@ -31,6 +32,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const product = await prisma.productType.findUnique({ where: { id: productId }, include: { projectVersion: true } });
   if (!product || product.projectVersion.projectId !== params.id) return redirectTo(request, params.id, 'missing');
+  if (isVersionLocked(product.projectVersion)) return redirectTo(request, params.id, 'locked');
 
   if (action === 'disable') {
     await prisma.productType.update({ where: { id: productId }, data: disableData });

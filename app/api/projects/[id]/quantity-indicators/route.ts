@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getEditableActiveVersion } from '@/lib/project-version';
 
 function clean(form: FormData, name: string) {
   return String(form.get(name) || '').trim();
@@ -22,6 +23,10 @@ function getBaseUrl(request: Request) {
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
+  const { version, locked } = await getEditableActiveVersion(params.id);
+  if (!version) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/quantity-indicators?saved=0`, 303);
+  if (locked) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/quantity-indicators?locked=1`, 303);
+
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   const landArea = Number(project?.landArea || 0);
   const softscapeArea = toNumber(form, 'softscapeArea') || toNumber(form, 'greenArea');

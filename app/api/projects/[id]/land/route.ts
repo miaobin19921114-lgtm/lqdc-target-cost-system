@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getEditableActiveVersion } from '@/lib/project-version';
 
 const toNumber = (form: FormData, name: string) => Number(form.get(name) || 0);
 
@@ -14,12 +15,6 @@ function getBaseUrl(request: Request) {
   return new URL(request.url).origin;
 }
 
-async function getOrCreateVersion(projectId: string) {
-  const existing = await prisma.projectVersion.findFirst({ where: { projectId }, orderBy: { createdAt: 'asc' } });
-  if (existing) return existing;
-  return prisma.projectVersion.create({ data: { projectId, name: '初始版本', status: 'draft' } });
-}
-
 async function getLandSubject() {
   const subject = await prisma.costSubject.findFirst({ where: { code: '01' } });
   if (subject) return subject;
@@ -28,7 +23,9 @@ async function getLandSubject() {
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
-  const version = await getOrCreateVersion(params.id);
+  const { version, locked } = await getEditableActiveVersion(params.id);
+  if (!version) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/land?saved=0`, 303);
+  if (locked) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/land?locked=1`, 303);
   const landSubject = await getLandSubject();
 
   const landMu = toNumber(form, 'landMu');

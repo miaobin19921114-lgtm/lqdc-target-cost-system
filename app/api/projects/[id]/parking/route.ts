@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getEditableActiveVersion } from '@/lib/project-version';
 
 const toInt = (form: FormData, name: string) => Math.max(0, Math.floor(Number(form.get(name) || 0)));
 const toNumber = (form: FormData, name: string) => Number(form.get(name) || 0);
@@ -12,6 +13,11 @@ function getBaseUrl(request: Request) {
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
+  const { version, locked } = await getEditableActiveVersion(params.id);
+  const baseUrl = getBaseUrl(request);
+  if (!version) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/parking?saved=0`, 303);
+  if (locked) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/parking?locked=1`, 303);
+
   const undergroundPropertyParkingCount = toInt(form, 'undergroundPropertyParkingCount');
   const undergroundUseRightParkingCount = toInt(form, 'undergroundUseRightParkingCount');
   const civilDefenseParkingCount = toInt(form, 'civilDefenseParkingCount');
@@ -43,6 +49,5 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
   });
 
-  const baseUrl = getBaseUrl(request);
   return NextResponse.redirect(`${baseUrl}/projects/${params.id}/parking?saved=1`, 303);
 }

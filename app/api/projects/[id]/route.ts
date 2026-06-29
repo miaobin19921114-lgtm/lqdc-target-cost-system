@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getEditableActiveVersion } from '@/lib/project-version';
 
 const toNumber = (value: FormDataEntryValue | null) => Number(value || 0);
 const toInt = (value: FormDataEntryValue | null) => Math.round(toNumber(value));
@@ -13,6 +14,10 @@ function getBaseUrl(request: Request) {
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
+  const { version, locked } = await getEditableActiveVersion(params.id);
+  const baseUrl = getBaseUrl(request);
+  if (!version) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/overview?saved=0`, 303);
+  if (locked) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/overview?locked=1`, 303);
 
   await prisma.project.update({
     where: { id: params.id },
@@ -48,6 +53,5 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
   });
 
-  const baseUrl = getBaseUrl(request);
   return NextResponse.redirect(`${baseUrl}/projects/${params.id}/overview?saved=1`, 303);
 }

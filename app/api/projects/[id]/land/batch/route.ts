@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { getEditableActiveVersion } from '@/lib/project-version';
 import { refreshTargetCostAggregates, upsertDetailCalculationResult } from '@/lib/detail-calculation-result-sync';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
@@ -35,13 +35,6 @@ function round2(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-async function getOrCreateVersion(projectId: string) {
-  const project = await prisma.project.findUnique({ where: { id: projectId } });
-  const existing = project ? await prisma.projectVersion.findFirst({ where: activeVersionWhere(project), orderBy: activeVersionOrder(project) }) : null;
-  if (existing) return existing;
-  return prisma.projectVersion.create({ data: { projectId, name: '初始版本', status: 'draft' } });
-}
-
 function matchesInactiveProductName(text: string | null | undefined, inactiveNames: Set<string>) {
   const value = String(text || '').trim();
   if (!value) return false;
@@ -67,7 +60,9 @@ function defaultTaxRateForLandRow(dict: { detailSubject?: string | null; default
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
   const project = await prisma.project.findUnique({ where: { id: params.id }, select: { id: true, totalBuildingArea: true, saleableArea: true } });
-  const version = await getOrCreateVersion(params.id);
+  const { version, locked } = await getEditableActiveVersion(params.id);
+  if (!version) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/land?saved=0`, 303);
+  if (locked) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/land?locked=1`, 303);
   const [versionSnapshot] = await prisma.$queryRawUnsafe<Array<{ id: string }>>(`
     SELECT "id" FROM "VersionRuleSnapshot" WHERE "projectId"=$1 AND "versionId"=$2 ORDER BY "createdAt" DESC LIMIT 1
   `, params.id, version.id).catch(() => []);

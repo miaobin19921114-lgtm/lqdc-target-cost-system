@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { rebuildProjectCostDictionary } from '@/lib/rebuild-project-cost-dictionary';
+import { getEditableActiveVersion } from '@/lib/project-version';
 
 function clean(form: FormData, name: string) {
   return String(form.get(name) || '').trim();
@@ -37,6 +38,10 @@ function landAreaFromForm(form: FormData) {
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
+  const { version, locked } = await getEditableActiveVersion(params.id);
+  if (!version) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/overview?saved=0`, 303);
+  if (locked) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/overview?locked=1`, 303);
+
   const land = landAreaFromForm(form);
   const softscapeArea = toNumber(form, 'softscapeArea') || toNumber(form, 'greenArea');
   const greenArea = toNumber(form, 'greenArea') || softscapeArea;
