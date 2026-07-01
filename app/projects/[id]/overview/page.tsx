@@ -297,8 +297,8 @@ function MetricCard({ label, value, unit }: { label: string; value: unknown; uni
   return <div className="stat" style={{ minHeight: 78 }}><div className="stat-label">{label}</div><div className="stat-value">{display(value)}{unit || ''}</div></div>;
 }
 
-function addNumber(name: string, label: string) {
-  return <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467' }}>{label}<input name={name} type="number" step="0.01" style={formField} /></label>;
+function addNumber(name: string, label: string, locked = false) {
+  return <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467' }}>{label}<input name={name} type="number" step="0.01" disabled={locked} style={locked ? readonlyField : formField} /></label>;
 }
 
 export default async function ProjectOverviewPage({ params, searchParams }: { params: { id: string }, searchParams?: Record<string, string | undefined> }) {
@@ -470,10 +470,10 @@ export default async function ProjectOverviewPage({ params, searchParams }: { pa
               </label>
               <label style={{ display: 'flex', gap: 7, alignItems: 'center', fontSize: 13 }}><input name="isSaleable" type="checkbox" disabled={locked} />是否可售</label>
               <label style={{ display: 'flex', gap: 7, alignItems: 'center', fontSize: 13 }}><input name="participateAllocation" type="checkbox" defaultChecked disabled={locked} />是否成本对象</label>
-              {addNumber('buildingArea', '建筑面积')}
-              {addNumber('capacityArea', '计容面积')}
-              {addNumber('saleableArea', '可售面积')}
-              {addNumber('nonSaleableArea', '不可售面积')}
+              {addNumber('buildingArea', '建筑面积', locked)}
+              {addNumber('capacityArea', '计容面积', locked)}
+              {addNumber('saleableArea', '可售面积', locked)}
+              {addNumber('nonSaleableArea', '不可售面积', locked)}
               <button className="btn btn-primary" disabled={locked || addableGroups.length === 0}>新增业态</button>
             </form>
           </div>

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { activeVersionOrder, activeVersionWhere, isVersionLocked } from '@/lib/project-version';
 import { getCostSettings } from '@/lib/cost-product-settings';
 import { getTaxLiquidationObject, taxLiquidationObjects } from '@/lib/tax-liquidation-object';
 
@@ -83,6 +83,11 @@ function defaultCostObject(item: { name: string }, extra?: ExtraRow) {
 }
 
 function StatusMessage({ searchParams }: { searchParams?: Record<string, string | undefined> }) {
+  if (searchParams?.locked === '1') return <div className="card" style={{ marginBottom: 14, borderColor: '#ffc9c9', background: '#fff5f5' }}>当前测算版本已锁定，业态新增、停用、恢复和专业属性保存均禁止执行。</div>;
+  if (searchParams?.disabled === '1') return <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>业态已停用，历史记录保留。</div>;
+  if (searchParams?.restored === '1') return <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>业态已恢复启用。</div>;
+  if (searchParams?.cannotDisable === '1') return <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8', background: '#fff9db' }}>该业态已有业务数据或版本已锁定，不能直接停用。</div>;
+  if (searchParams?.cannotRestore === '1') return <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8', background: '#fff9db' }}>业态恢复未完成，请检查版本状态。</div>;
   if (searchParams?.organized === '1') return <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>已一键整理业态结构：空白专业属性已补齐，并已检查对应地下室。</div>;
   if (searchParams?.organized === '0') return <div className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8', background: '#fff9db' }}>一键整理失败，请检查当前版本状态。</div>;
   if (searchParams?.classificationSaved === '1') return <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>产品专业属性已保存。</div>;
@@ -125,9 +130,12 @@ export default async function ProductMaintenancePage({ params, searchParams }: {
     include: { products: { orderBy: { name: 'asc' }, include: { _count: { select: { revenues: true, costs: true } } } } }
   });
   const products = version?.products || [];
+  const locked = version ? isVersionLocked(version) : false;
   const rows = version ? await prisma.$queryRawUnsafe<ExtraRow[]>('SELECT "id", "taxLiquidationObject", "incomeTaxCostObject", "productCategory", "saleAttribute", "costObject", "clearingObject" FROM "ProductType" WHERE "projectVersionId" = $1', version.id) : [];
   const extraMap = new Map(rows.map((row) => [row.id, row]));
-  const groups = productGroupOrder.map((title) => ({ title, items: products.filter((item) => groupOf(item, extraMap.get(item.id)) === title) })).filter((group) => group.items.length > 0);
+  const activeProducts = products.filter((item) => item.isActive);
+  const disabledProducts = products.filter((item) => !item.isActive);
+  const groups = productGroupOrder.map((title) => ({ title, items: activeProducts.filter((item) => groupOf(item, extraMap.get(item.id)) === title) })).filter((group) => group.items.length > 0);
   const activeCount = products.filter((item) => item.isActive).length;
   const allocationCount = products.filter((item) => item.isActive && item.participateAllocation).length;
   const residentialCount = products.filter((item) => item.isActive && groupOf(item, extraMap.get(item.id)) === '住宅类').length;
@@ -137,7 +145,7 @@ export default async function ProductMaintenancePage({ params, searchParams }: {
   const supportCount = products.filter((item) => item.isActive && groupOf(item, extraMap.get(item.id)) === '配套公建').length;
 
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1480 }}>
-    <div className="page-header"><div><p className="eyebrow">项目基础</p><h1 className="title">业态产品 / 税务清算对象</h1><p className="subtitle">卡片式管理业态产品。优先维护产品大类、销售属性、成本对象、清算对象，面积指标仍回项目概况维护。</p></div><div className="actions" style={{ marginTop: 0 }}><form action={`/api/projects/${project.id}/products/organize`} method="post"><button className="btn btn-primary">一键整理业态结构</button></form><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}/construction-standards`} className="btn">建造配置标准</Link><Link href={`/projects/${project.id}/quantity-indicators`} className="btn">工程量指标</Link><Link href={`/projects/${project.id}/indicator-check`} className="btn">指标校验</Link><Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link></div></div>
+    <div className="page-header"><div><p className="eyebrow">项目基础</p><h1 className="title">业态产品 / 税务清算对象</h1><p className="subtitle">卡片式管理业态产品。优先维护产品大类、销售属性、成本对象、清算对象，面积指标仍回项目概况维护。</p></div><div className="actions" style={{ marginTop: 0 }}><form action={`/api/projects/${project.id}/products/organize`} method="post"><button className="btn btn-primary" disabled={locked}>一键整理业态结构</button></form><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}/construction-standards`} className="btn">建造配置标准</Link><Link href={`/projects/${project.id}/quantity-indicators`} className="btn">工程量指标</Link><Link href={`/projects/${project.id}/indicator-check`} className="btn">指标校验</Link><Link href={`/projects/${project.id}`} className="btn">项目测算中心</Link></div></div>
     <StatusMessage searchParams={searchParams} />
 
     <div className="summary-strip" style={{ marginBottom: 14 }}>
@@ -150,10 +158,12 @@ export default async function ProductMaintenancePage({ params, searchParams }: {
       <StatCard label="参与分摊" value={allocationCount} note="成本分摊对象" />
     </div>
 
+    {locked ? <section className="card" style={{ marginBottom: 14, borderColor: '#ffc9c9', background: '#fff5f5' }}>当前测算版本已锁定，不能新增、停用、恢复业态，也不能保存专业属性。</section> : null}
+
     <section className="card" style={{ marginBottom: 14, borderColor: '#d0ebff', background: '#f8fbff' }}>
       <b>页面口径</b>
-      <p className="meta" style={{ margin: '6px 0 10px' }}>现在按“产品大类”分组展示。点击“一键整理业态结构”，会补齐空白专业属性，并检查是否缺少对应地下室；不会覆盖你已经手动保存过的专业字段。</p>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{groups.map((group) => <a key={group.title} href={`#${safeAnchor(group.title)}`} className="btn" style={{ minHeight: 32 }}>{group.title}（{group.items.length}）</a>)}</div>
+      <p className="meta" style={{ margin: '6px 0 10px' }}>默认只展示启用业态，并按“产品大类”分组。停用业态保留历史记录，集中放在下方折叠区，不参与当前测算口径。</p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{groups.map((group) => <a key={group.title} href={`#${safeAnchor(group.title)}`} className="btn" style={{ minHeight: 32 }}>{group.title}（{group.items.length}）</a>)}<a href="#disabled-products" className="btn" style={{ minHeight: 32 }}>停用业态（{disabledProducts.length}）</a></div>
     </section>
 
     {groups.map((group) => <section id={safeAnchor(group.title)} key={group.title} className="card" style={{ marginBottom: 16 }}>
@@ -195,7 +205,7 @@ export default async function ProductMaintenancePage({ params, searchParams }: {
                 <label><FieldLabel>成本对象</FieldLabel><SelectField name="costObject" value={costObject} options={costObjects} /></label>
                 <label><FieldLabel>清算对象</FieldLabel><SelectField name="clearingObject" value={taxObject} options={taxLiquidationObjects} /></label>
               </div>
-              <div className="actions" style={{ marginTop: 10 }}><button className="btn btn-primary" style={{ minHeight: 32 }}>保存专业属性</button><Link className="btn" href={`/projects/${project.id}/overview`}>回概况维护</Link></div>
+              <div className="actions" style={{ marginTop: 10 }}><button className="btn btn-primary" style={{ minHeight: 32 }} disabled={locked}>保存专业属性</button><Link className="btn" href={`/projects/${project.id}/overview`}>回概况维护</Link></div>
             </form>
 
             <form action={`/api/projects/${project.id}/products/cost-settings`} method="post" style={{ background: '#fffaf0', border: '1px solid #ffe8cc', borderRadius: 12, padding: 12 }}>
@@ -205,12 +215,34 @@ export default async function ProductMaintenancePage({ params, searchParams }: {
                 <select name="groupName" defaultValue={costSetting.groupName} style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 8px', background: '#fff' }}>{groupOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select>
               </div>
               <div className="meta" style={{ marginTop: 7 }}>所得税成本对象：{incomeTaxObject}；{costSetting.note}</div>
-              <div className="actions" style={{ marginTop: 10 }}><button className="btn" style={{ minHeight: 32 }}>保存成本归属</button></div>
+              <div className="actions" style={{ marginTop: 10 }}><button className="btn" style={{ minHeight: 32 }} disabled={locked}>保存成本归属</button></div>
             </form>
           </article>;
         })}
       </div>
     </section>)}
+
+    <section id="disabled-products" className="card" style={{ marginBottom: 16 }}>
+      <details>
+        <summary style={{ cursor: 'pointer', fontWeight: 900 }}>已停用业态 <span className="meta">{disabledProducts.length} 个，默认隐藏</span></summary>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12, marginTop: 14 }}>
+          {disabledProducts.map((item) => <article key={item.id} style={{ background: '#fffaf0', border: '1px solid #ffe8cc', borderRadius: 12, padding: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+              <div><h3 style={{ margin: 0, fontSize: 17 }}>{item.name}</h3><div className="meta" style={{ marginTop: 5 }}>{groupOf(item, extraMap.get(item.id))}</div></div>
+              <Badge tone="red">停用</Badge>
+            </div>
+            <p className="meta" style={{ margin: '8px 0 10px' }}>停用不是删除；历史面积、收入、成本记录仍保留，但默认不参与当前测算展示。</p>
+            <form action={`/api/projects/${project.id}/products/status`} method="post">
+              <input type="hidden" name="productId" value={item.id} />
+              <input type="hidden" name="action" value="restore" />
+              <input type="hidden" name="operationReason" value="业态产品页恢复启用" />
+              <button className="btn btn-primary" disabled={locked}>恢复启用</button>
+            </form>
+          </article>)}
+          {!disabledProducts.length ? <p className="meta">暂无停用业态。</p> : null}
+        </div>
+      </details>
+    </section>
 
     {!products.length ? <section className="card">当前版本暂无业态，请先到项目概况页添加业态。</section> : null}
   </div></main>;
