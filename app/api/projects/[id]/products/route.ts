@@ -83,6 +83,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const templateSaved = customName && saveToTemplate ? await saveCustomProductToPersonalTemplate(request, { name, category, ...data }) : false;
 
   if (existing) {
+    if (!existing.isActive) {
+      const disabledTarget = returnPath === 'product-maintenance' ? 'product-maintenance?disabled=1' : returnPath === 'overview' ? 'overview?productSaved=disabled' : 'products?disabled=1';
+      return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${disabledTarget}${templateSaved ? '&templateSaved=1' : ''}`, 303);
+    }
     if (form.get('mode') === 'create') {
       const duplicateTarget = returnPath === 'product-maintenance' ? `product-maintenance?duplicate=1${templateSaved ? '&templateSaved=1' : ''}` : returnPath === 'overview' ? `overview?productSaved=duplicate${templateSaved ? '&templateSaved=1' : ''}` : `products?duplicate=1${templateSaved ? '&templateSaved=1' : ''}`;
       return NextResponse.redirect(`${baseUrl}/projects/${params.id}/${duplicateTarget}`, 303);
@@ -90,7 +94,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     await prisma.productType.update({ where: { id: existing.id }, data });
     await saveTaxLiquidationObject(existing.id, taxLiquidationObject);
   } else {
-    const created = await prisma.productType.create({ data: { projectVersionId: version.id, name, ...data } });
+    const created = await prisma.productType.create({ data: { projectVersionId: version.id, name, isActive: true, disabledAt: null, ...data } });
     await saveTaxLiquidationObject(created.id, taxLiquidationObject);
   }
 

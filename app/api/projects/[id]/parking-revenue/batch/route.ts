@@ -56,10 +56,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const product = existing
       ? await prisma.productType.update({
           where: { id: existing.id },
-          data: { saleableArea: count, buildingArea: 0, capacityArea: 0, salePrice, isSaleable: true, isActive: true, participateAllocation: false, allocationWeight: 0, remark: '车位收入按个数×单价测算；不参与普通面积分摊' }
+          data: { parkingCount: Math.round(count), saleableArea: count, buildingArea: 0, capacityArea: 0, salePrice, isSaleable: true, isActive: true, participateAllocation: false, allocationWeight: 0, remark: '车位收入按个数×单价测算；不参与普通面积分摊' }
         })
       : await prisma.productType.create({
-          data: { projectVersionId: version.id, name, saleableArea: count, buildingArea: 0, capacityArea: 0, salePrice, isSaleable: true, isActive: true, participateAllocation: false, allocationWeight: 0, remark: '车位收入按个数×单价测算；不参与普通面积分摊' }
+          data: { projectVersionId: version.id, name, parkingCount: Math.round(count), saleableArea: count, buildingArea: 0, capacityArea: 0, salePrice, isSaleable: true, isActive: true, participateAllocation: false, allocationWeight: 0, remark: '车位收入按个数×单价测算；不参与普通面积分摊' }
         });
 
     await upsertRevenueLine({ projectVersionId: version.id, productTypeId: product.id, count, salePrice, taxRate });

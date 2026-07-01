@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isVersionLocked } from '@/lib/project-version';
+import { disableVersionProductType, restoreVersionProductType } from '@/lib/product-type-service';
 
 function getBaseUrl(request: Request) {
   const proto = request.headers.get('x-forwarded-proto') || 'https';
@@ -11,17 +12,6 @@ function getBaseUrl(request: Request) {
 
 function redirectTo(request: Request, projectId: string, result: string) {
   return NextResponse.redirect(`${getBaseUrl(request)}/projects/${projectId}/product-maintenance?${result}=1`, 303);
-}
-
-const disableData = {
-  isActive: false,
-  disabledAt: new Date(),
-  isSaleable: false,
-  participateAllocation: false
-};
-
-function isTemplatePresetProduct(remark?: string | null) {
-  return String(remark || '').includes('模板业态｜');
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -35,43 +25,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (isVersionLocked(product.projectVersion)) return redirectTo(request, params.id, 'locked');
 
   if (action === 'disable') {
-    await prisma.productType.update({ where: { id: productId }, data: disableData });
-    return redirectTo(request, params.id, 'disabled');
+    const result = await disableVersionProductType(product.projectVersionId, productId, String(form.get('operationReason') || '') || null);
+    return redirectTo(request, params.id, result.body.success ? 'disabled' : 'cannotDisable');
   }
 
   if (action === 'restore') {
-    const [revenueCount, costCount] = await Promise.all([
-      prisma.revenueLine.count({ where: { productTypeId: productId } }),
-      prisma.costLine.count({ where: { productTypeId: productId } })
-    ]);
-    await prisma.productType.update({
-      where: { id: productId },
-      data: {
-        isActive: true,
-        disabledAt: null,
-        participateAllocation: true,
-        isSaleable: revenueCount > 0 || Number(product.saleableArea || 0) > 0
-      }
-    });
-    if (revenueCount > 0 || costCount > 0) return redirectTo(request, params.id, 'restoredWithHistory');
-    return redirectTo(request, params.id, 'restored');
+    const result = await restoreVersionProductType(product.projectVersionId, productId, String(form.get('operationReason') || '') || null);
+    return redirectTo(request, params.id, result.body.success ? 'restored' : 'cannotRestore');
   }
 
   if (action === 'delete') {
-    const [revenueCount, costCount] = await Promise.all([
-      prisma.revenueLine.count({ where: { productTypeId: productId } }),
-      prisma.costLine.count({ where: { productTypeId: productId } })
-    ]);
-    if (isTemplatePresetProduct(product.remark)) {
-      await prisma.productType.update({ where: { id: productId }, data: disableData });
-      return redirectTo(request, params.id, 'defaultProtected');
-    }
-    if (revenueCount > 0 || costCount > 0) {
-      await prisma.productType.update({ where: { id: productId }, data: disableData });
-      return redirectTo(request, params.id, 'cannotDelete');
-    }
-    await prisma.productType.delete({ where: { id: productId } });
-    return redirectTo(request, params.id, 'deleted');
+    const result = await disableVersionProductType(product.projectVersionId, productId, String(form.get('operationReason') || '') || null);
+    return redirectTo(request, params.id, result.body.success ? 'defaultProtected' : 'cannotDelete');
   }
 
   return redirectTo(request, params.id, 'unknown');

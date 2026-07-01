@@ -94,7 +94,7 @@ function addRevenue(target: { taxInclusive: number; taxExclusive: number; output
 
 export function revenueFromProjectData(input: {
   products: Array<{ id: string; name?: string | null; isActive?: boolean | null; isSaleable?: boolean | null; saleableArea: unknown; salePrice: unknown }>;
-  revenues?: Array<{ productTypeId?: string | null; taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown; productType?: { name?: string | null } | null }>;
+  revenues?: Array<{ productTypeId?: string | null; taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown; productType?: { name?: string | null; isActive?: boolean | null } | null }>;
   commercialRevenueLines?: Array<{ parentProductTypeId?: string | null; taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown }>;
   otherRevenueLines?: Array<{ taxInclusiveRevenue: unknown; taxExclusiveRevenue: unknown; taxAmount: unknown }>;
   vatRate: number;
@@ -104,7 +104,10 @@ export function revenueFromProjectData(input: {
   const parking = blankRevenue();
   const other = blankRevenue();
   const charging = blankRevenue();
-  const commercialParentIds = new Set<string>((input.commercialRevenueLines || [])
+  const activeProductIds = new Set(input.products.filter((item) => item.isActive).map((item) => item.id));
+  const activeRevenues = (input.revenues || []).filter((row) => !row.productTypeId || row.productType?.isActive !== false);
+  const activeCommercialRevenueLines = (input.commercialRevenueLines || []).filter((row) => !row.parentProductTypeId || activeProductIds.has(row.parentProductTypeId));
+  const commercialParentIds = new Set<string>(activeCommercialRevenueLines
     .filter((row) => n(row.taxInclusiveRevenue) > 0)
     .map((row) => row.parentProductTypeId)
     .filter((id): id is string => Boolean(id)));
@@ -121,23 +124,23 @@ export function revenueFromProjectData(input: {
       && !isCommercialRevenueProductName(item.name))
     .forEach((item) => addRevenue(ordinary, calculateRevenueLine(n(item.saleableArea), n(item.salePrice), input.vatRate)));
 
-  const revenueProductIds = new Set<string>((input.revenues || []).map((row) => row.productTypeId).filter((id): id is string => Boolean(id)));
+  const revenueProductIds = new Set<string>(activeRevenues.map((row) => row.productTypeId).filter((id): id is string => Boolean(id)));
   input.products
     .filter((item) => item.isActive && item.isSaleable && isParkingProductName(item.name) && !revenueProductIds.has(item.id))
     .forEach((item) => addRevenue(parking, calculateRevenueLine(n(item.saleableArea), n(item.salePrice), input.vatRate)));
 
-  (input.commercialRevenueLines || []).forEach((row) => addRevenue(commercial, row));
+  activeCommercialRevenueLines.forEach((row) => addRevenue(commercial, row));
   (input.otherRevenueLines || []).forEach((row) => addRevenue(other, row));
 
-  if (!(input.commercialRevenueLines || []).length || !(input.otherRevenueLines || []).length) {
-    (input.revenues || []).forEach((row) => {
+  if (!activeCommercialRevenueLines.length || !(input.otherRevenueLines || []).length) {
+    activeRevenues.forEach((row) => {
       const name = row.productType?.name || '';
-      const target = isParkingProductName(name) ? parking : isCommercialRevenueProductName(name) && !(input.commercialRevenueLines || []).length ? commercial : isOtherRevenueProductName(name) && !(input.otherRevenueLines || []).length ? other : isChargingProductName(name) ? charging : null;
+      const target = isParkingProductName(name) ? parking : isCommercialRevenueProductName(name) && !activeCommercialRevenueLines.length ? commercial : isOtherRevenueProductName(name) && !(input.otherRevenueLines || []).length ? other : isChargingProductName(name) ? charging : null;
       if (!target) return;
       addRevenue(target, row);
     });
   } else {
-    (input.revenues || []).forEach((row) => {
+    activeRevenues.forEach((row) => {
       const name = row.productType?.name || '';
       const target = isParkingProductName(name) ? parking : isChargingProductName(name) ? charging : null;
       if (!target) return;
@@ -158,7 +161,7 @@ export function revenueFromProjectData(input: {
     other: { taxInclusive: round2(other.taxInclusive), taxExclusive: round2(other.taxExclusive), outputVat: round2(other.outputVat) },
     charging: { taxInclusive: round2(charging.taxInclusive), taxExclusive: round2(charging.taxExclusive), outputVat: round2(charging.outputVat) },
     ...total,
-    rows: input.revenues || []
+    rows: activeRevenues
   };
 }
 
