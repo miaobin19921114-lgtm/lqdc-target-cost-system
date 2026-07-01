@@ -64,6 +64,31 @@ function hasOverviewData(product: {
   ].some((value) => n(value) > 0);
 }
 
+function hasRealIncomeData(row: {
+  saleableArea?: unknown;
+  salePrice?: unknown;
+  taxInclusiveRevenue?: unknown;
+  taxExclusiveRevenue?: unknown;
+  taxAmount?: unknown;
+  remark?: string | null;
+}) {
+  const systemRemarks = new Set([
+    '新增业态初始化收入结构',
+    '可售物业按面积×单价测算',
+    '车位收入按个数×单价测算；saleableArea 字段暂存车位个数',
+    '按普通业态面积自动同步',
+    '按业态指标自动同步'
+  ]);
+  const remark = String(row.remark || '').trim();
+  return [
+    row.taxInclusiveRevenue,
+    row.taxExclusiveRevenue,
+    row.taxAmount,
+    row.saleableArea,
+    row.salePrice
+  ].some((value) => n(value) > 0) || (remark.length > 0 && !systemRemarks.has(remark));
+}
+
 function error(code: string, message: string, status = 400) {
   return { ok: false as const, status, body: { success: false, error: { code, message } } };
 }
@@ -116,8 +141,8 @@ export async function getProductTypeImpact(versionId: string, productTypeId: str
 
   if (!product) return null;
 
-  const [incomeCount, costCount, allocationCount, excelCount, metricCount] = await Promise.all([
-    tx.revenueLine.count({ where: { projectVersionId: versionId, productTypeId } }),
+  const [incomeRows, costCount, allocationCount, excelCount, metricCount] = await Promise.all([
+    tx.revenueLine.findMany({ where: { projectVersionId: versionId, productTypeId } }),
     tx.costLine.count({ where: { projectVersionId: versionId, productTypeId } }),
     tx.costLine.count({ where: { projectVersionId: versionId, productTypeId, allocationMethod: { not: null } } }),
     tx.costLine.count({ where: { projectVersionId: versionId, productTypeId, importBatchId: { not: null } } }),
@@ -126,7 +151,8 @@ export async function getProductTypeImpact(versionId: string, productTypeId: str
 
   const overviewData = hasOverviewData(product) || metricCount > 0;
   const locked = isVersionLocked(product.projectVersion);
-  const hasBusinessData = incomeCount > 0 || costCount > 0 || allocationCount > 0 || excelCount > 0;
+  const incomeData = incomeRows.some(hasRealIncomeData);
+  const hasBusinessData = incomeData || costCount > 0 || allocationCount > 0 || excelCount > 0;
 
   let canDisable = true;
   let blockedReason: string | null = null;
@@ -146,7 +172,7 @@ export async function getProductTypeImpact(versionId: string, productTypeId: str
     productTypeId,
     versionId,
     hasOverviewData: overviewData,
-    hasIncomeData: incomeCount > 0,
+    hasIncomeData: incomeData,
     hasCostData: costCount > 0,
     hasAllocationData: allocationCount > 0,
     hasTaxData: false,
@@ -241,21 +267,6 @@ export async function addVersionProductType(
         remark: preset ? `模板业态｜${preset.category}` : '项目新增业态'
       }
     });
-
-    if (product.isSaleable) {
-      await tx.revenueLine.create({
-        data: {
-          projectVersionId: versionId,
-          productTypeId: product.id,
-          saleableArea: 0,
-          salePrice: 0,
-          taxInclusiveRevenue: 0,
-          taxExclusiveRevenue: 0,
-          taxAmount: 0,
-          remark: '新增业态初始化收入结构'
-        }
-      });
-    }
 
     await createOperationLog(tx, {
       projectId: version.projectId,

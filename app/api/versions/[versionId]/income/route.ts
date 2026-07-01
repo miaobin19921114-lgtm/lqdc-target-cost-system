@@ -31,10 +31,30 @@ export async function GET(_request: Request, { params }: { params: { versionId: 
     where: { projectVersionId: params.versionId, productTypeId: { in: [...enabledIds] } },
     include: { productType: true }
   });
+  const rowsByProductId = new Map(revenues.map((row) => [row.productTypeId, row]));
 
   return NextResponse.json({
     success: true,
-    data: revenues.map((row) => {
+    data: version.products.filter((product) => product.isSaleable).map((product) => {
+      const row = rowsByProductId.get(product.id);
+      if (!row) {
+        const parking = isParkingProduct(product.name);
+        return {
+          id: null,
+          productTypeId: product.id,
+          productTypeName: product.name,
+          incomeType: parking ? 'parking' : 'saleable_property',
+          saleableArea: 0,
+          unitPrice: 0,
+          parkingCount: 0,
+          parkingUnitPrice: 0,
+          taxRate: Number(version.taxes?.vatRate || 0.09),
+          taxInclusiveRevenue: 0,
+          taxExclusiveRevenue: 0,
+          taxAmount: 0,
+          remark: null
+        };
+      }
       const parking = isParkingProduct(row.productType?.name);
       return {
         id: row.id,
