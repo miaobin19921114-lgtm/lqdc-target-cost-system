@@ -10,7 +10,8 @@ export function ProductScopeSelect({
   products,
   value,
   note,
-  formId = 'overview-form'
+  formId = 'overview-form',
+  disabled = false
 }: {
   name: string;
   label: string;
@@ -18,12 +19,14 @@ export function ProductScopeSelect({
   value?: string | null;
   note?: string;
   formId?: string;
+  disabled?: boolean;
 }) {
   const initial = useMemo(() => new Set(String(value || '').split(/[，,]/).map((item) => item.trim()).filter(Boolean)), [value]);
   const [selected, setSelected] = useState<Set<string>>(initial);
   const selectedText = Array.from(selected).join(',');
 
   function toggle(item: string) {
+    if (disabled) return;
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(item)) next.delete(item);
@@ -33,10 +36,12 @@ export function ProductScopeSelect({
   }
 
   function clearAll() {
+    if (disabled) return;
     setSelected(new Set());
   }
 
   function selectAll() {
+    if (disabled) return;
     setSelected(new Set(products));
   }
 
@@ -45,17 +50,17 @@ export function ProductScopeSelect({
       <span>{label}</span>
       {products.length ? <span style={{ color: '#667085', fontWeight: 400 }}>已选 {selected.size}</span> : null}
     </div>
-    <input form={formId} type="hidden" name={name} value={selectedText} />
-    <div style={boxStyle}>
+    <input form={formId} type="hidden" name={name} value={selectedText} disabled={disabled} />
+    <div style={disabled ? { ...boxStyle, background: '#f2f4f7' } : boxStyle}>
       {products.length ? <>
         <div style={{ display: 'flex', gap: 8, marginBottom: 9, flexWrap: 'wrap' }}>
-          <button type="button" onClick={selectAll} style={{ border: '1px solid #d0ebff', background: '#e7f5ff', color: '#0b7285', borderRadius: 999, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>全选</button>
-          <button type="button" onClick={clearAll} style={{ border: '1px solid #e5e7eb', background: '#f8fafc', color: '#475467', borderRadius: 999, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>清空</button>
+          <button type="button" onClick={selectAll} disabled={disabled} style={{ border: '1px solid #d0ebff', background: '#e7f5ff', color: '#0b7285', borderRadius: 999, padding: '4px 10px', fontSize: 12, cursor: disabled ? 'not-allowed' : 'pointer' }}>全选</button>
+          <button type="button" onClick={clearAll} disabled={disabled} style={{ border: '1px solid #e5e7eb', background: '#f8fafc', color: '#475467', borderRadius: 999, padding: '4px 10px', fontSize: 12, cursor: disabled ? 'not-allowed' : 'pointer' }}>清空</button>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {products.map((item) => {
             const checked = selected.has(item);
-            return <button key={item} type="button" onClick={() => toggle(item)} style={{ border: checked ? '1px solid #228be6' : '1px solid #d9e2ec', background: checked ? '#e7f5ff' : '#fff', color: checked ? '#1864ab' : '#475467', borderRadius: 999, padding: '6px 11px', fontSize: 13, cursor: 'pointer', fontWeight: checked ? 700 : 500 }}>
+            return <button key={item} type="button" onClick={() => toggle(item)} disabled={disabled} style={{ border: checked ? '1px solid #228be6' : '1px solid #d9e2ec', background: checked ? '#e7f5ff' : '#fff', color: checked ? '#1864ab' : '#475467', borderRadius: 999, padding: '6px 11px', fontSize: 13, cursor: disabled ? 'not-allowed' : 'pointer', fontWeight: checked ? 700 : 500 }}>
               {checked ? '✓ ' : ''}{item}
             </button>;
           })}

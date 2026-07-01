@@ -57,7 +57,7 @@ export default async function AllocationPage({ params }: { params: { id: string 
     include: { products: true, costs: { include: { costSubject: true, productType: true } } }
   });
 
-  const products = (version?.products || []).filter((item) => item.participateAllocation !== false);
+  const products = (version?.products || []).filter((item) => item.isActive && item.participateAllocation !== false);
   const costs = version?.costs || [];
   const productTotals = new Map<string, { product: any; direct: number; allocated: number; total: number }>();
   for (const product of products) productTotals.set(product.id, { product, direct: 0, allocated: 0, total: 0 });

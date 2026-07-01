@@ -13,20 +13,21 @@ const cityDistricts: Record<string, string[]> = {
 
 const cityOptions = ['', ...Object.keys(cityDistricts)];
 const fieldStyle = { height: 34, border: '1px solid #d9e2ec', borderRadius: 6, padding: '4px 8px' };
+const disabledFieldStyle = { ...fieldStyle, background: '#f2f4f7', color: '#667085' };
 
-export function CityDistrictSelect({ city, district }: { city?: string | null; district?: string | null }) {
+export function CityDistrictSelect({ city, district, disabled = false }: { city?: string | null; district?: string | null; disabled?: boolean }) {
   const [currentCity, setCurrentCity] = useState(city || '');
   const districts = useMemo(() => cityDistricts[currentCity] || ['其他'], [currentCity]);
   const districtValue = district && districts.includes(district) ? district : '';
 
   return <>
     <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467' }}>城市
-      <select form="overview-form" name="city" value={currentCity} onChange={(event) => setCurrentCity(event.target.value)} style={fieldStyle}>
+      <select form="overview-form" name="city" value={currentCity} onChange={(event) => setCurrentCity(event.target.value)} disabled={disabled} style={disabled ? disabledFieldStyle : fieldStyle}>
         {cityOptions.map((item) => <option key={item || 'empty'} value={item}>{item || '请选择城市'}</option>)}
       </select>
     </label>
     <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467' }}>区域/板块
-      <select form="overview-form" name="district" key={currentCity} defaultValue={districtValue} style={fieldStyle}>
+      <select form="overview-form" name="district" key={currentCity} defaultValue={districtValue} disabled={disabled} style={disabled ? disabledFieldStyle : fieldStyle}>
         <option value="">请选择区域/板块</option>
         {districts.map((item) => <option key={item} value={item}>{item}</option>)}
       </select>
