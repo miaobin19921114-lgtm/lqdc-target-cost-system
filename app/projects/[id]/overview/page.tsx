@@ -246,6 +246,80 @@ function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'ne
   return <span style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 999, border: `1px solid ${styleMap.border}`, background: styleMap.background, color: styleMap.color, padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>{children}</span>;
 }
 
+function TooltipStyles() {
+  return <style>{`
+    .overview-tooltip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      vertical-align: middle;
+      margin-left: 4px;
+    }
+    .overview-tooltip__icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      background: #f8fafc;
+      color: #475467;
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1;
+      cursor: help;
+      outline: none;
+    }
+    .overview-tooltip__icon:focus {
+      box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.16);
+      border-color: #67b7c7;
+    }
+    .overview-tooltip__bubble {
+      position: absolute;
+      z-index: 20;
+      left: 50%;
+      bottom: calc(100% + 8px);
+      transform: translateX(-50%);
+      width: max-content;
+      max-width: 260px;
+      padding: 7px 9px;
+      border-radius: 6px;
+      background: #111827;
+      color: #fff;
+      font-size: 12px;
+      line-height: 1.5;
+      font-weight: 500;
+      white-space: normal;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.2);
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+    }
+    .overview-tooltip__bubble::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #111827;
+    }
+    .overview-tooltip:hover .overview-tooltip__bubble,
+    .overview-tooltip:focus-within .overview-tooltip__bubble {
+      opacity: 1;
+      visibility: visible;
+    }
+  `}</style>;
+}
+
+function Tooltip({ text }: { text: string }) {
+  return <span className="overview-tooltip">
+    <span className="overview-tooltip__icon" tabIndex={0} aria-label={text}>?</span>
+    <span className="overview-tooltip__bubble" role="tooltip">{text}</span>
+  </span>;
+}
+
 function ProductStatusBadges({ product, impact, locked }: { product: ProductRow; impact?: ImpactRow; locked: boolean }) {
   const hasData = hasAnyBusinessData(impact) || Boolean(impact?.hasOverviewData);
   return <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -257,33 +331,28 @@ function ProductStatusBadges({ product, impact, locked }: { product: ProductRow;
 
 function ProductTable({ rows, impacts, locked, projectId, versionId, showActions = false }: { rows: ProductRow[]; impacts: Map<string, ImpactRow>; locked: boolean; projectId: string; versionId?: string; showActions?: boolean }) {
   return <div style={{ overflowX: 'auto' }}>
-    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: showActions ? 1180 : 980, fontSize: 12 }}>
-      <thead><tr>{['启用业态', '业态分类', '是否可售', '是否成本对象', '是否税务清算对象', '收入测算', '成本归属', '利润分析', '业态状态', ...(showActions ? ['操作'] : [])].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: showActions ? 720 : 600, fontSize: 12, tableLayout: 'fixed' }}>
+      <thead><tr>{['业态', '分类', '属性', '状态', ...(showActions ? ['操作'] : [])].map((head, index) => <th key={head} style={{ ...cell, width: index === 0 ? '25%' : index === 1 ? '19%' : index === 2 ? '21%' : showActions && index === 4 ? 86 : 'auto', textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
       <tbody>
-        {rows.length === 0 ? <tr><td colSpan={showActions ? 10 : 9} style={{ padding: 14, color: '#667085' }}>暂无业态。</td></tr> : rows.map((product) => {
+        {rows.length === 0 ? <tr><td colSpan={showActions ? 5 : 4} style={{ padding: 14, color: '#667085' }}>暂无业态。</td></tr> : rows.map((product) => {
           const impact = impacts.get(product.id);
           const cannotDisableReason = impact?.blockedReason || (hasAnyBusinessData(impact) ? '该业态已有业务数据，不能停用。' : '');
           return <tr key={product.id}>
-            <td style={{ ...cell, fontWeight: 900 }}>{product.name}</td>
-            <td style={cell}>{getProductCategory(product)}</td>
-            <td style={cell}>{product.isSaleable ? '是' : '否'}</td>
-            <td style={cell}>是</td>
-            <td style={cell}>{product.taxLiquidationObject || product.clearingObject ? '已设置' : '未设置'}</td>
-            <td style={cell}>{product.isSaleable ? '参与' : '不参与'}</td>
-            <td style={cell}>{product.participateAllocation ? '参与' : '不参与'}</td>
-            <td style={cell}>{product.participateAllocation || product.isSaleable ? '参与' : '不参与'}</td>
-            <td style={cell}><ProductStatusBadges product={product} impact={impact} locked={locked} />{cannotDisableReason && product.isActive ? <div className="meta" style={{ marginTop: 5, color: '#c92a2a' }}>{cannotDisableReason}</div> : null}</td>
-            {showActions ? <td style={cell}>
+            <td style={{ ...cell, fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</td>
+            <td style={{ ...cell, overflow: 'hidden', textOverflow: 'ellipsis' }}>{getProductCategory(product)}</td>
+            <td style={cell}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}><Badge tone={product.isSaleable ? 'blue' : 'neutral'}>{product.isSaleable ? '可售' : '不可售'}</Badge><Badge tone={product.participateAllocation ? 'green' : 'neutral'}>{product.participateAllocation ? '成本对象' : '不分摊'}</Badge></div></td>
+            <td style={cell}><ProductStatusBadges product={product} impact={impact} locked={locked} />{cannotDisableReason && product.isActive ? <div className="meta" style={{ marginTop: 5, color: '#c92a2a', display: 'inline-flex', alignItems: 'center', maxWidth: 140, whiteSpace: 'nowrap' }}><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>不可停用</span><Tooltip text={cannotDisableReason} /></div> : null}</td>
+            {showActions ? <td style={{ ...cell, width: 86 }}>
               {locked ? <span className="meta">版本锁定，禁止调整</span> : product.isActive ? <form action={`/api/projects/${projectId}/products/status`} method="post">
                 <input type="hidden" name="productId" value={product.id} />
                 <input type="hidden" name="action" value="disable" />
                 <input type="hidden" name="operationReason" value="概况页业态增减维护" />
-                <button className="btn" disabled={!impact?.canDisable} style={{ minHeight: 30 }}>停用</button>
+                <button className="btn" disabled={!impact?.canDisable} style={{ minHeight: 28, padding: '4px 10px' }}>停用</button>
               </form> : <form action={`/api/projects/${projectId}/products/status`} method="post">
                 <input type="hidden" name="productId" value={product.id} />
                 <input type="hidden" name="action" value="restore" />
                 <input type="hidden" name="operationReason" value="概况页业态增减维护" />
-                <button className="btn btn-primary" disabled={!versionId} style={{ minHeight: 30 }}>恢复启用</button>
+                <button className="btn btn-primary" disabled={!versionId} style={{ minHeight: 28, padding: '4px 10px' }}>恢复</button>
               </form>}
             </td> : null}
           </tr>;
@@ -293,12 +362,38 @@ function ProductTable({ rows, impacts, locked, projectId, versionId, showActions
   </div>;
 }
 
-function MetricCard({ label, value, unit }: { label: string; value: unknown; unit?: string }) {
-  return <div className="stat" style={{ minHeight: 78 }}><div className="stat-label">{label}</div><div className="stat-value">{display(value)}{unit || ''}</div></div>;
+function ProductMetricTable({ rows, locked, projectId }: { rows: ProductRow[]; locked: boolean; projectId: string }) {
+  return <>
+    <form id="overview-products-form" action={`/api/projects/${projectId}/products/batch`} method="post" />
+    <input form="overview-products-form" type="hidden" name="rowCount" value={rows.length} />
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1040, fontSize: 12 }}>
+        <thead><tr>{['业态', '建筑面积', '计容面积', '可售面积', '不可售面积', '分摊权重', '销售', '分摊', '备注'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+        <tbody>
+          {rows.length === 0 ? <tr><td colSpan={9} style={{ padding: 14, color: '#667085' }}>暂无启用业态。</td></tr> : rows.map((product, index) => <tr key={product.id}>
+            <td style={{ ...cell, fontWeight: 900 }}>
+              <input form="overview-products-form" type="hidden" name={`productId-${index}`} value={product.id} />
+              <input form="overview-products-form" type="hidden" name={`name-${index}`} value={product.name} />
+              {product.name}
+              <div className="meta">{getProductCategory(product)}</div>
+            </td>
+            <td style={{ ...cell, padding: 0 }}><input form="overview-products-form" name={`buildingArea-${index}`} type="number" step="0.01" defaultValue={n(product.buildingArea) || ''} disabled={locked} style={locked ? { ...tableInput, background: '#f2f4f7' } : tableInput} /></td>
+            <td style={{ ...cell, padding: 0 }}><input form="overview-products-form" name={`capacityArea-${index}`} type="number" step="0.01" defaultValue={n(product.capacityArea) || ''} disabled={locked} style={locked ? { ...tableInput, background: '#f2f4f7' } : tableInput} /></td>
+            <td style={{ ...cell, padding: 0 }}><input form="overview-products-form" name={`saleableArea-${index}`} type="number" step="0.01" defaultValue={n(product.saleableArea) || ''} disabled={locked} style={locked ? { ...tableInput, background: '#f2f4f7' } : tableInput} /></td>
+            <td style={{ ...cell, padding: 0 }}><input form="overview-products-form" name={`nonSaleableArea-${index}`} type="number" step="0.01" defaultValue={n(product.nonSaleableArea) || ''} disabled={locked} style={locked ? { ...tableInput, background: '#f2f4f7' } : tableInput} /></td>
+            <td style={{ ...cell, padding: 0 }}><input form="overview-products-form" name={`allocationWeight-${index}`} type="number" step="0.01" defaultValue={n(product.allocationWeight) || 1} disabled={locked} style={{ ...(locked ? { ...tableInput, background: '#f2f4f7' } : tableInput), minWidth: 70 }} /></td>
+            <td style={{ ...cell, textAlign: 'center' }}><input form="overview-products-form" name={`isSaleable-${index}`} type="checkbox" defaultChecked={product.isSaleable} disabled={locked} /></td>
+            <td style={{ ...cell, textAlign: 'center' }}><input form="overview-products-form" name={`participateAllocation-${index}`} type="checkbox" defaultChecked={product.participateAllocation} disabled={locked} /></td>
+            <td style={{ ...cell, padding: 0 }}><input form="overview-products-form" name={`remark-${index}`} defaultValue={product.remark || ''} disabled={locked} style={{ ...(locked ? { ...tableInput, background: '#f2f4f7' } : tableInput), minWidth: 170 }} /></td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+  </>;
 }
 
-function addNumber(name: string, label: string, locked = false) {
-  return <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467' }}>{label}<input name={name} type="number" step="0.01" disabled={locked} style={locked ? readonlyField : formField} /></label>;
+function MetricCard({ label, value, unit }: { label: string; value: unknown; unit?: string }) {
+  return <div className="stat" style={{ minHeight: 78 }}><div className="stat-label">{label}</div><div className="stat-value">{display(value)}{unit || ''}</div></div>;
 }
 
 export default async function ProjectOverviewPage({ params, searchParams }: { params: { id: string }, searchParams?: Record<string, string | undefined> }) {
@@ -328,6 +423,7 @@ export default async function ProjectOverviewPage({ params, searchParams }: { pa
   }).catch(() => null) : null;
 
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1500 }}>
+    <TooltipStyles />
     <OverviewRoadValidation />
     <div className="page-header" style={{ alignItems: 'flex-start' }}>
       <div>
@@ -360,29 +456,68 @@ export default async function ProjectOverviewPage({ params, searchParams }: { pa
     </div>
 
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Block title="一、业态产品" note="默认只显示已启用业态；税务清算对象在此展示状态，不在概况页重复维护。" action={<a href="#product-maintenance" className="btn btn-primary">业态增减维护</a>}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginBottom: 12 }}>
+      <Block title="一、业态维护" note="仅保留业态新增、停用、恢复入口；指标录入放在下方主区域。" action={<Link href={`/projects/${project.id}/product-maintenance`} className="btn">完整维护页</Link>}>
+        <div id="product-maintenance" />
+        {locked ? <div style={{ border: '1px solid #ffc9c9', background: '#fff5f5', borderRadius: 8, padding: 10, marginBottom: 12 }}>当前测算版本已锁定，不能调整业态。如需修改，请复制新版本后操作。</div> : null}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 12 }}>
           {readOnlyItem('启用业态', activeProducts.length)}
           {readOnlyItem('可售业态', saleableProducts.length)}
           {readOnlyItem('启用业态建筑面积合计', `${fmt(productBuildingArea)}㎡`)}
           {readOnlyItem('启用业态可售面积合计', `${fmt(productSaleableArea)}㎡`)}
           {readOnlyItem('有数据不可停用业态', disabledReasonCount)}
         </div>
-        {productGroups.map((group) => {
-          const rows = activeProducts.filter((item) => getProductCategory(item) === group.category);
-          if (!rows.length) return null;
-          return <details key={group.category} open style={{ border: '1px solid #e6eef7', borderRadius: 8, marginBottom: 10, background: '#fff' }}>
-            <summary style={{ cursor: 'pointer', padding: 12, background: '#f8fafc', fontWeight: 900 }}>{group.category} <span className="meta">已启用 {rows.length}</span></summary>
-            <div style={{ padding: 10 }}><ProductTable rows={rows} impacts={impacts} locked={locked} projectId={project.id} versionId={version?.id} /></div>
-          </details>;
-        })}
-        <details style={{ border: '1px solid #ffe8cc', borderRadius: 8, marginTop: 12, background: '#fffaf0' }}>
-          <summary style={{ cursor: 'pointer', padding: 12, fontWeight: 900 }}>已停用业态 <span className="meta">{disabledProducts.length} 个，默认隐藏</span></summary>
-          <div style={{ padding: 10 }}><ProductTable rows={disabledProducts} impacts={impacts} locked={locked} projectId={project.id} versionId={version?.id} /></div>
-        </details>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(280px, 0.8fr)', gap: 12, alignItems: 'start' }}>
+          <details open style={{ border: '1px solid #e6eef7', borderRadius: 8, background: '#fff' }}>
+            <summary style={{ cursor: 'pointer', padding: 10, background: '#f8fafc', fontWeight: 900 }}>当前启用业态 <span className="meta">{activeProducts.length} 个</span><Tooltip text="当前参与本页指标录入和测算展示的业态。" /></summary>
+            <div style={{ padding: 8 }}><ProductTable rows={activeProducts} impacts={impacts} locked={locked} projectId={project.id} versionId={version?.id} showActions /></div>
+          </details>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <details style={{ border: '1px solid #ffe8cc', borderRadius: 8, background: '#fffaf0' }}>
+              <summary style={{ cursor: 'pointer', padding: 10, fontWeight: 900 }}>已停用业态 <span className="meta">{disabledProducts.length} 个</span><Tooltip text="停用不是删除，历史记录保留，默认不参与当前测算展示。" /></summary>
+              <div style={{ padding: 8 }}><ProductTable rows={disabledProducts} impacts={impacts} locked={locked} projectId={project.id} versionId={version?.id} showActions /></div>
+            </details>
+            <details open style={{ border: '1px solid #e6eef7', borderRadius: 8, background: '#fff' }}>
+              <summary style={{ cursor: 'pointer', padding: 10, fontWeight: 900 }}>可新增业态<Tooltip text="从预设业态中新增，新增后到下方业态指标录入区填写面积。" /></summary>
+              <div style={{ padding: 10 }}>
+                <form action={`/api/projects/${project.id}/products`} method="post" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 9 }}>
+                  <input type="hidden" name="returnPath" value="overview" />
+                  <input type="hidden" name="mode" value="create" />
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467' }}>可新增业态
+                    <select name="customName" required disabled={locked || addableGroups.length === 0} defaultValue="" style={locked ? readonlyField : formField}>
+                      <option value="" disabled>{addableGroups.length ? '请选择业态' : '暂无可新增业态'}</option>
+                      {addableGroups.map((group) => <optgroup key={group.category} label={group.category}>{group.names.map((name) => <option key={name} value={name}>{name}</option>)}</optgroup>)}
+                    </select>
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467' }}>业态分类
+                    <select name="customCategory" disabled={locked} defaultValue="住宅类" style={locked ? readonlyField : formField}>{productGroups.map((group) => <option key={group.category} value={group.category}>{group.category}</option>)}</select>
+                  </label>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <label style={{ display: 'flex', gap: 7, alignItems: 'center', fontSize: 13 }}><input name="isSaleable" type="checkbox" disabled={locked} />可售</label>
+                    <label style={{ display: 'flex', gap: 7, alignItems: 'center', fontSize: 13 }}><input name="participateAllocation" type="checkbox" defaultChecked disabled={locked} />成本对象</label>
+                  </div>
+                  <button className="btn btn-primary" disabled={locked || addableGroups.length === 0}>新增业态</button>
+                </form>
+              </div>
+            </details>
+          </div>
+        </div>
       </Block>
 
-      <Block title="二、建造标准" note="V1 只放标准项和专项开关；专项配置默认折叠，启用后仅展示基础字段。">
+      <Block title="二、业态指标录入" note="启用业态的面积、可售、成本分摊指标在这里集中录入。" action={<button form="overview-products-form" className="btn btn-primary" disabled={locked}>保存业态指标</button>}>
+        <div style={{ overflowX: 'auto', marginBottom: 12 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680, fontSize: 13 }}>
+            <thead><tr>{['口径', '概况表总控', '启用业态合计', '差异'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 9, borderBottom: '1px solid #d9e2ec', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+            <tbody>{[['建筑面积', n(project.totalBuildingArea), productBuildingArea], ['计容面积', n(project.capacityBuildingArea), productCapacityArea], ['可售面积', n(project.saleableArea), productSaleableArea]].map(([name, overview, product]) => <tr key={String(name)}><td style={{ padding: 9, borderBottom: '1px solid #eef2f6', fontWeight: 800 }}>{name}</td><td style={{ padding: 9, borderBottom: '1px solid #eef2f6' }}>{fmt(overview)}㎡</td><td style={{ padding: 9, borderBottom: '1px solid #eef2f6' }}>{fmt(product)}㎡</td><td style={{ padding: 9, borderBottom: '1px solid #eef2f6', color: Math.abs(Number(overview) - Number(product)) > 1 ? '#e03131' : '#2f9e44', fontWeight: 900 }}>{fmt(Number(overview) - Number(product))}㎡</td></tr>)}</tbody>
+          </table>
+        </div>
+        <ProductMetricTable rows={activeProducts} locked={locked} projectId={project.id} />
+      </Block>
+
+      <Block title="三、其他概况字段" note="项目基础数据、建造标准和工程量指标。">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <details open style={{ border: '1px solid #e6eef7', borderRadius: 8, background: '#fff' }}>
+            <summary style={{ cursor: 'pointer', padding: 12, background: '#f8fafc', fontWeight: 900 }}>建造标准</summary>
+            <div style={{ padding: 12 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
           <SelectFor project={project} name="residentialFitoutStandard" label="交付标准" options={[['毛坯', '毛坯'], ['精装', '精装'], ['公区精装', '公区精装'], ['户内精装', '户内精装']]} defaultValue="毛坯" locked={locked} />
           <SelectFor project={project} name="commercialPublicFitoutStandard" label="外立面标准" options={[['涂料', '涂料'], ['真石漆', '真石漆'], ['铝板', '铝板'], ['石材', '石材'], ['玻璃幕墙', '玻璃幕墙']]} defaultValue="涂料" locked={locked} />
@@ -411,9 +546,11 @@ export default async function ProjectOverviewPage({ params, searchParams }: { pa
             {project.chargingSeparateCostMeasure ? <FieldGrid project={project} fields={[['chargingPileCount', '充电桩数量', 'number'], ['chargingPileRatio', '配建比例', 'number']]} locked={locked} /> : null}
           </div>
         </details>
-      </Block>
-
-      <Block title="三、项目概况" note="展示项目基础数据；当前数据模型未单独存储的项目类型、开发模式、地下二层层高等只做只读说明，避免假保存。">
+            </div>
+          </details>
+          <details open style={{ border: '1px solid #e6eef7', borderRadius: 8, background: '#fff' }}>
+            <summary style={{ cursor: 'pointer', padding: 12, background: '#f8fafc', fontWeight: 900 }}>项目概况</summary>
+            <div style={{ padding: 12 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12, marginBottom: 12 }}>
           <CityDistrictSelect city={project.city} district={project.district} disabled={locked} />
         </div>
@@ -427,9 +564,11 @@ export default async function ProjectOverviewPage({ params, searchParams }: { pa
           {readOnlyItem('其他地下层平均层高', '未配置', 'V1 当前未设置独立保存字段')}
         </div>
         <FieldGrid project={project} fields={projectFields} locked={locked} />
-      </Block>
-
-      <Block title="四、工程量指标" note="按测算逻辑分组；软景面积（绿化面积）为唯一输入，概况页不再单独维护绿化面积。">
+            </div>
+          </details>
+          <details open style={{ border: '1px solid #e6eef7', borderRadius: 8, background: '#fff' }}>
+            <summary style={{ cursor: 'pointer', padding: 12, background: '#f8fafc', fontWeight: 900 }}>工程量指标</summary>
+            <div style={{ padding: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <details open style={{ border: '1px solid #e6eef7', borderRadius: 8, background: '#fff' }}>
             <summary style={{ cursor: 'pointer', padding: 12, background: '#f8fafc', fontWeight: 900 }}>场地景观道路围墙指标</summary>
@@ -440,44 +579,9 @@ export default async function ProjectOverviewPage({ params, searchParams }: { pa
           <details open style={{ border: '1px solid #e6eef7', borderRadius: 8, background: '#fff' }}><summary style={{ cursor: 'pointer', padding: 12, background: '#f8fafc', fontWeight: 900 }}>户型及精装指标</summary><div style={{ padding: 12 }}><FieldGrid project={project} fields={fitoutFields} locked={locked} /></div></details>
           <details open style={{ border: '1px solid #e6eef7', borderRadius: 8, background: '#fff' }}><summary style={{ cursor: 'pointer', padding: 12, background: '#f8fafc', fontWeight: 900 }}>专项基础指标</summary><div style={{ padding: 12 }}><FieldGrid project={project} fields={specialFields} locked={locked} /></div></details>
         </div>
-      </Block>
-
-      <Block title="业态增减维护" note="当前启用、已停用、可新增业态集中维护。新增后为空指标，等待用户录入；停用不删除历史记录。" action={<Link href={`/projects/${project.id}/product-maintenance`} className="btn">进入完整业态维护页</Link>}>
-        <div id="product-maintenance" />
-        {locked ? <div style={{ border: '1px solid #ffc9c9', background: '#fff5f5', borderRadius: 8, padding: 10, marginBottom: 12 }}>当前测算版本已锁定，不能调整业态。如需修改，请复制新版本后操作。</div> : null}
-        <details open style={{ border: '1px solid #e6eef7', borderRadius: 8, marginBottom: 12 }}>
-          <summary style={{ cursor: 'pointer', padding: 12, fontWeight: 900 }}>当前启用业态</summary>
-          <div style={{ padding: 10 }}><ProductTable rows={activeProducts} impacts={impacts} locked={locked} projectId={project.id} versionId={version?.id} showActions /></div>
-        </details>
-        <details style={{ border: '1px solid #ffe8cc', borderRadius: 8, marginBottom: 12 }}>
-          <summary style={{ cursor: 'pointer', padding: 12, fontWeight: 900 }}>已停用业态</summary>
-          <div style={{ padding: 10 }}><ProductTable rows={disabledProducts} impacts={impacts} locked={locked} projectId={project.id} versionId={version?.id} showActions /></div>
-        </details>
-        <details open style={{ border: '1px solid #e6eef7', borderRadius: 8 }}>
-          <summary style={{ cursor: 'pointer', padding: 12, fontWeight: 900 }}>可新增业态</summary>
-          <div style={{ padding: 12 }}>
-            <form action={`/api/projects/${project.id}/products`} method="post" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, alignItems: 'end' }}>
-              <input type="hidden" name="returnPath" value="overview" />
-              <input type="hidden" name="mode" value="create" />
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467' }}>可新增业态
-                <select name="customName" required disabled={locked || addableGroups.length === 0} defaultValue="" style={locked ? readonlyField : formField}>
-                  <option value="" disabled>{addableGroups.length ? '请选择业态' : '暂无可新增业态'}</option>
-                  {addableGroups.map((group) => <optgroup key={group.category} label={group.category}>{group.names.map((name) => <option key={name} value={name}>{name}</option>)}</optgroup>)}
-                </select>
-              </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467' }}>业态分类
-                <select name="customCategory" disabled={locked} defaultValue="住宅类" style={locked ? readonlyField : formField}>{productGroups.map((group) => <option key={group.category} value={group.category}>{group.category}</option>)}</select>
-              </label>
-              <label style={{ display: 'flex', gap: 7, alignItems: 'center', fontSize: 13 }}><input name="isSaleable" type="checkbox" disabled={locked} />是否可售</label>
-              <label style={{ display: 'flex', gap: 7, alignItems: 'center', fontSize: 13 }}><input name="participateAllocation" type="checkbox" defaultChecked disabled={locked} />是否成本对象</label>
-              {addNumber('buildingArea', '建筑面积', locked)}
-              {addNumber('capacityArea', '计容面积', locked)}
-              {addNumber('saleableArea', '可售面积', locked)}
-              {addNumber('nonSaleableArea', '不可售面积', locked)}
-              <button className="btn btn-primary" disabled={locked || addableGroups.length === 0}>新增业态</button>
-            </form>
-          </div>
-        </details>
+            </div>
+          </details>
+        </div>
       </Block>
 
       <Block title="备注与口径说明" note="记录本项目特殊口径、暂估说明、后续复核事项。">
