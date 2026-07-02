@@ -1,9 +1,11 @@
 import Link from 'next/link';
+import { EmptyState, StatusNotice, VersionContextBar } from '@/components/commercial-status';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
 import { getCostSettings } from '@/lib/cost-product-settings';
 import { normalizeProjectVersionCostLineAmounts } from '@/lib/normalize-cost-line-amounts';
 import { getProjectVersionRevenueLines } from '@/lib/project-version-revenue-lines';
+import { activeVersionOrder, activeVersionWhere, isVersionLocked } from '@/lib/project-version';
 import { getProductTaxLiquidationObjectMap } from '@/lib/product-tax-liquidation-object-values';
 import { getTaxLiquidationObject } from '@/lib/tax-liquidation-object';
 import { costTotals, effectiveCostRows, landVatSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
@@ -86,10 +88,11 @@ export default async function ProfitAnalysisPage({ params }: { params: { id: str
   if (!project) return <main className="page">项目不存在</main>;
 
   const version = await prisma.projectVersion.findFirst({
-    where: project.activeVersionId ? { id: project.activeVersionId, projectId: params.id } : { projectId: params.id },
-    orderBy: { createdAt: 'asc' },
+    where: activeVersionWhere(project),
+    orderBy: activeVersionOrder(project),
     include: { products: true, revenues: { include: { productType: true } }, taxes: true }
   });
+  const locked = version ? isVersionLocked(version) : false;
 
   if (version) await normalizeProjectVersionCostLineAmounts(version.id);
   const { commercialRevenueLines, otherRevenueLines } = await getProjectVersionRevenueLines(version?.id);
@@ -186,9 +189,11 @@ export default async function ProfitAnalysisPage({ params }: { params: { id: str
 
   return <main className="page"><div className="container" style={{ maxWidth: 1280 }}>
     <div className="page-header"><div><p className="eyebrow">业态利润分析</p><h1 className="title">{project.name}</h1><p className="subtitle">成本分摊读取经营分摊规则，所得税拆分读取所得税成本对象规则。金额单位：万元。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href={`/projects/${project.id}/tax-details`} className="btn btn-primary">税费测算总表</Link><Link href={`/projects/${project.id}/land-vat`} className="btn">土地增值税清算测算表</Link><Link href={`/projects/${project.id}`} className="btn">返回项目测算中心</Link></div></div>
+    <VersionContextBar projectName={project.name} versionName={version?.name} versionStatus={version?.status} editable={!locked} extra={[['启用业态', activeProducts.length], ['有效利润行', productRows.length]]} />
+    {effective.ignoredDisabled || effective.ignoredNonLeaf ? <StatusNotice title="已按有效口径过滤" tone="warning">已排除停用业态成本行 {effective.ignoredDisabled} 行、非末级历史成本行 {effective.ignoredNonLeaf} 行，避免利润结果重复或包含停用业态。</StatusNotice> : null}
     <div className="summary-strip"><div className="stat"><div className="stat-label">不含税收入</div><div className="stat-value">{fmt(revenue.taxExclusive)}</div></div><div className="stat"><div className="stat-label">不含税成本</div><div className="stat-value">{fmt(cost.taxExclusive)}</div></div><div className="stat"><div className="stat-label">正式土地增值税</div><div className="stat-value">{fmt(formalLandVat)}</div></div><div className="stat"><div className="stat-label">税后净利率</div><div className="stat-value" style={{ color: color(netMargin) }}>{pct(netMargin)}</div></div></div>
     <section className="card" style={{ marginTop: 16 }}><h2>项目利润口径</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 820, borderCollapse: 'collapse' }}><tbody>{[['不含税收入（万元）', revenue.taxExclusive], ['不含税成本（万元）', cost.taxExclusive], ['增值税附加（万元）', projectSurcharge], ['土地增值税（万元）', formalLandVat], ['所得税前利润（万元）', formalProfitBeforeIncomeTax], ['企业所得税（万元）', formalIncomeTax], ['税后净利润（万元）', netProfit]].map(([name, value]) => <tr key={String(name)}><td style={cell}>{name}</td><td style={{ ...money, fontWeight: 900, color: String(name).includes('利润') ? color(Number(value)) : undefined }}>{fmt(value)}</td></tr>)}</tbody></table></div></section>
-    <section className="card" style={{ marginTop: 16 }}><h2>业态利润明细</h2><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1560, borderCollapse: 'collapse', fontSize: 12 }}><thead><tr>{['业态', '成本归属组', '清算对象', '不含税收入', '不含税成本', '收入毛利', '附加税', '土地增值税', '所得税分摊基数', '所得税', '税后净利', '净利率'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 9, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{productRows.map((row) => <tr key={row.product.id}><td style={{ ...cell, fontWeight: 800 }}>{row.product.name}</td><td style={cell}>{row.costGroup}</td><td style={cell}>{row.liquidationObject}</td><td style={money}>{fmt(row.revenueExclusive)}</td><td style={money}>{fmt(row.costExclusive)}</td><td style={money}>{fmt(row.revenueExclusive - row.costExclusive)}</td><td style={money}>{fmt(row.surcharge)}</td><td style={money}>{fmt(row.landVat)}</td><td style={money}>{fmt(row.incomeTaxBase)}</td><td style={money}>{fmt(row.incomeTax)}</td><td style={{ ...money, fontWeight: 900, color: color(row.netProfit) }}>{fmt(row.netProfit)}</td><td style={cell}>{pct(row.revenueInclusive ? row.netProfit / row.revenueInclusive : 0)}</td></tr>)}</tbody></table></div></section>
+    <section className="card" style={{ marginTop: 16 }}><h2>业态利润明细</h2>{productRows.length ? <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1560, borderCollapse: 'collapse', fontSize: 12 }}><thead><tr>{['业态', '成本归属组', '清算对象', '不含税收入', '不含税成本', '收入毛利', '附加税', '土地增值税', '所得税分摊基数', '所得税', '税后净利', '净利率'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 9, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead><tbody>{productRows.map((row) => <tr key={row.product.id}><td style={{ ...cell, fontWeight: 800 }}>{row.product.name}</td><td style={cell}>{row.costGroup}</td><td style={cell}>{row.liquidationObject}</td><td style={money}>{fmt(row.revenueExclusive)}</td><td style={money}>{fmt(row.costExclusive)}</td><td style={money}>{fmt(row.revenueExclusive - row.costExclusive)}</td><td style={money}>{fmt(row.surcharge)}</td><td style={money}>{fmt(row.landVat)}</td><td style={money}>{fmt(row.incomeTaxBase)}</td><td style={money}>{fmt(row.incomeTax)}</td><td style={{ ...money, fontWeight: 900, color: color(row.netProfit) }}>{fmt(row.netProfit)}</td><td style={cell}>{pct(row.revenueInclusive ? row.netProfit / row.revenueInclusive : 0)}</td></tr>)}</tbody></table></div> : <EmptyState title="暂无可分析的业态利润">请先维护启用业态、收入和有效成本明细；形成数据后本页会按业态展示利润贡献。</EmptyState>}</section>
     <section className="card" style={{ marginTop: 16 }}><h2>校验</h2><p className="meta">业态所得税合计：{fmt(productIncomeTaxTotal)} 万元；业态净利合计：{fmt(productNetProfitTotal)} 万元。与项目口径有差异时优先复核成本分摊、税金测算和土地增值税页面。</p></section>
   </div></main>;
 }

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { EmptyState, StatusNotice, VersionContextBar, versionStatusLabel } from '@/components/commercial-status';
 import { OverviewRoadValidation } from '@/components/overview-road-validation';
 import { QuantityOverrideActions } from '@/components/quantity-override-actions';
 import { activeVersionOrder, activeVersionWhere, isVersionLocked } from '@/lib/project-version';
@@ -69,13 +70,6 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
   return <div className="stat"><div className="stat-label">{label}</div><div className="stat-value">{value}</div>{note ? <div className="meta">{note}</div> : null}</div>;
 }
 
-function statusLabel(status?: string | null) {
-  if (status === 'locked') return '已锁定';
-  if (status === 'final') return '已定版';
-  if (status === 'draft') return '可编辑';
-  return status || '未设置';
-}
-
 function round2(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -124,17 +118,9 @@ export default async function QuantityIndicatorsPage({ params, searchParams }: {
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1280 }}>
     <OverviewRoadValidation />
     <div className="page-header" style={{ alignItems: 'flex-start' }}><div><p className="eyebrow">基础数据</p><h1 className="title">工程量指标</h1><p className="subtitle">集中维护用于目标成本测算的工程量指标；成本明细工程量支持按行手算覆盖和恢复系统值。</p></div><div className="actions" style={{ marginTop: 0 }}><button form="quantity-indicators-form" className="btn btn-primary" disabled={locked}>保存工程量指标</button><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}/construction-standards`} className="btn">建造配置标准</Link></div></div>
-    <section className="card" style={{ marginBottom: 14, borderColor: locked ? '#ffc9c9' : '#d0ebff', background: locked ? '#fff5f5' : '#f8fbff' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-        <div><div className="meta">当前项目</div><b>{project.name}</b></div>
-        <div><div className="meta">当前版本</div><b>{version?.name || '暂无版本'}</b></div>
-        <div><div className="meta">当前版本状态</div><b>{statusLabel(version?.status)}</b></div>
-        <div><div className="meta">是否可编辑</div><b>{locked ? '不可编辑' : '可编辑'}</b></div>
-      </div>
-      {locked ? <p className="meta" style={{ margin: '8px 0 0', color: '#c92a2a' }}>当前版本已锁定。</p> : null}
-    </section>
-    {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>工程量指标已保存。</div> : null}
-    {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffc9c9', background: '#fff5f5' }}>当前版本已锁定，本次保存未执行。</div> : null}
+    <VersionContextBar projectName={project.name} versionName={version?.name} versionStatus={version?.status} editable={!locked} extra={[['手算覆盖', overriddenCount], ['可手算行', overrideRows.length]]} />
+    {searchParams?.saved === '1' ? <StatusNotice title="工程量指标已保存" tone="success">项目级工程量指标已更新。成本明细手算覆盖需在下方逐行保存。</StatusNotice> : null}
+    {searchParams?.locked === '1' ? <StatusNotice title="未执行保存" tone="danger">当前版本已锁定，本次工程量指标保存未执行。</StatusNotice> : null}
     <form id="quantity-indicators-form" action={`/api/projects/${project.id}/quantity-indicators`} method="post" />
     <div className="summary-strip" style={{ marginBottom: 14 }}>
       <Stat label="楼栋 / 单元 / 电梯" value={`${fmt(project.buildingCount)} / ${fmt(project.unitCount)} / ${fmt(project.elevatorCount)}`} />
@@ -148,11 +134,12 @@ export default async function QuantityIndicatorsPage({ params, searchParams }: {
       <Block title="二、车位与充电桩指标" note="充电桩只作为工程量和设备安装指标，不作为独立业态。"><FieldGrid project={project} fields={parkingFields} locked={locked} /><label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467', marginTop: 12 }}>车位/充电桩备注<textarea form="quantity-indicators-form" name="parkingRemark" defaultValue={project.parkingRemark || ''} disabled={locked} style={{ minHeight: 66, border: '1px solid #d9e2ec', borderRadius: 6, padding: 8, background: locked ? '#f2f4f7' : '#fff' }} /></label></Block>
       <Block title="三、场地、景观、道路与围墙指标" note="场平面积未填默认土地面积；软景面积与绿化面积合并为一个输入；消防道路面积不得大于车行道路面积。"><FieldGrid project={project} fields={siteFields} locked={locked} /></Block>
       <Block title="四、地下室 / 公区 / 配套面积" note="用于地下室、人防、公区、大堂、售楼部、样板间、物业及社区用房成本测算。"><FieldGrid project={project} fields={basementFields} locked={locked} /></Block>
+      <StatusNotice title="地下室层高字段支持状态" tone="warning">当前前端已维护地下室层数和地下一层层高；地下二层层高、其他地下层平均层高仍为只读口径提示，暂未完整接入保存与规则引用。当前版本状态：{versionStatusLabel(version?.status)}。</StatusNotice>
       <Block title="五、土建工程量" note="用于桩基、土方、防水、屋面、保温、外墙、门窗、栏杆等土建科目。"><FieldGrid project={project} fields={civilFields} locked={locked} /></Block>
       <Block title="六、机电设备指标" note="用于配电房、水泵房、消防水池等安装设备类测算。"><FieldGrid project={project} fields={mepFields} locked={locked} /></Block>
       <Block title="七、成本明细工程量手算" note="按成本明细行录入手算覆盖；清除覆盖会恢复系统测算值，不会删除指标。">
         {locked ? <div style={{ border: '1px solid #ffc9c9', background: '#fff5f5', borderRadius: 8, padding: 10, marginBottom: 12 }}>当前版本已锁定，不能修改手算值。</div> : null}
-        {overrideRows.length === 0 ? <p className="meta">暂无可手算的成本明细工程量。请先生成或录入目标成本明细。</p> : <div style={{ overflowX: 'auto' }}>
+        {overrideRows.length === 0 ? <EmptyState title="暂无可手算的成本明细工程量">请先生成或录入目标成本明细。形成成本行后，本区会显示系统测算值、手算覆盖值和当前生效值。</EmptyState> : <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1240, fontSize: 12 }}>
             <thead><tr>{['成本科目', '明细名称', '适用业态', '系统测算值', '手算覆盖值', '当前生效值', '状态', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
             <tbody>{overrideRows.map((line) => {

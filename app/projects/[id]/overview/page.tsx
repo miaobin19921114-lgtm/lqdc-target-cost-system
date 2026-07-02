@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { CityDistrictSelect } from '@/components/city-district-select';
+import { StatusNotice, VersionContextBar, versionStatusLabel } from '@/components/commercial-status';
 import { OverviewRoadValidation } from '@/components/overview-road-validation';
 import { ProductScopeSelect } from '@/components/product-scope-select';
 import { getProductTypeImpact } from '@/lib/product-type-service';
@@ -396,13 +397,6 @@ function MetricCard({ label, value, unit }: { label: string; value: unknown; uni
   return <div className="stat" style={{ minHeight: 78 }}><div className="stat-label">{label}</div><div className="stat-value">{display(value)}{unit || ''}</div></div>;
 }
 
-function versionStatusText(status?: string | null) {
-  if (status === 'locked') return '已锁定';
-  if (status === 'final') return '已定版';
-  if (status === 'draft') return '可编辑';
-  return status || '未设置';
-}
-
 export default async function ProjectOverviewPage({ params, searchParams }: { params: { id: string }, searchParams?: Record<string, string | undefined> }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
@@ -446,22 +440,14 @@ export default async function ProjectOverviewPage({ params, searchParams }: { pa
       </div>
     </div>
 
-    {locked ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffc9c9', background: '#fff5f5' }}>当前测算版本已锁定，不能调整业态。如需修改，请复制新版本后操作。</div> : null}
-    {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>项目概况已保存。</div> : null}
-    {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffc9c9', background: '#fff5f5' }}>当前版本已锁定，本次保存或业态调整未执行。</div> : null}
-    {searchParams?.productSaved ? <div className="card" style={{ marginBottom: 14, borderColor: searchParams.productSaved === '1' ? '#b2f2bb' : '#ffd8a8', background: searchParams.productSaved === '1' ? '#f0fff4' : '#fff9db' }}>业态维护结果：{searchParams.productSaved === '1' ? '已保存。' : searchParams.productSaved === 'duplicate' ? '该业态已存在。' : searchParams.productSaved === 'disabled' ? '该业态已处于停用状态，可在已停用业态折叠区查看或恢复。' : searchParams.productSaved === 'locked' ? '当前版本已锁定。' : '未完成。'}</div> : null}
+    {locked ? <StatusNotice title="当前版本已锁定" tone="danger">项目概况、业态维护和工程量指标进入只读状态。如需调整，请复制新版本后操作。</StatusNotice> : null}
+    {searchParams?.saved === '1' ? <StatusNotice title="项目概况已保存" tone="success">页面展示已更新为当前保存后的结果。</StatusNotice> : null}
+    {searchParams?.locked === '1' ? <StatusNotice title="未执行保存" tone="danger">当前版本已锁定，本次保存或业态调整未执行。</StatusNotice> : null}
+    {searchParams?.productSaved ? <StatusNotice title="业态维护结果" tone={searchParams.productSaved === '1' ? 'success' : 'warning'}>{searchParams.productSaved === '1' ? '业态信息已保存。' : searchParams.productSaved === 'duplicate' ? '该业态已存在，请在当前启用业态中查看。' : searchParams.productSaved === 'disabled' ? '该业态已处于停用状态，可在已停用业态折叠区查看或恢复。' : searchParams.productSaved === 'locked' ? '当前版本已锁定，业态调整未执行。' : '业态维护未完成，请检查当前版本状态和必填信息。'}</StatusNotice> : null}
 
     <form id="overview-form" action={`/api/projects/${project.id}/overview`} method="post" />
 
-    <section className="card" style={{ marginBottom: 14, borderColor: locked ? '#ffc9c9' : '#d0ebff', background: locked ? '#fff5f5' : '#f8fbff' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-        <div><div className="meta">当前项目</div><b>{project.name}</b></div>
-        <div><div className="meta">当前版本</div><b>{version?.name || '暂无版本'}</b></div>
-        <div><div className="meta">当前版本状态</div><b>{versionStatusText(version?.status)}</b></div>
-        <div><div className="meta">是否可编辑</div><b>{locked ? '不可编辑' : '可编辑'}</b></div>
-      </div>
-      {locked ? <p className="meta" style={{ margin: '8px 0 0', color: '#c92a2a' }}>当前版本已锁定。</p> : null}
-    </section>
+    <VersionContextBar projectName={project.name} versionName={version?.name} versionStatus={version?.status} editable={!locked} extra={[['启用业态', activeProducts.length], ['已停用业态', disabledProducts.length]]} />
 
     <div className="summary-strip" style={{ marginBottom: 14 }}>
       <MetricCard label="启用业态" value={activeProducts.length} />
@@ -482,6 +468,7 @@ export default async function ProjectOverviewPage({ params, searchParams }: { pa
           {readOnlyItem('启用业态建筑面积合计', `${fmt(productBuildingArea)}㎡`)}
           {readOnlyItem('启用业态可售面积合计', `${fmt(productSaleableArea)}㎡`)}
           {readOnlyItem('有数据不可停用业态', disabledReasonCount)}
+          {readOnlyItem('地下室层高支持', '部分完成', `当前版本状态：${versionStatusLabel(version?.status)}；地下一层层高已接入，地下二层及其他地下层平均层高仍为只读提示。`)}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(280px, 0.8fr)', gap: 12, alignItems: 'start' }}>
           <details open style={{ border: '1px solid #e6eef7', borderRadius: 8, background: '#fff' }}>

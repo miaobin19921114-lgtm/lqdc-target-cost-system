@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { EmptyState, StatusNotice, VersionContextBar } from '@/components/commercial-status';
 import { activeVersionOrder, activeVersionWhere, isVersionLocked } from '@/lib/project-version';
 import { prisma } from '@/lib/prisma';
 
@@ -103,13 +104,14 @@ export default async function AllocationPage({ params }: { params: { id: string 
           </div>
         </div>
 
+        <VersionContextBar projectName={project.name} versionName={version?.name} versionStatus={version?.status} editable={!locked} extra={[['参与分摊业态', products.length], ['成本明细条数', costs.length]]} />
         <div className="summary-strip">
           <div className="stat"><div className="stat-label">分摊总成本</div><div className="stat-value">{fmt(totalCost)}</div></div>
           <div className="stat"><div className="stat-label">成本明细条数</div><div className="stat-value">{costs.length}</div></div>
           <div className="stat"><div className="stat-label">参与分摊业态</div><div className="stat-value">{products.length}</div></div>
           <div className="stat"><div className="stat-label">当前版本</div><div className="stat-value">{version?.name || '暂无版本'}</div><div className="meta">{locked ? '已锁定' : '可编辑'}</div></div>
         </div>
-        {disabledProductCount ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8', background: '#fff9db' }}>本页已按启用业态口径展示，停用业态 {disabledProductCount} 个及其直接关联成本行不参与当前分摊展示。</div> : null}
+        {disabledProductCount ? <StatusNotice title="已按启用业态口径展示" tone="warning">停用业态 {disabledProductCount} 个及其直接关联成本行不参与当前分摊展示。</StatusNotice> : null}
 
         <section className="card" style={{ marginBottom: 18 }}>
           <h2>业态分摊结果</h2>
@@ -117,7 +119,7 @@ export default async function AllocationPage({ params }: { params: { id: string 
             <table style={{ width: '100%', minWidth: 1180, borderCollapse: 'collapse', fontSize: 13 }}>
               <thead><tr>{['业态', '建筑面积', '可售面积', '直接归属成本', '分摊成本', '成本合计', '建面单方', '可售单方', '成本占比'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead>
               <tbody>
-                {Array.from(productTotals.values()).length === 0 ? <tr><td colSpan={9} style={{ padding: 12, color: 'var(--muted)' }}>暂无业态数据，请先维护业态面积/产品构成。</td></tr> : Array.from(productTotals.values()).map(({ product, direct, allocated, total }) => (
+                {Array.from(productTotals.values()).length === 0 ? <tr><td colSpan={9} style={{ padding: 12 }}><EmptyState title="暂无可分摊业态">请先在项目概况维护启用业态，并确认业态参与成本分摊。</EmptyState></td></tr> : Array.from(productTotals.values()).map(({ product, direct, allocated, total }) => (
                   <tr key={product.id}>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 700 }}>{product.name}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(product.buildingArea)}</td>
@@ -141,7 +143,7 @@ export default async function AllocationPage({ params }: { params: { id: string 
             <table style={{ width: '100%', minWidth: 1280, borderCollapse: 'collapse', fontSize: 13 }}>
               <thead><tr>{['成本编码', '成本科目', '明细名称', '含税金额', '分摊方式', '识别口径', '直接归属', '分摊结果'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead>
               <tbody>
-                {allocationLines.length === 0 ? <tr><td colSpan={8} style={{ padding: 12, color: 'var(--muted)' }}>暂无成本明细，请先录入各专业明细或目标成本。</td></tr> : allocationLines.map(({ cost, amount, basis, directProductName, shares }) => (
+                {allocationLines.length === 0 ? <tr><td colSpan={8} style={{ padding: 12 }}><EmptyState title="暂无可分摊成本明细">请先录入专业明细或刷新目标成本测算结果；停用业态关联成本行不会进入本页展示。</EmptyState></td></tr> : allocationLines.map(({ cost, amount, basis, directProductName, shares }) => (
                   <tr key={cost.id}>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{cost.costSubject.code}</td>
                     <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{cost.costSubject.name}</td>

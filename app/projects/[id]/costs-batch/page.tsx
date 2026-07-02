@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { EmptyState, StatusNotice, VersionContextBar } from '@/components/commercial-status';
+import { RefreshSubmitButton } from '@/components/refresh-submit-button';
 import { prisma } from '@/lib/prisma';
 import { ProjectTopNav } from '@/components/project-navigation';
-import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { activeVersionOrder, activeVersionWhere, isVersionLocked } from '@/lib/project-version';
 
 export const dynamic = 'force-dynamic';
 
@@ -160,8 +162,9 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
   const version = await prisma.projectVersion.findFirst({
     where: activeVersionWhere(project),
     orderBy: activeVersionOrder(project),
-    select: { id: true, name: true, stage: true }
+    select: { id: true, name: true, stage: true, status: true }
   });
+  const locked = version ? isVersionLocked(version) : false;
 
   const buildingArea = Number(project.totalBuildingArea || 0);
   const saleableArea = Number(project.saleableArea || 0);
@@ -201,12 +204,11 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
         </div>
       </div>
 
-      {searchParams?.aggregated ? <section className="card" style={{ marginBottom: 12, borderColor: '#b2f2bb', background: '#f0fff4' }}><b>已从明细测算结果刷新目标成本测算表。</b></section> : null}
+      <VersionContextBar projectName={project.name} versionName={version?.name} versionStatus={version?.status} editable={!locked} extra={[['明细结果行', detailCount], ['聚合科目', rows.length]]} />
+      {searchParams?.aggregated ? <StatusNotice title="刷新已完成" tone="success">已从明细测算结果刷新目标成本测算表，并同步更新目标成本汇总表。当前页面展示的是本次刷新后的聚合结果。</StatusNotice> : null}
+      {searchParams?.missing ? <StatusNotice title="缺少刷新上下文" tone="warning">当前项目或版本信息不完整，未执行刷新。请确认已选择有效测算版本后再操作。</StatusNotice> : null}
 
-      <section className="card" style={{ marginBottom: 12, borderColor: '#d0ebff', background: '#f8fbff' }}>
-        <b>数据流说明</b>
-        <p className="meta" style={{ margin: '6px 0 0' }}>版本规则快照 → 各专业明细页计算 → 本页自动汇总 → 目标成本汇总表自动展示经营结果。</p>
-      </section>
+      <StatusNotice title="数据流说明">版本规则快照 → 各专业明细页计算 → 本页汇总 → 目标成本汇总表展示经营结果。刷新前，本页保留上一次聚合结果；刷新完成后会显示成功提示。</StatusNotice>
 
       <div className="summary-strip" style={{ marginBottom: 12 }}>
         <div className="stat"><div className="stat-label">明细结果行</div><div className="stat-value">{detailCount}</div></div>
@@ -219,15 +221,15 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <h2 style={{ margin: 0 }}>刷新目标成本测算表</h2>
-            <p className="meta" style={{ margin: '6px 0 0' }}>从 DetailCalculationResult 汇总到 TargetCostMeasureAggregate，并同步刷新 TargetCostSummaryAggregate。</p>
+            <p className="meta" style={{ margin: '6px 0 0' }}>从明细测算结果汇总到目标成本测算表，并同步刷新目标成本汇总表。刷新完成前，页面仍展示上一次结果。</p>
           </div>
-          {version ? <form action={refreshTargetCostFromDetails}><input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="versionId" value={version.id} /><button className="btn btn-primary">从明细结果刷新</button></form> : null}
+          {version ? <form action={refreshTargetCostFromDetails}><input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="versionId" value={version.id} /><RefreshSubmitButton pendingText="正在刷新">从明细结果刷新</RefreshSubmitButton></form> : null}
         </div>
       </section>
 
       <section className="card" style={{ marginBottom: 12 }}>
         <h2>一级科目成本看板</h2>
-        {rows.length === 0 ? <p className="meta">暂无目标成本聚合数据。请先进入“规则驱动明细测算”生成明细行，录入工程量/单价后，再点击“从明细结果刷新”。</p> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 12 }}>
+        {rows.length === 0 ? <EmptyState title="尚未形成目标成本聚合数据">请先进入规则驱动明细测算或各专业明细页生成明细行，录入工程量与单价后，再点击“从明细结果刷新”。</EmptyState> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 12 }}>
           {levelOneRows.map((row) => <div key={row.subjectCode} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#fbfdff' }}><b>{row.subjectCode} {row.subjectName}</b><div style={{ fontSize: 20, fontWeight: 900, marginTop: 6 }}>{fmt(row.taxInclusiveAmount)}</div><div className="meta">万元｜占比 {total ? fmt(Number(row.taxInclusiveAmount) / total * 100) : '0'}%</div><div className="meta">建面 {fmt(unitCost(Number(row.taxInclusiveAmount), buildingArea))} 元/㎡</div><div className="meta">可售 {fmt(unitCost(Number(row.taxInclusiveAmount), saleableArea))} 元/㎡</div></div>)}
         </div>}
       </section>
