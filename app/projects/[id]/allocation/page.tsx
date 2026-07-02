@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { activeVersionOrder, activeVersionWhere, isVersionLocked } from '@/lib/project-version';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -52,13 +53,15 @@ export default async function AllocationPage({ params }: { params: { id: string 
   if (!project) return <main className="page">项目不存在</main>;
 
   const version = await prisma.projectVersion.findFirst({
-    where: { projectId: params.id },
-    orderBy: { createdAt: 'asc' },
+    where: activeVersionWhere(project),
+    orderBy: activeVersionOrder(project),
     include: { products: true, costs: { include: { costSubject: true, productType: true } } }
   });
+  const locked = version ? isVersionLocked(version) : false;
 
   const products = (version?.products || []).filter((item) => item.isActive && item.participateAllocation !== false);
-  const costs = version?.costs || [];
+  const disabledProductCount = (version?.products || []).filter((item) => !item.isActive).length;
+  const costs = (version?.costs || []).filter((item) => !item.productTypeId || item.productType?.isActive);
   const productTotals = new Map<string, { product: any; direct: number; allocated: number; total: number }>();
   for (const product of products) productTotals.set(product.id, { product, direct: 0, allocated: 0, total: 0 });
 
@@ -104,8 +107,9 @@ export default async function AllocationPage({ params }: { params: { id: string 
           <div className="stat"><div className="stat-label">分摊总成本</div><div className="stat-value">{fmt(totalCost)}</div></div>
           <div className="stat"><div className="stat-label">成本明细条数</div><div className="stat-value">{costs.length}</div></div>
           <div className="stat"><div className="stat-label">参与分摊业态</div><div className="stat-value">{products.length}</div></div>
-          <div className="stat"><div className="stat-label">分摊口径</div><div className="stat-value">自动</div></div>
+          <div className="stat"><div className="stat-label">当前版本</div><div className="stat-value">{version?.name || '暂无版本'}</div><div className="meta">{locked ? '已锁定' : '可编辑'}</div></div>
         </div>
+        {disabledProductCount ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8', background: '#fff9db' }}>本页已按启用业态口径展示，停用业态 {disabledProductCount} 个及其直接关联成本行不参与当前分摊展示。</div> : null}
 
         <section className="card" style={{ marginBottom: 18 }}>
           <h2>业态分摊结果</h2>

@@ -396,6 +396,13 @@ function MetricCard({ label, value, unit }: { label: string; value: unknown; uni
   return <div className="stat" style={{ minHeight: 78 }}><div className="stat-label">{label}</div><div className="stat-value">{display(value)}{unit || ''}</div></div>;
 }
 
+function versionStatusText(status?: string | null) {
+  if (status === 'locked') return '已锁定';
+  if (status === 'final') return '已定版';
+  if (status === 'draft') return '可编辑';
+  return status || '未设置';
+}
+
 export default async function ProjectOverviewPage({ params, searchParams }: { params: { id: string }, searchParams?: Record<string, string | undefined> }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
@@ -442,9 +449,19 @@ export default async function ProjectOverviewPage({ params, searchParams }: { pa
     {locked ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffc9c9', background: '#fff5f5' }}>当前测算版本已锁定，不能调整业态。如需修改，请复制新版本后操作。</div> : null}
     {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#f0fff4' }}>项目概况已保存。</div> : null}
     {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 14, borderColor: '#ffc9c9', background: '#fff5f5' }}>当前版本已锁定，本次保存或业态调整未执行。</div> : null}
-    {searchParams?.productSaved ? <div className="card" style={{ marginBottom: 14, borderColor: searchParams.productSaved === '1' ? '#b2f2bb' : '#ffd8a8', background: searchParams.productSaved === '1' ? '#f0fff4' : '#fff9db' }}>业态维护结果：{searchParams.productSaved === '1' ? '已保存。' : searchParams.productSaved === 'duplicate' ? '该业态已存在。' : searchParams.productSaved === 'disabled' ? '该业态在已停用区，请使用恢复启用。' : '未完成。'}</div> : null}
+    {searchParams?.productSaved ? <div className="card" style={{ marginBottom: 14, borderColor: searchParams.productSaved === '1' ? '#b2f2bb' : '#ffd8a8', background: searchParams.productSaved === '1' ? '#f0fff4' : '#fff9db' }}>业态维护结果：{searchParams.productSaved === '1' ? '已保存。' : searchParams.productSaved === 'duplicate' ? '该业态已存在。' : searchParams.productSaved === 'disabled' ? '该业态已处于停用状态，可在已停用业态折叠区查看或恢复。' : searchParams.productSaved === 'locked' ? '当前版本已锁定。' : '未完成。'}</div> : null}
 
     <form id="overview-form" action={`/api/projects/${project.id}/overview`} method="post" />
+
+    <section className="card" style={{ marginBottom: 14, borderColor: locked ? '#ffc9c9' : '#d0ebff', background: locked ? '#fff5f5' : '#f8fbff' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+        <div><div className="meta">当前项目</div><b>{project.name}</b></div>
+        <div><div className="meta">当前版本</div><b>{version?.name || '暂无版本'}</b></div>
+        <div><div className="meta">当前版本状态</div><b>{versionStatusText(version?.status)}</b></div>
+        <div><div className="meta">是否可编辑</div><b>{locked ? '不可编辑' : '可编辑'}</b></div>
+      </div>
+      {locked ? <p className="meta" style={{ margin: '8px 0 0', color: '#c92a2a' }}>当前版本已锁定。</p> : null}
+    </section>
 
     <div className="summary-strip" style={{ marginBottom: 14 }}>
       <MetricCard label="启用业态" value={activeProducts.length} />

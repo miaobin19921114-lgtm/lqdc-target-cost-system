@@ -1,11 +1,15 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { OverviewRoadValidation } from '@/components/overview-road-validation';
+import { QuantityOverrideActions } from '@/components/quantity-override-actions';
+import { activeVersionOrder, activeVersionWhere, isVersionLocked } from '@/lib/project-version';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-const fieldStyle = { height: 34, border: '1px solid #d9e2ec', borderRadius: 6, padding: '4px 8px' };
+const fieldStyle = { height: 34, border: '1px solid #d9e2ec', borderRadius: 6, padding: '4px 8px', background: '#fff' };
+const readonlyFieldStyle = { ...fieldStyle, background: '#f2f4f7', color: '#667085' };
+const cell = { padding: 9, borderBottom: '1px solid #eef2f6', whiteSpace: 'nowrap' as const };
 
 const buildingFields = [
   ['buildingCount', '楼栋数量'], ['unitCount', '单元数量'], ['householdCount', '户数/套数'], ['elevatorCount', '电梯数量'],
@@ -55,9 +59,9 @@ function Block({ title, note, children }: { title: string; note: string; childre
   </section>;
 }
 
-function FieldGrid({ project, fields }: { project: any; fields: readonly (readonly [string, string])[] }) {
+function FieldGrid({ project, fields, locked }: { project: any; fields: readonly (readonly [string, string])[]; locked: boolean }) {
   return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
-    {fields.map(([name, label]) => <label key={name} style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467' }}>{label}<input form="quantity-indicators-form" name={name} type="number" step="0.01" max={name === 'fireRoadArea' ? valueOf(project, 'roadArea') : undefined} defaultValue={name === 'softscapeArea' ? (valueOf(project, name) || valueOf(project, 'greenArea')) : valueOf(project, name)} style={fieldStyle} /></label>)}
+    {fields.map(([name, label]) => <label key={name} style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467' }}>{label}<input form="quantity-indicators-form" name={name} type="number" step="0.01" max={name === 'fireRoadArea' ? valueOf(project, 'roadArea') : undefined} defaultValue={name === 'softscapeArea' ? (valueOf(project, name) || valueOf(project, 'greenArea')) : valueOf(project, name)} disabled={locked} style={locked ? readonlyFieldStyle : fieldStyle} /></label>)}
   </div>;
 }
 
@@ -65,13 +69,70 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
   return <div className="stat"><div className="stat-label">{label}</div><div className="stat-value">{value}</div>{note ? <div className="meta">{note}</div> : null}</div>;
 }
 
+function statusLabel(status?: string | null) {
+  if (status === 'locked') return '已锁定';
+  if (status === 'final') return '已定版';
+  if (status === 'draft') return '可编辑';
+  return status || '未设置';
+}
+
+function round2(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function quantityText(value: unknown) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object' && typeof (value as any).toString === 'function') return (value as any).toString();
+  return String(value);
+}
+
+function systemQuantity(line: { measureValue: unknown; coefficient: unknown }) {
+  return round2(Number(line.measureValue || 0) * (Number(line.coefficient || 0) || 1));
+}
+
+function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'green' | 'orange' | 'red' }) {
+  const styleMap = {
+    neutral: { background: '#f2f4f7', color: '#475467', border: '#d0d5dd' },
+    green: { background: '#f0fff4', color: '#2b8a3e', border: '#b2f2bb' },
+    orange: { background: '#fff4e6', color: '#d9480f', border: '#ffd8a8' },
+    red: { background: '#fff5f5', color: '#c92a2a', border: '#ffc9c9' }
+  }[tone];
+  return <span style={{ display: 'inline-flex', borderRadius: 999, border: `1px solid ${styleMap.border}`, background: styleMap.background, color: styleMap.color, padding: '3px 8px', fontSize: 12, fontWeight: 800 }}>{children}</span>;
+}
+
 export default async function QuantityIndicatorsPage({ params, searchParams }: { params: { id: string }, searchParams?: { saved?: string; locked?: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) return <main className="page">项目不存在</main>;
+  const version = await prisma.projectVersion.findFirst({
+    where: activeVersionWhere(project),
+    orderBy: activeVersionOrder(project),
+    include: { products: true }
+  });
+  const locked = version ? isVersionLocked(version) : false;
+  const costLines = version ? await prisma.costLine.findMany({
+    where: {
+      projectVersionId: version.id,
+      OR: [{ productTypeId: null }, { productType: { isActive: true } }]
+    },
+    include: { costSubject: true, productType: true },
+    orderBy: [{ professionalGroup: 'asc' }, { sortOrder: 'asc' }, { detailName: 'asc' }]
+  }) : [];
+  const overrideRows = costLines.filter((line) => Number(line.measureValue || 0) !== 0 || Number(line.quantity || 0) !== 0 || line.quantityOverride);
+  const overriddenCount = overrideRows.filter((line) => line.quantityOverride).length;
+  const disabledProductCount = (version?.products || []).filter((item) => !item.isActive).length;
 
   return <main className="page" style={{ background: '#eef3f8' }}><div className="container" style={{ maxWidth: 1280 }}>
     <OverviewRoadValidation />
-    <div className="page-header" style={{ alignItems: 'flex-start' }}><div><p className="eyebrow">基础数据</p><h1 className="title">工程量指标</h1><p className="subtitle">集中维护用于目标成本测算的工程量指标。该页只录入工程量，不维护建造标准和业态产品。</p></div><div className="actions" style={{ marginTop: 0 }}><button form="quantity-indicators-form" className="btn btn-primary">保存工程量指标</button><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}/construction-standards`} className="btn">建造配置标准</Link></div></div>
+    <div className="page-header" style={{ alignItems: 'flex-start' }}><div><p className="eyebrow">基础数据</p><h1 className="title">工程量指标</h1><p className="subtitle">集中维护用于目标成本测算的工程量指标；成本明细工程量支持按行手算覆盖和恢复系统值。</p></div><div className="actions" style={{ marginTop: 0 }}><button form="quantity-indicators-form" className="btn btn-primary" disabled={locked}>保存工程量指标</button><Link href={`/projects/${project.id}/overview`} className="btn">项目概况</Link><Link href={`/projects/${project.id}/construction-standards`} className="btn">建造配置标准</Link></div></div>
+    <section className="card" style={{ marginBottom: 14, borderColor: locked ? '#ffc9c9' : '#d0ebff', background: locked ? '#fff5f5' : '#f8fbff' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+        <div><div className="meta">当前项目</div><b>{project.name}</b></div>
+        <div><div className="meta">当前版本</div><b>{version?.name || '暂无版本'}</b></div>
+        <div><div className="meta">当前版本状态</div><b>{statusLabel(version?.status)}</b></div>
+        <div><div className="meta">是否可编辑</div><b>{locked ? '不可编辑' : '可编辑'}</b></div>
+      </div>
+      {locked ? <p className="meta" style={{ margin: '8px 0 0', color: '#c92a2a' }}>当前版本已锁定。</p> : null}
+    </section>
     {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>工程量指标已保存。</div> : null}
     {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffc9c9', background: '#fff5f5' }}>当前版本已锁定，本次保存未执行。</div> : null}
     <form id="quantity-indicators-form" action={`/api/projects/${project.id}/quantity-indicators`} method="post" />
@@ -80,14 +141,40 @@ export default async function QuantityIndicatorsPage({ params, searchParams }: {
       <Stat label="车位 / 充电桩" value={`${fmt(project.parkingCount)} / ${fmt(project.chargingPileCount)}`} />
       <Stat label="景观 / 硬景 / 软景" value={`${fmt(project.landscapeArea)} / ${fmt(project.hardscapeArea)} / ${fmt(project.softscapeArea)}㎡`} />
       <Stat label="周界 / 出入口" value={`${fmt(project.sitePerimeter)}m / ${fmt(project.gateCount)}个`} />
+      <Stat label="手算覆盖 / 可手算行" value={`${fmt(overriddenCount)} / ${fmt(overrideRows.length)}`} note={disabledProductCount ? `已隐藏停用业态 ${disabledProductCount} 个` : undefined} />
     </div>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Block title="一、建筑与楼栋指标" note="用于楼栋、单元、电梯、标准层、层高等成本测算。"><FieldGrid project={project} fields={buildingFields} /></Block>
-      <Block title="二、车位与充电桩指标" note="充电桩只作为工程量和设备安装指标，不作为独立业态。"><FieldGrid project={project} fields={parkingFields} /><label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467', marginTop: 12 }}>车位/充电桩备注<textarea form="quantity-indicators-form" name="parkingRemark" defaultValue={project.parkingRemark || ''} style={{ minHeight: 66, border: '1px solid #d9e2ec', borderRadius: 6, padding: 8 }} /></label></Block>
-      <Block title="三、场地、景观、道路与围墙指标" note="场平面积未填默认土地面积；软景面积与绿化面积合并为一个输入；消防道路面积不得大于车行道路面积。"><FieldGrid project={project} fields={siteFields} /></Block>
-      <Block title="四、地下室 / 公区 / 配套面积" note="用于地下室、人防、公区、大堂、售楼部、样板间、物业及社区用房成本测算。"><FieldGrid project={project} fields={basementFields} /></Block>
-      <Block title="五、土建工程量" note="用于桩基、土方、防水、屋面、保温、外墙、门窗、栏杆等土建科目。"><FieldGrid project={project} fields={civilFields} /></Block>
-      <Block title="六、机电设备指标" note="用于配电房、水泵房、消防水池等安装设备类测算。"><FieldGrid project={project} fields={mepFields} /></Block>
+      <Block title="一、建筑与楼栋指标" note="用于楼栋、单元、电梯、标准层、层高等成本测算。"><FieldGrid project={project} fields={buildingFields} locked={locked} /></Block>
+      <Block title="二、车位与充电桩指标" note="充电桩只作为工程量和设备安装指标，不作为独立业态。"><FieldGrid project={project} fields={parkingFields} locked={locked} /><label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#475467', marginTop: 12 }}>车位/充电桩备注<textarea form="quantity-indicators-form" name="parkingRemark" defaultValue={project.parkingRemark || ''} disabled={locked} style={{ minHeight: 66, border: '1px solid #d9e2ec', borderRadius: 6, padding: 8, background: locked ? '#f2f4f7' : '#fff' }} /></label></Block>
+      <Block title="三、场地、景观、道路与围墙指标" note="场平面积未填默认土地面积；软景面积与绿化面积合并为一个输入；消防道路面积不得大于车行道路面积。"><FieldGrid project={project} fields={siteFields} locked={locked} /></Block>
+      <Block title="四、地下室 / 公区 / 配套面积" note="用于地下室、人防、公区、大堂、售楼部、样板间、物业及社区用房成本测算。"><FieldGrid project={project} fields={basementFields} locked={locked} /></Block>
+      <Block title="五、土建工程量" note="用于桩基、土方、防水、屋面、保温、外墙、门窗、栏杆等土建科目。"><FieldGrid project={project} fields={civilFields} locked={locked} /></Block>
+      <Block title="六、机电设备指标" note="用于配电房、水泵房、消防水池等安装设备类测算。"><FieldGrid project={project} fields={mepFields} locked={locked} /></Block>
+      <Block title="七、成本明细工程量手算" note="按成本明细行录入手算覆盖；清除覆盖会恢复系统测算值，不会删除指标。">
+        {locked ? <div style={{ border: '1px solid #ffc9c9', background: '#fff5f5', borderRadius: 8, padding: 10, marginBottom: 12 }}>当前版本已锁定，不能修改手算值。</div> : null}
+        {overrideRows.length === 0 ? <p className="meta">暂无可手算的成本明细工程量。请先生成或录入目标成本明细。</p> : <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1240, fontSize: 12 }}>
+            <thead><tr>{['成本科目', '明细名称', '适用业态', '系统测算值', '手算覆盖值', '当前生效值', '状态', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+            <tbody>{overrideRows.map((line) => {
+              const systemValue = systemQuantity(line);
+              const currentValue = quantityText(line.quantity);
+              const manualValue = line.quantityOverride ? currentValue : '';
+              return <tr key={line.id} style={line.quantityOverride ? { background: '#fffaf0' } : undefined}>
+                <td style={{ ...cell, fontWeight: 800 }}>{line.costSubject.code} {line.costSubject.name}</td>
+                <td style={cell}>{line.detailName}<div className="meta">{line.professionalGroup || '未分组'}｜{line.measureBasis || '未配置取数依据'}</div></td>
+                <td style={cell}>{line.productType?.name || line.regionOrProductType || '全项目'}</td>
+                <td style={cell}>{fmt(systemValue)} {line.unit || ''}<div className="meta">取数 {fmt(line.measureValue)} × 系数 {fmt(line.coefficient || 1)}</div></td>
+                <td style={cell}>{line.quantityOverride ? `${fmt(manualValue)} ${line.unit || ''}` : <span className="meta">空值，未覆盖</span>}</td>
+                <td style={{ ...cell, fontWeight: 900 }}>{fmt(currentValue)} {line.unit || ''}</td>
+                <td style={cell}>{line.quantityOverride ? <Badge tone="orange">已手算覆盖</Badge> : <Badge tone="green">使用系统值</Badge>}</td>
+                <td style={{ ...cell, minWidth: 280 }}>
+                  {version ? <QuantityOverrideActions projectId={project.id} versionId={version.id} costLineId={line.id} currentQuantity={currentValue} hasOverride={line.quantityOverride} locked={locked} /> : <span className="meta">暂无版本</span>}
+                </td>
+              </tr>;
+            })}</tbody>
+          </table>
+        </div>}
+      </Block>
     </div>
   </div></main>;
 }
