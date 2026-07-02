@@ -129,7 +129,7 @@ async function createOperationLog(
   `;
   await tx.$executeRaw`
     INSERT INTO "OperationLog" ("id", "projectId", "projectVersionId", "module", "action", "targetType", "targetId", "beforeData", "afterData", "operatorName", "remark")
-    VALUES (${randomUUID()}, ${input.projectId}, ${input.versionId}, ${'product_type'}, ${input.operationType}, ${'ProductType'}, ${input.productTypeId}, ${JSON.stringify({ status: input.beforeStatus })}, ${JSON.stringify({ status: input.afterStatus })}, ${'system'}, ${JSON.stringify({ operationReason: input.operationReason || null, blockedReason: input.blockedReason || null, remark: input.remark || null })})
+    VALUES (${randomUUID()}, ${input.projectId}, ${input.versionId}, ${'product_type'}, ${`${input.operationType}_product_type`}, ${'ProductType'}, ${input.productTypeId}, ${JSON.stringify({ status: input.beforeStatus })}, ${JSON.stringify({ status: input.afterStatus })}, ${'system'}, ${JSON.stringify({ operationReason: input.operationReason || null, blockedReason: input.blockedReason || null, remark: input.remark || null })})
   `;
 }
 

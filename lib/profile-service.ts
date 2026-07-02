@@ -58,7 +58,32 @@ const projectMetricExtraKeys = [
   'entranceCount',
   'projectType',
   'developmentMode',
-  'templateSource'
+  'templateSource',
+  'isSampleRoomEnabled',
+  'sampleRoomCount',
+  'sampleRoomArea',
+  'sampleRoomHostType',
+  'sampleRoomHostProductType',
+  'isSampleRoomFutureSaleable',
+  'isSampleRoomRestoreRequired',
+  'sampleRoomDecorationStandard',
+  'sampleRoomCostBearingType',
+  'sampleRoomCostTransferReserved',
+  'isSalesOfficeEnabled',
+  'salesOfficeType',
+  'salesOfficeArea',
+  'salesOfficeHostType',
+  'salesOfficeFutureUse',
+  'salesOfficeCostBearingType',
+  'salesOfficeTransferReserved',
+  'isDemoAreaEnabled',
+  'demoArea',
+  'demoLandscapeArea',
+  'demoRoadArea',
+  'demoPackagingArea',
+  'demoViewingPathArea',
+  'demoCostBearingType',
+  'demoTransferReserved'
 ];
 
 const profileObjectTypes = new Set([
@@ -167,8 +192,8 @@ async function saveMetrics(tx: typeof prisma, projectId: string, versionId: stri
 
 function productObjectType(name: string, category?: string | null) {
   const input = `${name} ${category || ''}`;
-  if (/车位|车库|停车|产权车位|使用权车位|立体车位|充电桩车位|人防车位|非人防车位/.test(input)) return 'parking_income_object';
   if (/地下室|地下车库|地库/.test(input)) return 'basement_cost_object';
+  if (/车位|停车|产权车位|使用权车位|立体车位|充电桩车位|人防车位|非人防车位/.test(input)) return 'parking_income_object';
   if (/样板间|售楼处|示范区|看房通道|临时展示/.test(input)) return 'marketing_display_object';
   if (/人防|装配式|精装修|采暖|充电桩|古建/.test(input)) return 'special_config_object';
   if (/物业用房|社区用房|会所|架空层|幼儿园|配建|移交|人防配套|设备房|配套/.test(input)) return 'supporting_cost_object';
@@ -293,6 +318,8 @@ export async function getProfileProductObjects(projectId: string, versionId: str
       isAllocationObject: type !== 'parking_income_object',
       isTaxObject: item.isTaxClearanceObject,
       isProfitObject: type === 'product_type',
+      quantityUnit: type === 'parking_income_object' ? '个' : null,
+      pricingUnit: type === 'parking_income_object' ? '元/个' : null,
       sortOrder: item.sortOrder,
       hasOverviewData: item.hasOverviewData,
       hasIncomeData: item.hasIncomeData,
@@ -330,6 +357,8 @@ export async function getProfileProductObjects(projectId: string, versionId: str
       isAllocationObject: bool(parsed?.isAllocationObject),
       isTaxObject: bool(parsed?.isTaxObject),
       isProfitObject: bool(parsed?.isProfitObject),
+      quantityUnit: parsed?.quantityUnit || (parsed?.objectType === 'parking_income_object' ? '个' : null),
+      pricingUnit: parsed?.pricingUnit || (parsed?.objectType === 'parking_income_object' ? '元/个' : null),
       sortOrder: productObjects.length + index + 1,
       hasOverviewData: true,
       hasIncomeData: false,
@@ -566,7 +595,10 @@ export async function getProfileProjectMetrics(projectId: string, versionId: str
       useRightParkingCount: value('useRightParkingCount') || project.undergroundUseRightParkingCount || null,
       mechanicalParkingCount: value('mechanicalParkingCount'),
       chargingPileParkingCount: value('chargingPileParkingCount') || project.chargingPileCount || null,
-      parkingUnitPrice: value('parkingUnitPrice')
+      parkingUnitPrice: value('parkingUnitPrice'),
+      quantityUnit: '个',
+      pricingUnit: '元/个',
+      remark: '车位收入按数量 × 单价测算，计量单位为个，计价单位为元/个；禁止使用车位面积 × 元/㎡。'
     },
     landscapeRoad: {
       landscapeArea: nullableNumber(project.landscapeArea),
@@ -579,6 +611,34 @@ export async function getProfileProjectMetrics(projectId: string, versionId: str
       wallLength: value('wallLength'),
       entranceCount: value('entranceCount') || project.gateCount || null
     },
+    marketingDisplay: {
+      isSampleRoomEnabled: value('isSampleRoomEnabled') ?? project.hasShowFlat,
+      sampleRoomCount: value('sampleRoomCount'),
+      sampleRoomArea: value('sampleRoomArea') || nullableNumber(project.showFlatArea),
+      sampleRoomHostType: value('sampleRoomHostType'),
+      sampleRoomHostProductType: value('sampleRoomHostProductType'),
+      isSampleRoomFutureSaleable: value('isSampleRoomFutureSaleable'),
+      isSampleRoomRestoreRequired: value('isSampleRoomRestoreRequired'),
+      sampleRoomDecorationStandard: value('sampleRoomDecorationStandard') || project.showFlatFitoutType || null,
+      sampleRoomCostBearingType: value('sampleRoomCostBearingType'),
+      sampleRoomCostTransferReserved: value('sampleRoomCostTransferReserved'),
+      isSalesOfficeEnabled: value('isSalesOfficeEnabled') ?? project.hasSalesOffice,
+      salesOfficeType: value('salesOfficeType') || project.salesOfficeFitoutType || null,
+      salesOfficeArea: value('salesOfficeArea') || nullableNumber(project.salesOfficeArea),
+      salesOfficeHostType: value('salesOfficeHostType'),
+      salesOfficeFutureUse: value('salesOfficeFutureUse'),
+      salesOfficeCostBearingType: value('salesOfficeCostBearingType'),
+      salesOfficeTransferReserved: value('salesOfficeTransferReserved'),
+      isDemoAreaEnabled: value('isDemoAreaEnabled') ?? (project.hasSalesOffice || project.hasShowFlat),
+      demoArea: value('demoArea'),
+      demoLandscapeArea: value('demoLandscapeArea'),
+      demoRoadArea: value('demoRoadArea'),
+      demoPackagingArea: value('demoPackagingArea'),
+      demoViewingPathArea: value('demoViewingPathArea'),
+      demoCostBearingType: value('demoCostBearingType'),
+      demoTransferReserved: value('demoTransferReserved'),
+      remark: '样板间、售楼处、示范区作为营销展示对象或专项成本口径，不作为普通收入业态；V1 不做复杂自动分摊。'
+    },
     warnings: []
   };
   data.warnings = projectMetricsWarnings(data);
@@ -589,12 +649,13 @@ export async function saveProfileProjectMetrics(projectId: string, versionId: st
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
   if (isVersionLocked(version)) return error('PROFILE_VERSION_LOCKED', '当前测算版本已锁定，不能保存项目指标。', 423);
-  const flat = { ...(body.land as any), ...(body.buildingArea as any), ...(body.buildings as any), ...(body.basement as any), ...(body.parking as any), ...(body.landscapeRoad as any) };
+  const flat = { ...(body.land as any), ...(body.buildingArea as any), ...(body.buildings as any), ...(body.basement as any), ...(body.parking as any), ...(body.landscapeRoad as any), ...(body.marketingDisplay as any) };
   for (const [key, value] of Object.entries(flat)) {
-    if (typeof value === 'number' && value < 0) return error('INVALID_PROJECT_METRIC', `${key} 不能为负数。`);
+    if (value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) < 0) return error('INVALID_PROJECT_METRIC', `${key} 不能为负数。`);
   }
   if (n(flat.undergroundGarageArea) > n(flat.basementTotalArea || version.project.undergroundArea)) return error('INVALID_BASEMENT_METRIC', '地下车库面积不得大于地下总建筑面积。');
   if (n(flat.fireRoadAreaIncluded) > n(flat.vehicleRoadArea || version.project.roadArea)) return error('INVALID_LANDSCAPE_METRIC', '消防道路面积不得大于车行道路面积。');
+  if (n(flat.basementFloorCount) === 1 && n(flat.basementB1Height) <= 0) return error('INVALID_BASEMENT_METRIC', '地下室为一层时，必须填写 B1 层高。');
   if (n(flat.basementFloorCount) === 2 && (n(flat.basementB1Height) <= 0 || n(flat.basementB2Height) <= 0)) return error('INVALID_BASEMENT_METRIC', '地下室为两层时，必须填写 B1 和 B2 层高。');
   if (n(flat.basementFloorCount) > 2 && n(flat.basementOtherAvgHeight) <= 0) return error('INVALID_BASEMENT_METRIC', '地下室超过两层时，必须填写其他层平均层高。');
   const before = resultData(await getProfileProjectMetrics(projectId, versionId)) as Record<string, unknown>;
@@ -633,6 +694,14 @@ export async function saveProfileProjectMetrics(projectId: string, versionId: st
     if (inputKey in flat) projectData[projectKey] = Number.isInteger((version.project as any)[projectKey]) ? Math.round(n(flat[inputKey])) : n(flat[inputKey]);
   }
   if ('softLandscapeArea' in flat) projectData.greenArea = n(flat.softLandscapeArea);
+  if ('sampleRoomArea' in flat) projectData.showFlatArea = n(flat.sampleRoomArea);
+  if ('salesOfficeArea' in flat) projectData.salesOfficeArea = n(flat.salesOfficeArea);
+  if ('isSampleRoomEnabled' in flat) projectData.hasShowFlat = bool(flat.isSampleRoomEnabled);
+  if ('isSalesOfficeEnabled' in flat) projectData.hasSalesOffice = bool(flat.isSalesOfficeEnabled);
+  if ('isDemoAreaEnabled' in flat) {
+    projectData.hasSalesOffice = bool(flat.isDemoAreaEnabled);
+    projectData.hasShowFlat = bool(flat.isDemoAreaEnabled);
+  }
   await prisma.$transaction(async (tx) => {
     if (Object.keys(projectData).length) await tx.project.update({ where: { id: projectId }, data: projectData });
     await saveMetrics(tx as typeof prisma, projectId, versionId, flat, projectMetricExtraKeys, 'profile_project_metrics');
