@@ -30,9 +30,12 @@ export async function GET(request: Request, { params }: { params: { id: string; 
         versions: {
           where: { id: params.versionId },
           include: {
-            products: true,
-            revenues: { include: { productType: true } },
-            costs: { include: { productType: true, costSubject: true } },
+            products: { where: { isActive: true } },
+            revenues: { where: { productType: { isActive: true } }, include: { productType: true } },
+            costs: {
+              where: { OR: [{ productTypeId: null }, { productType: { isActive: true } }] },
+              include: { productType: true, costSubject: true }
+            },
             taxes: true
           }
         }

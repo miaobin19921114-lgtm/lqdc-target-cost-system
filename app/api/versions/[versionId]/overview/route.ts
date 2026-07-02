@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isVersionLocked } from '@/lib/project-version';
+import { writeOperationLog } from '@/lib/operation-log';
 
 const metricFields = [
   'basementB1Height',
@@ -151,6 +152,27 @@ async function saveOverview(versionId: string, body: Record<string, unknown>) {
   await prisma.$transaction(async (tx) => {
     if (Object.keys(projectData).length) {
       await tx.project.update({ where: { id: loaded.version.projectId }, data: projectData });
+      await writeOperationLog(tx, {
+        projectId: loaded.version.projectId,
+        versionId,
+        module: 'project_overview',
+        action: 'update_key_metrics',
+        targetType: 'Project',
+        targetId: loaded.version.projectId,
+        beforeData: {
+          softLandscapeArea: loaded.data.softLandscapeArea,
+          greenArea: loaded.data.greenArea,
+          basementFloorCount: loaded.data.basementFloorCount,
+          basementB1Height: loaded.data.basementB1Height,
+          vehicleRoadArea: loaded.data.vehicleRoadArea,
+          fireRoadAreaIncluded: loaded.data.fireRoadAreaIncluded
+        },
+        afterData: projectData,
+        remark: {
+          changedFields: Object.keys(projectData),
+          source: 'versions_overview_api'
+        }
+      });
     }
 
     for (const key of metricFields) {

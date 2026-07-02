@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { rebuildProjectCostDictionary } from '@/lib/rebuild-project-cost-dictionary';
 import { getEditableActiveVersion } from '@/lib/project-version';
+import { writeOperationLog } from '@/lib/operation-log';
 
 function clean(form: FormData, name: string) {
   return String(form.get(name) || '').trim();
@@ -47,6 +48,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const greenArea = toNumber(form, 'greenArea') || softscapeArea;
   const siteLevelingArea = toNumber(form, 'siteLevelingArea') || land.landArea;
   const landscapeArea = toNumber(form, 'landscapeArea') || (toNumber(form, 'hardscapeArea') + softscapeArea);
+  const beforeProject = await prisma.project.findUnique({ where: { id: params.id } });
 
   await prisma.project.update({
     where: { id: params.id },
@@ -160,6 +162,37 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
       remark: clean(form, 'remark') || null
     }
+  });
+
+  await prisma.$transaction(async (tx) => {
+    await writeOperationLog(tx, {
+      projectId: params.id,
+      versionId: version.id,
+      module: 'project_overview',
+      action: 'update_key_metrics',
+      targetType: 'Project',
+      targetId: params.id,
+      beforeData: beforeProject ? {
+        softscapeArea: beforeProject.softscapeArea,
+        greenArea: beforeProject.greenArea,
+        basementFloors: beforeProject.basementFloors,
+        basementFloorHeight: beforeProject.basementFloorHeight,
+        roadArea: beforeProject.roadArea,
+        fireRoadArea: beforeProject.fireRoadArea
+      } : null,
+      afterData: {
+        softscapeArea,
+        greenArea,
+        basementFloors: toInt(form, 'basementFloors'),
+        basementFloorHeight: toNumber(form, 'basementFloorHeight'),
+        roadArea: toNumber(form, 'roadArea'),
+        fireRoadArea: toNumber(form, 'fireRoadArea')
+      },
+      remark: {
+        source: 'project_overview_form',
+        changedFields: ['softscapeArea', 'greenArea', 'basementFloors', 'basementFloorHeight', 'roadArea', 'fireRoadArea']
+      }
+    });
   });
 
   await rebuildProjectCostDictionary(params.id);

@@ -157,9 +157,20 @@ export async function aggregateTargetCostFromDetails(projectId: string, versionI
   await prisma.$executeRawUnsafe(`
     INSERT INTO "TargetCostMeasureAggregate" ("id", "projectId", "versionId", "subjectCode", "subjectName", "ruleType", "subjectLevel", "subjectPath", "taxInclusiveAmount", "taxExclusiveAmount", "taxAmount")
     SELECT 'tc-' || $2 || '-' || "subjectCode", $1, $2, "subjectCode", MAX("subjectName"), MAX("ruleType"), LENGTH("subjectCode")/2, MAX("subjectPath"), SUM("taxInclusiveAmount"), SUM("taxExclusiveAmount"), SUM("taxAmount")
-    FROM "DetailCalculationResult"
-    WHERE "projectId"=$1 AND "versionId"=$2
-    GROUP BY "subjectCode"
+    FROM "DetailCalculationResult" d
+    WHERE d."projectId"=$1 AND d."versionId"=$2
+      AND NOT EXISTS (
+        SELECT 1 FROM "ProductType" p
+        WHERE p."projectVersionId"=$2
+          AND p."isActive"=FALSE
+          AND (
+            d."areaBizType" = p."name"
+            OR d."areaZone" = p."name"
+            OR d."professionalGroup" = p."name"
+            OR d."remark" LIKE '%' || p."name" || '%'
+          )
+      )
+    GROUP BY d."subjectCode"
     ON CONFLICT ("versionId", "subjectCode") DO UPDATE SET
       "taxInclusiveAmount"=EXCLUDED."taxInclusiveAmount",
       "taxExclusiveAmount"=EXCLUDED."taxExclusiveAmount",
@@ -171,9 +182,20 @@ export async function aggregateTargetCostFromDetails(projectId: string, versionI
   await prisma.$executeRawUnsafe(`
     INSERT INTO "TargetCostSummaryAggregate" ("id", "projectId", "versionId", "subjectCode", "subjectName", "summaryLevel", "taxInclusiveAmount", "taxExclusiveAmount", "taxAmount")
     SELECT 'summary-' || $2 || '-' || "majorSubjectCode", $1, $2, "majorSubjectCode", MAX("majorSubjectName"), 1, SUM("taxInclusiveAmount"), SUM("taxExclusiveAmount"), SUM("taxAmount")
-    FROM "DetailCalculationResult"
-    WHERE "projectId"=$1 AND "versionId"=$2 AND "majorSubjectCode" IS NOT NULL
-    GROUP BY "majorSubjectCode"
+    FROM "DetailCalculationResult" d
+    WHERE d."projectId"=$1 AND d."versionId"=$2 AND d."majorSubjectCode" IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM "ProductType" p
+        WHERE p."projectVersionId"=$2
+          AND p."isActive"=FALSE
+          AND (
+            d."areaBizType" = p."name"
+            OR d."areaZone" = p."name"
+            OR d."professionalGroup" = p."name"
+            OR d."remark" LIKE '%' || p."name" || '%'
+          )
+      )
+    GROUP BY d."majorSubjectCode"
     ON CONFLICT ("versionId", "subjectCode") DO UPDATE SET
       "taxInclusiveAmount"=EXCLUDED."taxInclusiveAmount",
       "taxExclusiveAmount"=EXCLUDED."taxExclusiveAmount",

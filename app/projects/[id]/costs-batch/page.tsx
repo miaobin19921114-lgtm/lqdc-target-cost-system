@@ -78,6 +78,17 @@ async function refreshTargetCostFromDetails(formData: FormData) {
       CASE WHEN $4::numeric > 0 THEN SUM(d."taxInclusiveAmount") * 10000 / $4::numeric ELSE NULL END
     FROM "DetailCalculationResult" d
     WHERE d."projectId"=$1 AND d."versionId"=$2
+      AND NOT EXISTS (
+        SELECT 1 FROM "ProductType" p
+        WHERE p."projectVersionId"=$2
+          AND p."isActive"=FALSE
+          AND (
+            d."areaBizType" = p."name"
+            OR d."areaZone" = p."name"
+            OR d."professionalGroup" = p."name"
+            OR d."remark" LIKE '%' || p."name" || '%'
+          )
+      )
     GROUP BY d."subjectCode"
     ON CONFLICT ("versionId", "subjectCode") DO UPDATE SET
       "subjectName"=EXCLUDED."subjectName",
