@@ -81,7 +81,7 @@ function HeaderActions({ projectId, versionId, current, locked }: { projectId: s
   return <div className="actions" style={{ marginTop: 0 }}>
     {saveable ? <button form={`profile-${current}-form`} className="btn btn-primary" disabled={locked}>保存本分区</button> : null}
     {current === 'quantity-indicators' ? <Link href={`/projects/${projectId}/quantity-indicators`} className="btn">完整工程量页</Link> : null}
-    {current === 'product-objects' ? <Link href={`/projects/${projectId}/product-maintenance`} className="btn">完整维护页</Link> : null}
+    {current === 'product-objects' ? locked ? <button className="btn" disabled>完整维护页</button> : <Link href={`/projects/${projectId}/product-maintenance`} className="btn">完整维护页</Link> : null}
     <Link href={`/projects/${projectId}`} className="btn">返回项目测算中心</Link>
   </div>;
 }
@@ -240,7 +240,7 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
       <Stat label="不可直接停用" value={enabled.filter((item) => item.canDisable === false).length} />
       <Stat label="兼容对象" value={objects.filter((item) => item.objectType !== 'product_type').length} />
     </div>
-    <Card title="可新增业态" note="新增普通产品业态会调用 profile productObjects 分区保存，并复用后端 product-types 新增逻辑。" action={<Link className="btn" href={`/projects/${projectId}/product-maintenance`}>完整维护页</Link>}>
+    <Card title="可新增业态" note="新增普通产品业态会调用 profile productObjects 分区保存，并复用后端 product-types 新增逻辑。" action={locked ? <button className="btn" disabled>完整维护页</button> : <Link className="btn" href={`/projects/${projectId}/product-maintenance`}>完整维护页</Link>}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {addable.length ? addable.flatMap((group) => group.names.map((name) => <ProfileObjectAction key={name} endpoint={endpoint} objectCode={name} objectName={name} objectType="product_type" objectCategory={group.category} isEnabled locked={locked} label={`新增 ${name}`} />)) : <span className="meta">暂无可新增预设业态。</span>}
       </div>
