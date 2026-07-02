@@ -18,7 +18,6 @@ const nonV1ProjectSegments = new Set([
   'product-library',
   'project-rule-snapshot',
   'project-template-selection',
-  'quantity-indicators',
   'report',
   'report-export',
   'report-print',
