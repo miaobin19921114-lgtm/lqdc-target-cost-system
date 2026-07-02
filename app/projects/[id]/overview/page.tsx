@@ -58,6 +58,26 @@ function display(value: unknown, suffix = '') {
   return typeof value === 'number' ? `${fmt(value)}${suffix}` : `${value}${suffix}`;
 }
 
+function objectTypeLabel(type?: string | null) {
+  const map: Record<string, string> = {
+    product_type: '普通产品业态',
+    basement_cost_object: '地下室成本对象',
+    parking_income_object: '车位收入对象',
+    supporting_cost_object: '配套成本对象',
+    marketing_display_object: '营销展示对象',
+    special_config_object: '专项配置对象'
+  };
+  return map[String(type || '')] || String(type || '未分类');
+}
+
+function objectTypeTone(type?: string | null): 'neutral' | 'green' | 'blue' | 'orange' | 'red' {
+  if (type === 'parking_income_object') return 'blue';
+  if (type === 'marketing_display_object') return 'orange';
+  if (type === 'basement_cost_object' || type === 'supporting_cost_object') return 'green';
+  if (type === 'special_config_object') return 'orange';
+  return 'neutral';
+}
+
 function resultData(result: { body: any }) {
   return result.body?.data;
 }
@@ -207,10 +227,10 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
     return <Card title={title} note="状态、原因与操作共用 product-types 语义。">
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980, fontSize: 12 }}>
-          <thead><tr>{['对象', '类型', '属性', '数据状态', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+          <thead><tr>{['对象', '对象口径', '属性', '单位', '数据状态', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
           <tbody>{rows.length ? rows.map((item) => <tr key={item.objectId}>
             <td style={{ ...cell, fontWeight: 900 }}>{item.objectName}<div className="meta">{item.objectCode}</div></td>
-            <td style={cell}>{item.objectType}<div className="meta">{item.objectCategory}</div></td>
+            <td style={cell}><Badge tone={objectTypeTone(item.objectType)}>{objectTypeLabel(item.objectType)}</Badge><div className="meta">{item.objectCategory}</div></td>
             <td style={cell}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
               {item.isSaleable ? <Badge tone="blue">可售</Badge> : <Badge>不可售</Badge>}
               {item.isIncomeObject ? <Badge tone="green">收入对象</Badge> : null}
@@ -219,6 +239,9 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
               {item.isProfitObject ? <Badge tone="blue">利润对象</Badge> : null}
             </div></td>
             <td style={cell}>
+              {item.quantityUnit || item.pricingUnit ? <><b>{item.quantityUnit || '-'}</b><div className="meta">{item.pricingUnit || '未设置计价单位'}</div></> : <span className="meta">按对象口径维护</span>}
+            </td>
+            <td style={cell}>
               <Badge tone={item.isEnabled ? 'green' : 'red'}>{item.status}</Badge>
               {item.blockedReason ? <div className="meta" style={{ color: '#c92a2a' }}>不可停用<Tip text={item.blockedReason} /></div> : null}
               {item.warningMessage ? <div className="meta">{item.warningMessage}</div> : null}
@@ -226,7 +249,7 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
             <td style={cell}>
               <ProfileObjectAction endpoint={endpoint} objectCode={item.objectCode} objectName={item.objectName} objectType={item.objectType} objectCategory={item.objectCategory} isEnabled={!item.isEnabled} locked={locked} disabled={item.isEnabled ? !item.canDisable : !item.canRestore} label={item.isEnabled ? '停用' : '恢复'} />
             </td>
-          </tr>) : <tr><td colSpan={5} style={{ padding: 14, color: '#667085' }}>暂无数据。</td></tr>}</tbody>
+          </tr>) : <tr><td colSpan={6} style={{ padding: 14, color: '#667085' }}>暂无数据。</td></tr>}</tbody>
         </table>
       </div>
     </Card>;
@@ -321,7 +344,7 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
           ['buildings.undergroundFloorCount', '地下层数', 'number', data.buildings?.undergroundFloorCount]
         ]} />
       </Card>
-      <Card title="地下室指标" note={data.basement?.helpText || '地下室层高仍保留部分完成语义。'}>
+      <Card title="地下室指标" note={data.basement?.helpText || '地下室层高目前仅承接 B1、B2 与其他层平均层高，仍保留部分完成语义。'}>
         <FieldGrid locked={locked} fields={[
           ['basement.basementTotalArea', '地下总建筑面积', 'number', data.basement?.basementTotalArea],
           ['basement.mainBuildingBasementArea', '主楼地下室面积', 'number', data.basement?.mainBuildingBasementArea],
@@ -335,7 +358,7 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
           ['basement.basementOtherAvgHeight', '其他层平均层高', 'number', data.basement?.basementOtherAvgHeight]
         ]} />
       </Card>
-      <Card title="车位与景观道路">
+      <Card title="车位与景观道路" note={data.parking?.remark || '车位收入按个数和单个车位价格维护，不按面积单价测算。'}>
         <FieldGrid locked={locked} fields={[
           ['parking.undergroundParkingCount', '地下车位数', 'number', data.parking?.undergroundParkingCount],
           ['parking.civilDefenseParkingCount', '人防车位数', 'number', data.parking?.civilDefenseParkingCount],
@@ -351,6 +374,34 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
           ['landscapeRoad.boundaryLength', '周界长度', 'number', data.landscapeRoad?.boundaryLength]
         ]} />
       </Card>
+      <Card title="营销展示对象" note={data.marketingDisplay?.remark || '样板间、售楼处、示范区只作为展示对象或专项成本口径，不作为普通收入业态。'}>
+        <FieldGrid locked={locked} fields={[
+          ['marketingDisplay.isSampleRoomEnabled', '启用样板间', 'checkbox', data.marketingDisplay?.isSampleRoomEnabled],
+          ['marketingDisplay.sampleRoomCount', '样板间数量', 'number', data.marketingDisplay?.sampleRoomCount],
+          ['marketingDisplay.sampleRoomArea', '样板间面积', 'number', data.marketingDisplay?.sampleRoomArea],
+          ['marketingDisplay.sampleRoomHostType', '样板间所在载体', 'text', data.marketingDisplay?.sampleRoomHostType],
+          ['marketingDisplay.sampleRoomHostProductType', '承载产品业态', 'text', data.marketingDisplay?.sampleRoomHostProductType],
+          ['marketingDisplay.isSampleRoomFutureSaleable', '未来可售房源', 'checkbox', data.marketingDisplay?.isSampleRoomFutureSaleable],
+          ['marketingDisplay.isSampleRoomRestoreRequired', '需拆除恢复', 'checkbox', data.marketingDisplay?.isSampleRoomRestoreRequired],
+          ['marketingDisplay.sampleRoomDecorationStandard', '样板间装修标准', 'text', data.marketingDisplay?.sampleRoomDecorationStandard],
+          ['marketingDisplay.sampleRoomCostBearingType', '样板间成本承担', 'text', data.marketingDisplay?.sampleRoomCostBearingType],
+          ['marketingDisplay.sampleRoomCostTransferReserved', '预留成本转移', 'checkbox', data.marketingDisplay?.sampleRoomCostTransferReserved],
+          ['marketingDisplay.isSalesOfficeEnabled', '启用售楼处', 'checkbox', data.marketingDisplay?.isSalesOfficeEnabled],
+          ['marketingDisplay.salesOfficeType', '售楼处类型', 'text', data.marketingDisplay?.salesOfficeType],
+          ['marketingDisplay.salesOfficeArea', '售楼处面积', 'number', data.marketingDisplay?.salesOfficeArea],
+          ['marketingDisplay.salesOfficeFutureUse', '售楼处后续用途', 'text', data.marketingDisplay?.salesOfficeFutureUse],
+          ['marketingDisplay.salesOfficeCostBearingType', '售楼处成本承担', 'text', data.marketingDisplay?.salesOfficeCostBearingType],
+          ['marketingDisplay.salesOfficeTransferReserved', '售楼处转移预留', 'checkbox', data.marketingDisplay?.salesOfficeTransferReserved],
+          ['marketingDisplay.isDemoAreaEnabled', '启用示范区', 'checkbox', data.marketingDisplay?.isDemoAreaEnabled],
+          ['marketingDisplay.demoArea', '示范区面积', 'number', data.marketingDisplay?.demoArea],
+          ['marketingDisplay.demoLandscapeArea', '示范区景观面积', 'number', data.marketingDisplay?.demoLandscapeArea],
+          ['marketingDisplay.demoRoadArea', '示范区道路面积', 'number', data.marketingDisplay?.demoRoadArea],
+          ['marketingDisplay.demoPackagingArea', '示范区包装面积', 'number', data.marketingDisplay?.demoPackagingArea],
+          ['marketingDisplay.demoViewingPathArea', '看房通道面积', 'number', data.marketingDisplay?.demoViewingPathArea],
+          ['marketingDisplay.demoCostBearingType', '示范区成本承担', 'text', data.marketingDisplay?.demoCostBearingType],
+          ['marketingDisplay.demoTransferReserved', '示范区转移预留', 'checkbox', data.marketingDisplay?.demoTransferReserved]
+        ]} />
+      </Card>
     </SectionShell>
   </ProfileSectionForm>;
 }
@@ -363,6 +414,8 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
   const activeProductNames = new Set((version?.products || []).filter((item) => item.isActive).map((item) => item.name));
   const indicators = (data.indicators || []).filter((item: any) => !item.relatedProductType || activeProductNames.size === 0 || activeProductNames.has(item.relatedProductType) || item.relatedProductType === '全项目');
   return <SectionShell>
+    {data.warnings?.length ? <StatusNotice title="工程量复核提醒" tone="warning">{data.warnings.join('；')}</StatusNotice> : null}
+    {data.helpText ? <StatusNotice title="工程量口径说明" tone="success">{data.helpText}</StatusNotice> : null}
     <div className="summary-strip">
       <Stat label="指标总数" value={data.summary?.totalIndicators || 0} />
       <Stat label="当前展示" value={indicators.length} />
@@ -374,23 +427,24 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
         {['场地景观道路围墙', '外立面门窗', '地下室', '户型精装', '专项基础指标'].map((label) => <div key={label} style={{ border: '1px solid #e6eef7', borderRadius: 8, padding: 10, background: '#fbfdff' }}><b>{label}</b><div className="meta">按成本明细取数依据归集展示。</div></div>)}
       </div>
     </Card>
-    <Card title="成本明细工程量手算" note="系统值 = baseIndicatorValue × contentRatio；生效值 = finalQuantity。锁定版本下禁止修改。">
+    <Card title="成本明细工程量手算" note="系统值来自基础指标和含量系数；生效值以 finalQuantity 为准。锁定版本下禁止修改。">
       {locked ? <StatusNotice title="当前版本已锁定" tone="danger">工程量手算覆盖与恢复系统值不可操作。</StatusNotice> : null}
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1240, fontSize: 12 }}>
-          <thead><tr>{['指标', '适用对象', '系统值', '手算值', '生效值', '来源', '状态', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1360, fontSize: 12 }}>
+          <thead><tr>{['指标', '适用对象', '系统值', '手算值', '生效值', '单位', '来源', '状态', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
           <tbody>{indicators.length ? indicators.map((item: any) => <tr key={item.indicatorId} style={item.isQuantityOverridden ? { background: '#fffaf0' } : undefined}>
             <td style={{ ...cell, fontWeight: 800 }}>{item.indicatorCode} {item.indicatorName}<div className="meta">{item.baseIndicatorName || '未配置取数依据'}</div></td>
             <td style={cell}>{item.relatedProductType || '全项目'}</td>
             <td style={cell}>{fmt(item.calculatedQuantity)} {item.quantityUnit || ''}<div className="meta">取数 {fmt(item.baseIndicatorValue)} × 系数 {fmt(item.contentRatio || 1)}</div></td>
             <td style={cell}>{item.manualQuantity === null ? <span className="meta">空值，未覆盖</span> : `${fmt(item.manualQuantity)} ${item.quantityUnit || ''}`}</td>
             <td style={{ ...cell, fontWeight: 900 }}>{fmt(item.finalQuantity)} {item.quantityUnit || ''}</td>
+            <td style={cell}><b>{item.quantityUnit || '-'}</b><div className="meta">{item.pricingUnit || '计价单位随成本明细单价口径'}</div></td>
             <td style={cell}>{item.quantitySource || item.indicatorSource}</td>
             <td style={cell}>{item.isQuantityOverridden ? <Badge tone="orange">已手算覆盖</Badge> : <Badge tone="green">使用系统值</Badge>}</td>
             <td style={{ ...cell, minWidth: 280 }}>
               <QuantityOverrideActions projectId={projectId} versionId={versionId} costLineId={item.indicatorId} currentQuantity={valueText(item.finalQuantity)} hasOverride={item.isQuantityOverridden} locked={locked} />
             </td>
-          </tr>) : <tr><td colSpan={8} style={{ padding: 14, color: '#667085' }}>暂无工程量指标。请先生成或录入目标成本明细。</td></tr>}</tbody>
+          </tr>) : <tr><td colSpan={9} style={{ padding: 14, color: '#667085' }}>暂无工程量指标。请先生成或录入目标成本明细。</td></tr>}</tbody>
         </table>
       </div>
     </Card>
