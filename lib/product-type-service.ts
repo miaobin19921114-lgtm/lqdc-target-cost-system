@@ -6,19 +6,19 @@ import { isVersionLocked } from '@/lib/project-version';
 type Tx = Prisma.TransactionClient;
 
 const VERSION_LOCKED_MESSAGES = {
-  add: '当前测算版本已锁定，不能新增业态。如需新增业态，请复制新版本后操作。',
-  disable: '当前测算版本已锁定，不能调整业态。如需修改，请复制新版本后操作。',
-  restore: '当前测算版本已锁定，不能恢复业态。如需恢复，请复制新版本后操作。'
+  add: '当前测算版本已锁定，不能调整对象。如需修改，请复制新版本后操作。',
+  disable: '当前测算版本已锁定，不能调整对象。如需修改，请复制新版本后操作。',
+  restore: '当前测算版本已锁定，不能调整对象。如需修改，请复制新版本后操作。'
 };
 
 const BUSINESS_DATA_BLOCKED_MESSAGE =
-  '该业态已存在收入、成本、分摊、税务或利润数据，不能直接停用。请复制新测算版本后调整，或清空相关数据后再停用。';
+  '该对象已存在概况、收入、成本、分摊、税务、利润或 Excel 导入数据，不能直接停用。请复制新测算版本后调整，或清空相关数据后再停用。';
 
 const OVERVIEW_WARNING =
-  '该业态已有项目概况指标。停用后相关指标会保留，但该业态将不参与收入、成本、分摊、税务和利润测算。';
+  '该对象已有项目概况指标。停用后相关指标会保留，但该对象将不参与收入、成本、分摊、税务和利润测算。';
 
 const EMPTY_WARNING =
-  '该业态暂无收入、成本、分摊、税务和利润数据。停用后将从默认页面隐藏，并不参与后续测算。历史启用记录会保留。';
+  '该对象暂无概况、收入、成本、分摊、税务、利润和 Excel 导入数据。停用后将从默认页面隐藏，并不参与后续测算。历史启用记录会保留。';
 
 function n(value: unknown) {
   const num = Number(value || 0);
@@ -26,7 +26,7 @@ function n(value: unknown) {
 }
 
 function isParkingName(name?: string | null) {
-  return /车位|车库|停车|人防车位|非人防|充电桩车位|立体车位/.test(String(name || ''));
+  return /车位|产权车位|使用权车位|人防车位|非人防车位|充电桩车位|立体车位/.test(String(name || ''));
 }
 
 function normalizeCategory(input?: string | null) {
@@ -44,6 +44,92 @@ function presetKeyFromProduct(product: { productTypeKey?: string | null; name: s
 
 function getStatus(product: { isActive?: boolean | null }) {
   return product.isActive === false ? 'disabled' : 'enabled';
+}
+
+export const displayCostBearingTypes = [
+  'development_cost',
+  'sales_expense_reserved',
+  'formal_cost_transfer_reserved',
+  'manual'
+] as const;
+
+export const objectTypes = [
+  'saleable_object',
+  'cost_object',
+  'basement_cost_object',
+  'parking_income_object',
+  'supporting_cost_object',
+  'marketing_display_object',
+  'construction_standard_object',
+  'tax_object'
+] as const;
+
+export type ObjectType = typeof objectTypes[number];
+
+function includesAny(input: string, patterns: RegExp[]) {
+  return patterns.some((pattern) => pattern.test(input));
+}
+
+export function classifyProductObject(product: {
+  name?: string | null;
+  category?: string | null;
+  productCategory?: string | null;
+  saleAttribute?: string | null;
+  costObject?: string | null;
+  clearingObject?: string | null;
+  taxLiquidationObject?: string | null;
+  isSaleable?: boolean | null;
+  participateAllocation?: boolean | null;
+}) {
+  const input = [
+    product.name,
+    product.category,
+    product.productCategory,
+    product.saleAttribute,
+    product.costObject,
+    product.clearingObject,
+    product.taxLiquidationObject
+  ].filter(Boolean).join(' ');
+
+  const isMarketingDisplayObject = includesAny(input, [/样板间/, /售楼处/, /示范区/, /看房通道/, /临时展示/]);
+  const isParkingObject = includesAny(input, [/车位/, /产权车位/, /使用权车位/, /非人防车位/, /人防车位/, /充电桩车位/, /立体车位/]);
+  const isBasementObject = !isParkingObject && includesAny(input, [/地下室/, /地下车库/, /地库/, /人防地下室/, /非人防地下室/, /地下公共/, /设备用房/]);
+  const isSupportingObject = includesAny(input, [/物业用房/, /社区用房/, /会所/, /架空层/, /幼儿园/, /配建/, /移交/, /配套/, /设备房/]);
+  const isConstructionStandardObject = includesAny(input, [/建造标准/, /专项配置/, /装配式/, /精装修/, /采暖/, /充电桩/, /古建/]);
+  const isTaxObject = Boolean(product.taxLiquidationObject || product.clearingObject || includesAny(input, [/税务/, /清算/, /土增税/, /所得税/]));
+
+  let objectType: ObjectType = 'saleable_object';
+  if (isMarketingDisplayObject) objectType = 'marketing_display_object';
+  else if (isParkingObject) objectType = 'parking_income_object';
+  else if (isBasementObject) objectType = 'basement_cost_object';
+  else if (isSupportingObject) objectType = 'supporting_cost_object';
+  else if (isConstructionStandardObject) objectType = 'construction_standard_object';
+  else if (isTaxObject && product.isSaleable === false) objectType = 'tax_object';
+  else if (product.isSaleable === false) objectType = 'cost_object';
+
+  const isSaleableObject = objectType === 'saleable_object' || objectType === 'parking_income_object';
+  const isOperatingObject = isSaleableObject;
+  const isIncomeObject = isSaleableObject;
+  const isCostObject = objectType !== 'parking_income_object' || product.participateAllocation === true;
+  const isAllocationObject = product.participateAllocation !== false && objectType !== 'marketing_display_object';
+  const isProfitObject = isSaleableObject;
+
+  return {
+    objectType,
+    objectCategory: normalizeCategory(product.productCategory || product.category || product.name),
+    isSaleableObject,
+    isOperatingObject,
+    isIncomeObject,
+    isCostObject,
+    isAllocationObject,
+    isProfitObject,
+    isTaxObject,
+    isParkingObject,
+    isBasementObject,
+    isSupportingObject,
+    isMarketingDisplayObject,
+    displayCostBearingType: isMarketingDisplayObject ? 'development_cost' : null
+  };
 }
 
 function hasOverviewData(product: {
@@ -152,7 +238,9 @@ export async function getProductTypeImpact(versionId: string, productTypeId: str
   const overviewData = hasOverviewData(product) || metricCount > 0;
   const locked = isVersionLocked(product.projectVersion);
   const incomeData = incomeRows.some(hasRealIncomeData);
-  const hasBusinessData = incomeData || costCount > 0 || allocationCount > 0 || excelCount > 0;
+  const taxData = false;
+  const profitData = false;
+  const hasBusinessData = overviewData || incomeData || costCount > 0 || allocationCount > 0 || taxData || profitData || excelCount > 0;
 
   let canDisable = true;
   let blockedReason: string | null = null;
@@ -175,8 +263,8 @@ export async function getProductTypeImpact(versionId: string, productTypeId: str
     hasIncomeData: incomeData,
     hasCostData: costCount > 0,
     hasAllocationData: allocationCount > 0,
-    hasTaxData: false,
-    hasProfitData: false,
+    hasTaxData: taxData,
+    hasProfitData: profitData,
     hasExcelImportData: excelCount > 0,
     isVersionLocked: locked,
     canDisable,
@@ -197,17 +285,35 @@ export async function listVersionProductTypes(versionId: string, includeDisabled
       const impact = await getProductTypeImpact(versionId, product.id);
       const status = getStatus(product);
       const category = normalizeCategory(product.productCategory || product.category || product.remark || product.name);
+      const object = classifyProductObject(product);
       return {
         productTypeId: product.id,
+        objectId: product.id,
         projectId: version.projectId,
         versionId,
         productTypeCode: presetKeyFromProduct(product),
+        objectCode: presetKeyFromProduct(product),
         productTypeName: product.name,
+        objectName: product.name,
         productCategory: category,
+        objectCategory: object.objectCategory,
+        objectType: object.objectType,
         isSaleable: product.isSaleable,
-        isCostObject: true,
+        isSaleableObject: object.isSaleableObject,
+        isOperatingObject: object.isOperatingObject,
+        isIncomeObject: object.isIncomeObject,
+        isCostObject: object.isCostObject,
+        isAllocationObject: object.isAllocationObject,
+        isProfitObject: object.isProfitObject,
+        isTaxObject: object.isTaxObject,
+        isParkingObject: object.isParkingObject,
+        isBasementObject: object.isBasementObject,
+        isSupportingObject: object.isSupportingObject,
+        isMarketingDisplayObject: object.isMarketingDisplayObject,
+        displayCostBearingType: object.displayCostBearingType,
         isTaxClearanceObject: Boolean(product.taxLiquidationObject || product.clearingObject),
         status,
+        objectStatus: status,
         isEnabled: status === 'enabled',
         isDisabled: status === 'disabled',
         hasOverviewData: impact?.hasOverviewData ?? false,
@@ -218,11 +324,14 @@ export async function listVersionProductTypes(versionId: string, includeDisabled
         hasProfitData: impact?.hasProfitData ?? false,
         hasExcelImportData: impact?.hasExcelImportData ?? false,
         canAdd: !isVersionLocked(version),
+        canEnable: status === 'disabled' && !isVersionLocked(version),
         canDisable: status === 'enabled' && Boolean(impact?.canDisable),
         canRestore: status === 'disabled' && !isVersionLocked(version),
         blockedReason: impact?.blockedReason ?? null,
         warningMessage: impact?.warningMessage ?? null,
-        sortOrder: index + 1
+        sortOrder: index + 1,
+        createdAt: product.createdAt?.toISOString() || null,
+        updatedAt: product.updatedAt?.toISOString() || null
       };
     })
   );
@@ -232,7 +341,7 @@ export async function listVersionProductTypes(versionId: string, includeDisabled
 
 export async function addVersionProductType(
   versionId: string,
-  input: { productTypeCode: string; productTypeName?: string; productCategory?: string; operationReason?: string | null }
+  input: { productTypeCode: string; productTypeName?: string; productCategory?: string; objectType?: string; operationReason?: string | null }
 ) {
   return prisma.$transaction(async (tx) => {
     const version = await getVersion(tx, versionId);
@@ -241,17 +350,31 @@ export async function addVersionProductType(
 
     const code = String(input.productTypeCode || '').trim();
     const requestedName = String(input.productTypeName || '').trim();
-    if (!code && !requestedName) return error('VALIDATION_FAILED', '业态编码或业态名称不能为空。');
+    if (!code && !requestedName) return error('VALIDATION_FAILED', '对象编码或对象名称不能为空。');
 
     const preset = code
       ? await tx.productTypePreset.findFirst({ where: { OR: [{ key: code }, { name: code }], enabled: true } })
       : null;
     const name = requestedName || preset?.name || code;
     const existing = await tx.productType.findFirst({ where: { projectVersionId: versionId, name } });
-    if (existing?.isActive) return error('PRODUCT_TYPE_ALREADY_EXISTS', '该业态已存在。', 409);
-    if (existing && !existing.isActive) return error('PRODUCT_TYPE_DISABLED', '该业态已停用，请使用恢复启用。', 409);
+    if (existing?.isActive) return error('OBJECT_ALREADY_ENABLED', '该对象已启用。', 409);
+    if (existing && !existing.isActive) return error('OBJECT_ALREADY_DISABLED', '该对象已停用，请使用恢复启用。', 409);
 
     const category = normalizeCategory(input.productCategory || preset?.category || name);
+    const requestedObjectType = objectTypes.includes(input.objectType as ObjectType) ? input.objectType as ObjectType : null;
+    const inferredObject = requestedObjectType ? null : classifyProductObject({
+      name,
+      category: preset?.category || input.productCategory || null,
+      productCategory: category,
+      isSaleable: preset?.isSaleable ?? true,
+      participateAllocation: preset?.participateAllocation ?? true
+    });
+    const isSaleable = requestedObjectType
+      ? requestedObjectType === 'saleable_object' || requestedObjectType === 'parking_income_object'
+      : preset?.isSaleable ?? inferredObject?.isSaleableObject ?? true;
+    const participateAllocation = requestedObjectType
+      ? !['parking_income_object', 'marketing_display_object', 'tax_object'].includes(requestedObjectType)
+      : preset?.participateAllocation ?? inferredObject?.isAllocationObject ?? !isParkingName(name);
     const product = await tx.productType.create({
       data: {
         projectVersionId: versionId,
@@ -259,12 +382,12 @@ export async function addVersionProductType(
         productTypeKey: preset?.key || code || name,
         category: preset?.category || input.productCategory || null,
         productCategory: category,
-        isSaleable: preset?.isSaleable ?? !isParkingName(name),
-        participateAllocation: preset?.participateAllocation ?? !isParkingName(name),
-        allocationWeight: preset?.participateAllocation === false || isParkingName(name) ? 0 : 1,
+        isSaleable,
+        participateAllocation,
+        allocationWeight: participateAllocation ? 1 : 0,
         isActive: true,
         disabledAt: null,
-        remark: preset ? `模板业态｜${preset.category}` : '项目新增业态'
+        remark: preset ? `模板对象｜${preset.category}` : '项目新增对象'
       }
     });
 
@@ -289,7 +412,8 @@ export async function disableVersionProductType(versionId: string, productTypeId
     if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGES.disable, 423);
 
     const product = await tx.productType.findFirst({ where: { id: productTypeId, projectVersionId: versionId } });
-    if (!product) return error('PRODUCT_TYPE_NOT_FOUND', '业态不存在。', 404);
+    if (!product) return error('OBJECT_NOT_FOUND', '对象不存在。', 404);
+    if (!product.isActive) return error('OBJECT_ALREADY_DISABLED', '该对象已停用。', 409);
 
     const impact = await getProductTypeImpact(versionId, productTypeId, tx);
     if (!impact?.canDisable) {
@@ -303,7 +427,7 @@ export async function disableVersionProductType(versionId: string, productTypeId
         operationReason: operationReason || null,
         blockedReason: impact?.blockedReason || null
       });
-      return error('PRODUCT_TYPE_CANNOT_DISABLE', impact?.blockedReason || '该业态不能停用。', 409);
+      return error('OBJECT_DISABLE_BLOCKED', impact?.blockedReason || '该对象不能停用。', 409);
     }
 
     await tx.productType.update({
@@ -333,8 +457,8 @@ export async function restoreVersionProductType(versionId: string, productTypeId
     if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGES.restore, 423);
 
     const product = await tx.productType.findFirst({ where: { id: productTypeId, projectVersionId: versionId } });
-    if (!product) return error('PRODUCT_TYPE_NOT_FOUND', '业态不存在。', 404);
-    if (product.isActive) return error('VALIDATION_FAILED', '该业态当前已启用，无需恢复。');
+    if (!product) return error('OBJECT_NOT_FOUND', '对象不存在。', 404);
+    if (product.isActive) return error('OBJECT_ALREADY_ENABLED', '该对象当前已启用，无需恢复。');
 
     await tx.productType.update({ where: { id: productTypeId }, data: { isActive: true, disabledAt: null } });
     await createOperationLog(tx, {

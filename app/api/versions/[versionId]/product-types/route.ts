@@ -14,6 +14,7 @@ export async function POST(request: Request, { params }: { params: { versionId: 
     productTypeCode: String(body.productTypeCode || ''),
     productTypeName: body.productTypeName ? String(body.productTypeName) : undefined,
     productCategory: body.productCategory ? String(body.productCategory) : undefined,
+    objectType: body.objectType ? String(body.objectType) : undefined,
     operationReason: body.operationReason ? String(body.operationReason) : null
   });
   return NextResponse.json(result.body, { status: result.status });

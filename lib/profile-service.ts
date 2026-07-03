@@ -3,8 +3,10 @@ import { writeOperationLog } from '@/lib/operation-log';
 import { isVersionLocked } from '@/lib/project-version';
 import {
   addVersionProductType,
+  classifyProductObject,
   disableVersionProductType,
   listVersionProductTypes,
+  objectTypes,
   restoreVersionProductType
 } from '@/lib/product-type-service';
 import { overrideCostLineQuantity } from '@/lib/cost-line-quantity-service';
@@ -87,13 +89,13 @@ const projectMetricExtraKeys = [
 ];
 
 const profileObjectTypes = new Set([
+  ...objectTypes,
   'product_type',
-  'basement_cost_object',
-  'parking_income_object',
-  'supporting_cost_object',
   'marketing_display_object',
   'special_config_object'
 ]);
+
+const VERSION_LOCKED_MESSAGE = '当前测算版本已锁定，不能调整对象。如需修改，请复制新版本后操作。';
 
 function ok(data: unknown, status = 200) {
   return { status, body: { success: true as const, data } };
@@ -190,25 +192,10 @@ async function saveMetrics(tx: typeof prisma, projectId: string, versionId: stri
   }
 }
 
-function productObjectType(name: string, category?: string | null) {
-  const input = `${name} ${category || ''}`;
-  if (/地下室|地下车库|地库/.test(input)) return 'basement_cost_object';
-  if (/车位|停车|产权车位|使用权车位|立体车位|充电桩车位|人防车位|非人防车位/.test(input)) return 'parking_income_object';
-  if (/样板间|售楼处|示范区|看房通道|临时展示/.test(input)) return 'marketing_display_object';
-  if (/人防|装配式|精装修|采暖|充电桩|古建/.test(input)) return 'special_config_object';
-  if (/物业用房|社区用房|会所|架空层|幼儿园|配建|移交|人防配套|设备房|配套/.test(input)) return 'supporting_cost_object';
-  return 'product_type';
-}
-
-function productObjectCategory(type: string, fallback?: string | null) {
-  if (fallback) return fallback;
-  return type.replace(/_/g, '-');
-}
-
-export async function getProfile(projectId: string, versionId: string) {
+export async function getProfile(projectId: string, versionId: string, includeDisabled = false) {
   const [overview, productObjects, constructionStandards, projectMetrics, quantityIndicators] = await Promise.all([
     getProfileOverview(projectId, versionId),
-    getProfileProductObjects(projectId, versionId),
+    getProfileProductObjects(projectId, versionId, includeDisabled),
     getProfileConstructionStandards(projectId, versionId),
     getProfileProjectMetrics(projectId, versionId),
     getProfileQuantityIndicators(projectId, versionId)
@@ -267,7 +254,7 @@ export async function getProfileOverview(projectId: string, versionId: string) {
 export async function saveProfileOverview(projectId: string, versionId: string, body: Record<string, unknown>) {
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version)) return error('PROFILE_VERSION_LOCKED', '当前测算版本已锁定，不能保存项目概况。', 423);
+  if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
 
   const before = resultData(await getProfileOverview(projectId, versionId)) as Record<string, unknown>;
   const projectData: Record<string, unknown> = {};
@@ -295,13 +282,17 @@ export async function saveProfileOverview(projectId: string, versionId: string, 
   return getProfileOverview(projectId, versionId);
 }
 
-export async function getProfileProductObjects(projectId: string, versionId: string) {
+export async function getProfileProductObjects(projectId: string, versionId: string, includeDisabled = false) {
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  const productResult = await listVersionProductTypes(versionId, true);
+  const productResult = await listVersionProductTypes(versionId, includeDisabled);
   if (!productResult.ok) return { status: productResult.status, body: productResult.body };
   const productObjects = (productResult.body as any).data.map((item: any) => {
-    const type = productObjectType(item.productTypeName, item.productCategory);
+    const type = item.objectType || classifyProductObject({
+      name: item.productTypeName,
+      productCategory: item.productCategory,
+      isSaleable: item.isSaleable
+    }).objectType;
     return {
       objectId: item.productTypeId,
       projectId,
@@ -309,15 +300,27 @@ export async function getProfileProductObjects(projectId: string, versionId: str
       objectCode: item.productTypeCode,
       objectName: item.productTypeName,
       objectType: type,
-      objectCategory: productObjectCategory(type, item.productCategory),
+      objectCategory: item.objectCategory || item.productCategory || type,
       status: item.status,
+      objectStatus: item.objectStatus || item.status,
       isEnabled: item.isEnabled,
-      isSaleable: type === 'product_type' ? item.isSaleable : type === 'parking_income_object',
-      isIncomeObject: type === 'product_type' ? item.isSaleable : type === 'parking_income_object',
-      isCostObject: type !== 'parking_income_object' || item.isCostObject,
-      isAllocationObject: type !== 'parking_income_object',
-      isTaxObject: item.isTaxClearanceObject,
-      isProfitObject: type === 'product_type',
+      isSaleable: item.isSaleable,
+      isSaleableObject: item.isSaleableObject,
+      isOperatingObject: item.isOperatingObject,
+      isIncomeObject: item.isIncomeObject,
+      isCostObject: item.isCostObject,
+      isAllocationObject: item.isAllocationObject,
+      isTaxObject: item.isTaxObject,
+      isParkingObject: item.isParkingObject,
+      isBasementObject: item.isBasementObject,
+      isSupportingObject: item.isSupportingObject,
+      isMarketingDisplayObject: item.isMarketingDisplayObject,
+      isProfitObject: item.isProfitObject,
+      displayCostBearingType: item.displayCostBearingType,
+      transferToSalesExpenseReserved: false,
+      transferToFormalCostReserved: false,
+      taxAdjustmentReserved: false,
+      demolitionRestoreReserved: false,
       quantityUnit: type === 'parking_income_object' ? '个' : null,
       pricingUnit: type === 'parking_income_object' ? '元/个' : null,
       sortOrder: item.sortOrder,
@@ -332,7 +335,9 @@ export async function getProfileProductObjects(projectId: string, versionId: str
       canDisable: item.canDisable,
       canRestore: item.canRestore,
       blockedReason: item.blockedReason,
-      warningMessage: item.warningMessage
+      warningMessage: item.warningMessage,
+      createdAt: item.createdAt || null,
+      updatedAt: item.updatedAt || null
     };
   });
   const compatRows = await prisma.projectMetricValue.findMany({
@@ -347,16 +352,28 @@ export async function getProfileProductObjects(projectId: string, versionId: str
       versionId,
       objectCode: parsed?.objectCode || row.metricKey.replace(/^profileObject:/, ''),
       objectName: parsed?.objectName || parsed?.objectCode || row.metricKey,
-      objectType: parsed?.objectType || 'special_config_object',
+      objectType: parsed?.objectType === 'special_config_object' ? 'construction_standard_object' : parsed?.objectType || 'construction_standard_object',
       objectCategory: parsed?.objectCategory || parsed?.objectType || 'special-config-object',
       status: bool(parsed?.isEnabled ?? row.value) ? 'enabled' : 'disabled',
+      objectStatus: bool(parsed?.isEnabled ?? row.value) ? 'enabled' : 'disabled',
       isEnabled: bool(parsed?.isEnabled ?? row.value),
-      isSaleable: bool(parsed?.isSaleable),
+      isSaleable: bool(parsed?.isSaleableObject ?? parsed?.isSaleable),
+      isSaleableObject: bool(parsed?.isSaleableObject ?? parsed?.isSaleable),
+      isOperatingObject: bool(parsed?.isOperatingObject ?? parsed?.isSaleableObject),
       isIncomeObject: bool(parsed?.isIncomeObject),
       isCostObject: bool(parsed?.isCostObject ?? true),
       isAllocationObject: bool(parsed?.isAllocationObject),
       isTaxObject: bool(parsed?.isTaxObject),
       isProfitObject: bool(parsed?.isProfitObject),
+      isParkingObject: parsed?.objectType === 'parking_income_object',
+      isBasementObject: parsed?.objectType === 'basement_cost_object',
+      isSupportingObject: parsed?.objectType === 'supporting_cost_object',
+      isMarketingDisplayObject: parsed?.objectType === 'marketing_display_object',
+      displayCostBearingType: parsed?.displayCostBearingType || (parsed?.objectType === 'marketing_display_object' ? 'development_cost' : null),
+      transferToSalesExpenseReserved: bool(parsed?.transferToSalesExpenseReserved),
+      transferToFormalCostReserved: bool(parsed?.transferToFormalCostReserved),
+      taxAdjustmentReserved: bool(parsed?.taxAdjustmentReserved),
+      demolitionRestoreReserved: bool(parsed?.demolitionRestoreReserved),
       quantityUnit: parsed?.quantityUnit || (parsed?.objectType === 'parking_income_object' ? '个' : null),
       pricingUnit: parsed?.pricingUnit || (parsed?.objectType === 'parking_income_object' ? '元/个' : null),
       sortOrder: productObjects.length + index + 1,
@@ -367,30 +384,32 @@ export async function getProfileProductObjects(projectId: string, versionId: str
       hasTaxData: false,
       hasProfitData: false,
       hasExcelImportData: false,
-      canEnable: !isVersionLocked(version),
-      canDisable: !isVersionLocked(version),
-      canRestore: !isVersionLocked(version),
-      blockedReason: isVersionLocked(version) ? '当前测算版本已锁定，不能调整对象。' : null,
-      warningMessage: '兼容对象保存于 ProjectMetricValue，暂不参与普通业态面积或收入测算。'
+      canEnable: !isVersionLocked(version) && !bool(parsed?.isEnabled ?? row.value),
+      canDisable: !isVersionLocked(version) && bool(parsed?.isEnabled ?? row.value),
+      canRestore: !isVersionLocked(version) && !bool(parsed?.isEnabled ?? row.value),
+      blockedReason: isVersionLocked(version) ? VERSION_LOCKED_MESSAGE : null,
+      warningMessage: '兼容对象保存于 ProjectMetricValue，暂不参与普通业态面积或收入测算。',
+      createdAt: row.createdAt?.toISOString() || null,
+      updatedAt: row.updatedAt?.toISOString() || null
     };
-  });
+  }).filter((item) => includeDisabled || item.isEnabled);
   return ok({ objects: [...productObjects, ...compatObjects] });
 }
 
 export async function saveProfileProductObjects(projectId: string, versionId: string, body: Record<string, unknown>) {
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version)) return error('PROFILE_VERSION_LOCKED', '当前测算版本已锁定，不能保存产品对象。', 423);
+  if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
   const objects = Array.isArray(body.objects) ? body.objects as Record<string, unknown>[] : [];
   const before = resultData(await getProfileProductObjects(projectId, versionId));
   const results: unknown[] = [];
   for (const object of objects) {
-    const objectType = String(object.objectType || 'product_type');
+    const objectType = String(object.objectType || 'saleable_object');
     if (!profileObjectTypes.has(objectType)) return error('INVALID_OBJECT_TYPE', '对象类型不合法。');
     const objectCode = String(object.objectCode || '').trim();
     const objectName = text(object.objectName) || objectCode;
     if (!objectCode && !objectName) return error('OBJECT_NOT_FOUND', '对象编码或名称不能为空。');
-    if (objectType === 'product_type') {
+    if (objectType === 'product_type' || objectType === 'saleable_object' || objectType === 'cost_object' || objectType === 'basement_cost_object' || objectType === 'parking_income_object' || objectType === 'supporting_cost_object' || objectType === 'marketing_display_object') {
       const existing = await prisma.productType.findFirst({ where: { projectVersionId: versionId, OR: [{ productTypeKey: objectCode }, { name: objectName }] } });
       if (bool(object.isEnabled)) {
         const result = existing?.isActive === false
@@ -401,6 +420,7 @@ export async function saveProfileProductObjects(projectId: string, versionId: st
               productTypeCode: objectCode,
               productTypeName: objectName || undefined,
               productCategory: text(object.objectCategory) || undefined,
+              objectType,
               operationReason: text(object.operationReason)
             });
         if (!result.body.success) return { status: result.status, body: result.body };
@@ -413,7 +433,7 @@ export async function saveProfileProductObjects(projectId: string, versionId: st
           results.push(resultData(result));
         }
       } else {
-        return error('OBJECT_NOT_FOUND', '业态对象不存在，不能停用。', 404);
+        return error('OBJECT_NOT_FOUND', '对象不存在，不能停用。', 404);
       }
     } else {
       const payload = { ...object, objectCode, objectName, objectType, isEnabled: bool(object.isEnabled) };
@@ -498,7 +518,7 @@ export async function getProfileConstructionStandards(projectId: string, version
 export async function saveProfileConstructionStandards(projectId: string, versionId: string, body: Record<string, unknown>) {
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version)) return error('PROFILE_VERSION_LOCKED', '当前测算版本已锁定，不能保存建造标准。', 423);
+  if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
   const before = resultData(await getProfileConstructionStandards(projectId, versionId)) as Record<string, unknown>;
   const projectData: Record<string, unknown> = {};
   if ('isPrefabEnabled' in body) projectData.isPrefabricated = bool(body.isPrefabEnabled);
@@ -648,7 +668,7 @@ export async function getProfileProjectMetrics(projectId: string, versionId: str
 export async function saveProfileProjectMetrics(projectId: string, versionId: string, body: Record<string, unknown>) {
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version)) return error('PROFILE_VERSION_LOCKED', '当前测算版本已锁定，不能保存项目指标。', 423);
+  if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
   const flat = { ...(body.land as any), ...(body.buildingArea as any), ...(body.buildings as any), ...(body.basement as any), ...(body.parking as any), ...(body.landscapeRoad as any), ...(body.marketingDisplay as any) };
   for (const [key, value] of Object.entries(flat)) {
     if (value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) < 0) return error('INVALID_PROJECT_METRIC', `${key} 不能为负数。`);
@@ -774,7 +794,7 @@ export async function getProfileQuantityIndicators(projectId: string, versionId:
 export async function saveProfileQuantityIndicators(projectId: string, versionId: string, body: Record<string, unknown>) {
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version)) return error('PROFILE_VERSION_LOCKED', '当前测算版本已锁定，不能保存工程量指标。', 423);
+  if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
   const indicators = Array.isArray(body.indicators) ? body.indicators as Record<string, unknown>[] : [];
   const results: unknown[] = [];
   for (const indicator of indicators) {
