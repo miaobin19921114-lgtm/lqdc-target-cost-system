@@ -72,14 +72,12 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
     ['6 成本分摊', 'allocation', '按业态和归属规则完成成本分摊测算', 'done'],
     ['7 收入测算', 'revenue', '维护住宅、商业、车位和其他收入', 'done'],
     ['8 税费利润', 'tax-details', '检查增值税、土增税、所得税和业态利润', 'done'],
-    ['9 Excel 工作台', 'excel', '完成模板下载、导入预览、确认导入和版本级工作台', 'done'],
-    ['10 经营看板', 'dashboard-lite', '查看 V1 经营总控指标', 'done']
+    ['9 Excel 工作台', 'excel', '完成模板下载、导入预览、确认导入和版本级工作台', 'done']
   ] as const;
   const tools = [
     ['Excel工作台', 'excel'],
     ['成本科目及测算词典', 'cost-dictionary'],
-    ['土地增值税', 'land-vat'],
-    ['经营看板', 'dashboard-lite']
+    ['土地增值税', 'land-vat']
   ] as const;
 
   return (

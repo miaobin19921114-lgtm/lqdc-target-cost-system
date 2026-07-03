@@ -35,7 +35,6 @@ export const projectNavGroups = [
   {
     title: 'Excel',
     items: [
-      ['轻量看板', 'dashboard-lite', 'done'],
       ['Excel 工作台', 'excel', 'done']
     ]
   }
