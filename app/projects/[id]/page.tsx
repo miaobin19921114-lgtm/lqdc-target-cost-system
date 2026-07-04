@@ -75,7 +75,7 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
     ['2 业态产品', 'product-maintenance', '维护业态面积、销售属性、分摊属性和税务清算对象', 'done'],
     ['3 测算控制', 'control-center', '核对收入、成本和版本口径', 'done'],
     ['4 目标成本测算', 'costs-batch', '录入目标成本并归集到科目和业态', 'done'],
-    ['5 成本明细', 'building-details', '录入土建、安装、设备、精装、景观等专业明细', 'done'],
+    ['5 成本明细', 'detail-calculation-results', '查看土地、前期、土建、安装、设备、精装、景观等明细分类', 'done'],
     ['6 成本分摊', 'allocation', '按业态和归属规则完成成本分摊测算', 'done'],
     ['7 收入测算', 'revenue', '维护住宅、商业、车位和其他收入', 'done'],
     ['8 税费利润', 'tax-details', '检查增值税、土增税、所得税和业态利润', 'done'],

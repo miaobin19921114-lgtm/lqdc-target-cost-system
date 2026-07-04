@@ -21,7 +21,20 @@ export const projectNavGroups = [
     title: '收入成本明细',
     items: [
       ['收入明细', 'revenue', 'done'],
-      ['成本明细', 'land', 'done']
+      ['成本明细', 'detail-calculation-results', 'done'],
+      ['土地费用', 'land', 'done'],
+      ['前期费用', 'pre-costs', 'done'],
+      ['土建明细', 'building-details', 'done'],
+      ['安装明细', 'installation-details', 'done'],
+      ['设备明细', 'equipment-details', 'done'],
+      ['精装修明细', 'fitout-details', 'done'],
+      ['室外管网', 'outdoor-pipe-details', 'done'],
+      ['景观工程', 'landscape-details', 'done'],
+      ['道路总平', 'road-details', 'done'],
+      ['围墙出入口', 'wall-gate-details', 'done'],
+      ['销售费用', 'sales-expense-details', 'done'],
+      ['管理费用', 'admin-expense-details', 'done'],
+      ['财务费用', 'finance-expense-details', 'done']
     ]
   },
   {
@@ -48,14 +61,20 @@ export const projectNavLabelMap = {
   'commercial-revenue': '收入明细',
   'parking-revenue': '收入明细',
   'other-revenue': '收入明细',
+  'detail-calculation-results': '成本明细',
+  land: '土地费用',
   'pre-costs': '成本明细',
+  'building-details': '各专业明细',
   'installation-details': '各专业明细',
   'equipment-details': '各专业明细',
   'fitout-details': '各专业明细',
   'outdoor-pipe-details': '各专业明细',
   'landscape-details': '各专业明细',
   'road-details': '各专业明细',
-  'wall-gate-details': '各专业明细'
+  'wall-gate-details': '各专业明细',
+  'sales-expense-details': '各专业明细',
+  'admin-expense-details': '各专业明细',
+  'finance-expense-details': '各专业明细'
 } as Record<string, string>;
 
 export function ProjectTopNav({ projectId, projectName, current }: { projectId: string; projectName: string; current: string }) {
