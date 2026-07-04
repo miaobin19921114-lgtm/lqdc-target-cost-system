@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { calculateCostLine, calculateRevenueLine, round2 } from '@/lib/calculations';
 import { allocationBase, includes, resolveAllocationRule } from '@/lib/cost-allocation-rules';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 import { writeOperationLog } from '@/lib/operation-log';
 
 export const businessTypes = ['income', 'target_cost', 'contract_cost', 'dynamic_cost', 'tax', 'fee', 'allocation'] as const;
@@ -48,7 +48,7 @@ export async function loadVersion(projectId: string, versionId: string) {
 
 export function assertEditable(version: ProjectVersionWithProject | null, message: string) {
   if (!version) return jsonError('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version) || version.isLocked) return jsonError('VERSION_LOCKED', message, 423);
+  if (isVersionLocked(version) || version.isLocked) return jsonError('VERSION_LOCKED', VERSION_LOCKED_MESSAGE || message, 423);
   return null;
 }
 

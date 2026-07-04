@@ -57,7 +57,7 @@ export function calculateTaxAmounts(quantity: unknown, unitPrice: unknown, taxRa
   const qty = Number(quantity || 0) || 0;
   const price = Number(unitPrice || 0) || 0;
   const taxRate = parseTaxRate(taxRateValue);
-  const taxInclusiveAmount = qty * price;
+  const taxInclusiveAmount = qty * price / 10000;
   const taxExclusiveAmount = taxRate > 0 ? taxInclusiveAmount / (1 + taxRate) : taxInclusiveAmount;
   const taxAmount = taxInclusiveAmount - taxExclusiveAmount;
   return { quantity: qty, unitPrice: price, taxRate, taxInclusiveAmount, taxExclusiveAmount, taxAmount };

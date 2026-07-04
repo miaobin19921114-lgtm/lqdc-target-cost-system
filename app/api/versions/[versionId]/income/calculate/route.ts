@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 
 function jsonError(code: string, message: string, status = 400) {
   return NextResponse.json({ success: false, error: { code, message } }, { status });
@@ -26,7 +26,7 @@ export async function POST(_request: Request, { params }: { params: { versionId:
     }
   });
   if (!version) return jsonError('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version)) return jsonError('VERSION_LOCKED', '当前测算版本已锁定，不能重新计算收入。', 423);
+  if (isVersionLocked(version) || version.isLocked) return jsonError('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
 
   const enabledIds = new Set(version.products.map((product) => product.id));
   const taxRateDefault = Number(version.taxes?.vatRate || 0.09);

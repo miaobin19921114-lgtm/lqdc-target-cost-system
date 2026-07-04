@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { aggregateTargetCostFromDetails, generateDetailResultsFromVersionRules } from '@/lib/rule-engine/detail-result-generator';
+import { isVersionLocked } from '@/lib/project-version';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,8 @@ async function generateOneDetail(formData: FormData) {
   const versionId = valueOf(formData, 'versionId');
   const detailType = valueOf(formData, 'detailType');
   if (!projectId || !versionId || !detailType) redirect(projectId ? `/projects/${projectId}/detail-calculation-results` : '/');
+  const version = await prisma.projectVersion.findFirst({ where: { id: versionId, projectId }, select: { status: true, isLocked: true } });
+  if (!version || isVersionLocked(version) || version.isLocked) redirect(`/projects/${projectId}/detail-calculation-results?versionId=${encodeURIComponent(versionId)}&locked=1`);
   const result = await generateDetailResultsFromVersionRules(projectId, versionId, detailType);
   await aggregateTargetCostFromDetails(projectId, versionId);
   revalidatePath(`/projects/${projectId}/detail-calculation-results`);
@@ -46,6 +49,8 @@ async function generateAllDetails(formData: FormData) {
   const projectId = valueOf(formData, 'projectId');
   const versionId = valueOf(formData, 'versionId');
   if (!projectId || !versionId) redirect(projectId ? `/projects/${projectId}/detail-calculation-results` : '/');
+  const version = await prisma.projectVersion.findFirst({ where: { id: versionId, projectId }, select: { status: true, isLocked: true } });
+  if (!version || isVersionLocked(version) || version.isLocked) redirect(`/projects/${projectId}/detail-calculation-results?versionId=${encodeURIComponent(versionId)}&locked=1`);
   let total = 0;
   for (const [detailType] of DETAIL_TYPES) {
     const result = await generateDetailResultsFromVersionRules(projectId, versionId, detailType);
@@ -101,7 +106,7 @@ async function loadAggregates(projectId: string, versionId?: string) {
   `, projectId, versionId).catch(() => []);
 }
 
-export default async function DetailCalculationResultsPage({ params, searchParams }: { params: { id: string }; searchParams?: { versionId?: string; generated?: string } }) {
+export default async function DetailCalculationResultsPage({ params, searchParams }: { params: { id: string }; searchParams?: { versionId?: string; generated?: string; locked?: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id }, select: { id: true, name: true } });
   if (!project) return <main className="page">项目不存在</main>;
 
@@ -128,6 +133,7 @@ export default async function DetailCalculationResultsPage({ params, searchParam
     </div>
 
     {searchParams?.generated ? <section className="card" style={{ marginBottom: 14, borderColor: '#b2f2bb', background: '#ebfbee' }}><b style={{ color: '#2b8a3e' }}>已生成：{searchParams.generated}</b></section> : null}
+    {searchParams?.locked ? <section className="card" style={{ marginBottom: 14, borderColor: '#ffd8a8', background: '#fff9db' }}><b>当前版本已锁定，仅支持查看。如需调整数据，请复制为新版本后编辑。</b></section> : null}
 
     <section className="card" style={{ marginBottom: 14 }}>
       <h2 style={{ marginTop: 0 }}>选择测算版本</h2>

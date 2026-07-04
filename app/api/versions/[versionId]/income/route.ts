@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 
 function jsonError(code: string, message: string, status = 400) {
   return NextResponse.json({ success: false, error: { code, message } }, { status });
@@ -33,59 +33,79 @@ export async function GET(_request: Request, { params }: { params: { versionId: 
   });
   const rowsByProductId = new Map(revenues.map((row) => [row.productTypeId, row]));
 
+  const payload = version.products.filter((product) => product.isSaleable).map((product) => {
+    const row = rowsByProductId.get(product.id);
+    if (!row) {
+      const parking = isParkingProduct(product.name);
+      return {
+        id: null,
+        productTypeId: product.id,
+        productTypeName: product.name,
+        incomeType: parking ? 'parking' : 'saleable_property',
+        saleableArea: 0,
+        unitPrice: 0,
+        parkingCount: 0,
+        parkingUnitPrice: 0,
+        taxRate: Number(version.taxes?.vatRate || 0.09),
+        taxInclusiveRevenue: 0,
+        taxExclusiveRevenue: 0,
+        taxAmount: 0,
+        saleableAreaUnitRevenue: null,
+        finalQuantity: null,
+        finalAmount: 0,
+        amountSource: 'system_default',
+        amountUnit: '万元',
+        unitPriceUnit: parking ? '元/个' : '元/㎡',
+        areaUnit: '㎡',
+        remark: null
+      };
+    }
+    const parking = isParkingProduct(row.productType?.name);
+    const finalQuantity = Number(row.saleableArea || 0);
+    return {
+      id: row.id,
+      productTypeId: row.productTypeId,
+      productTypeName: row.productType?.name || '',
+      incomeType: parking ? 'parking' : 'saleable_property',
+      saleableArea: parking ? 0 : finalQuantity,
+      unitPrice: parking ? 0 : Number(row.salePrice || 0),
+      parkingCount: parking ? finalQuantity : Number(row.productType?.parkingCount || 0),
+      parkingUnitPrice: parking ? Number(row.salePrice || 0) : 0,
+      taxRate: Number(row.taxRate || 0),
+      taxInclusiveRevenue: Number(row.taxInclusiveRevenue || 0),
+      taxExclusiveRevenue: Number(row.taxExclusiveRevenue || 0),
+      taxAmount: Number(row.taxAmount || 0),
+      saleableAreaUnitRevenue: parking || finalQuantity <= 0 ? null : Number(row.taxInclusiveRevenue || 0) * 10000 / finalQuantity,
+      finalQuantity,
+      finalAmount: Number(row.taxInclusiveRevenue || 0),
+      amountSource: Number(row.saleableArea || 0) > 0 && Number(row.salePrice || 0) > 0 ? 'calculated_by_quantity' : 'manual_entered',
+      amountUnit: '万元',
+      unitPriceUnit: parking ? '元/个' : '元/㎡',
+      areaUnit: '㎡',
+      remark: row.remark
+    };
+  });
+
   return NextResponse.json({
     success: true,
-    data: version.products.filter((product) => product.isSaleable).map((product) => {
-      const row = rowsByProductId.get(product.id);
-      if (!row) {
-        const parking = isParkingProduct(product.name);
-        return {
-          id: null,
-          productTypeId: product.id,
-          productTypeName: product.name,
-          incomeType: parking ? 'parking' : 'saleable_property',
-          saleableArea: 0,
-          unitPrice: 0,
-          parkingCount: 0,
-          parkingUnitPrice: 0,
-          taxRate: Number(version.taxes?.vatRate || 0.09),
-          taxInclusiveRevenue: 0,
-          taxExclusiveRevenue: 0,
-          taxAmount: 0,
-          finalQuantity: null,
-          finalAmount: 0,
-          amountSource: 'system_default',
-          remark: null
-        };
+    data: payload,
+    meta: {
+      amountUnit: '万元',
+      unitPriceUnit: '元/㎡',
+      parkingUnitPriceUnit: '元/个',
+      areaUnit: '㎡',
+      emptyState: payload.length ? null : {
+        reason: '当前版本没有可售业态。',
+        nextAction: '请先维护并启用业态产品。'
       }
-      const parking = isParkingProduct(row.productType?.name);
-      const finalQuantity = parking ? Number(row.saleableArea || 0) : Number(row.saleableArea || 0);
-      return {
-        id: row.id,
-        productTypeId: row.productTypeId,
-        productTypeName: row.productType?.name || '',
-        incomeType: parking ? 'parking' : 'saleable_property',
-        saleableArea: parking ? 0 : finalQuantity,
-        unitPrice: parking ? 0 : Number(row.salePrice || 0),
-        parkingCount: parking ? finalQuantity : Number(row.productType?.parkingCount || 0),
-        parkingUnitPrice: parking ? Number(row.salePrice || 0) : 0,
-        taxRate: Number(row.taxRate || 0),
-        taxInclusiveRevenue: Number(row.taxInclusiveRevenue || 0),
-        taxExclusiveRevenue: Number(row.taxExclusiveRevenue || 0),
-        taxAmount: Number(row.taxAmount || 0),
-        finalQuantity,
-        finalAmount: Number(row.taxInclusiveRevenue || 0),
-        amountSource: Number(row.saleableArea || 0) > 0 && Number(row.salePrice || 0) > 0 ? 'calculated_by_quantity' : 'manual_entered',
-        remark: row.remark
-      };
-    })
+    }
   });
 }
 
 export async function PUT(request: Request, { params }: { params: { versionId: string } }) {
   const version = await loadVersion(params.versionId);
   if (!version) return jsonError('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version)) return jsonError('VERSION_LOCKED', '当前测算版本已锁定，不能修改收入测算。', 423);
+  if (isVersionLocked(version) || version.isLocked) return jsonError('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
 
   const body = await request.json().catch(() => ({}));
   const rows = Array.isArray(body.rows) ? body.rows : [];

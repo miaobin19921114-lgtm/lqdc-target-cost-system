@@ -96,6 +96,8 @@ async function refreshTargetCostFromDetails(formData: FormData) {
   if (!projectId || !versionId) redirect(`/projects/${projectId}/costs-batch?missing=1`);
 
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { totalBuildingArea: true, saleableArea: true } });
+  const version = await prisma.projectVersion.findFirst({ where: { id: versionId, projectId }, select: { status: true, isLocked: true } });
+  if (!version || isVersionLocked(version) || version.isLocked) redirect(`/projects/${projectId}/costs-batch?locked=1`);
   const buildingArea = Number(project?.totalBuildingArea || 0);
   const saleableArea = Number(project?.saleableArea || 0);
 
@@ -259,6 +261,7 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
       <VersionContextBar projectName={project.name} versionName={version?.name} versionStatus={version?.status} editable={!locked} extra={[['明细结果行', detailCount], ['聚合科目', rows.length]]} />
       {searchParams?.aggregated ? <StatusNotice title="刷新已完成" tone="success">已从明细测算结果刷新目标成本测算表，并同步更新目标成本汇总表。当前页面展示的是本次刷新后的聚合结果。</StatusNotice> : null}
       {searchParams?.missing ? <StatusNotice title="缺少刷新上下文" tone="warning">当前项目或版本信息不完整，未执行刷新。请确认已选择有效测算版本后再操作。</StatusNotice> : null}
+      {searchParams?.locked ? <StatusNotice title="当前版本已锁定" tone="warning">当前版本已锁定，仅支持查看。如需调整数据，请复制为新版本后编辑。</StatusNotice> : null}
 
       <StatusNotice title="数据流说明">版本规则快照 → 各专业明细页计算 → 本页汇总 → 目标成本汇总表展示经营结果。刷新前，本页保留上一次聚合结果；刷新完成后会显示成功提示。</StatusNotice>
 
