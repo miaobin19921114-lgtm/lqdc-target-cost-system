@@ -130,6 +130,10 @@ model Project {
   remark                          String?
   createdAt                       DateTime         @default(now())
   updatedAt                       DateTime         @default(now()) @updatedAt
+  deletedAt                       DateTime?
+  deletedBy                       String?
+  deleteReason                    String?
+  purgeAfter                      DateTime?
   buildingCount                   Int              @default(0)
   unitCount                       Int              @default(0)
   basementFloors                  Int              @default(0)
@@ -223,6 +227,7 @@ model Project {
   versions                        ProjectVersion[]
 
   @@index([sourceTemplateId])
+  @@index([deletedAt])
 }
 
 model ProjectVersion {
