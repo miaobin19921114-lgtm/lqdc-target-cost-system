@@ -22,11 +22,53 @@ type AggregateRow = {
   saleableAreaUnitCost: string | null;
 };
 
+type CostLinePreview = {
+  id: string;
+  costSubject: { code: string; name: string };
+  productType: { name: string } | null;
+  detailName: string;
+  professionalGroup: string | null;
+  regionOrProductType: string | null;
+  measureBasis: string | null;
+  quantity: unknown;
+  unit: string | null;
+  taxInclusiveUnitPrice: unknown;
+  taxRate: unknown;
+  taxInclusiveAmount: unknown;
+  taxExclusiveAmount: unknown;
+  taxAmount: unknown;
+  quantityOverride: boolean;
+  importBatchId: string | null;
+  measureValue: unknown;
+  coefficient: unknown;
+  remark: string | null;
+};
+
 function num(value: unknown) { return Number(value || 0); }
 function fmt(value: unknown) { return num(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 }); }
 function unitCost(amountWan: number, area: number) { return area ? amountWan * 10000 / area : 0; }
 function subjectLevel(code: string) { return code ? code.split('.').filter(Boolean).length || Math.ceil(code.length / 2) : 0; }
 function subjectIndent(code: string) { return Math.max(0, subjectLevel(code) - 1) * 18; }
+function round2(value: number) { return Math.round((value + Number.EPSILON) * 100) / 100; }
+function quantityMode(line: CostLinePreview) { return line.quantityOverride ? (line.importBatchId ? 'excel_imported' : 'manual_entered') : 'auto_calculated'; }
+function quantityModeLabel(mode: string) {
+  return { auto_calculated: '系统推算', manual_entered: '手算输入', excel_imported: 'Excel 导入', drawing_measured: '图纸算量', locked_confirmed: '锁定确认' }[mode] || mode;
+}
+function priceSource(line: CostLinePreview) {
+  if (line.importBatchId) return 'excel_imported';
+  if (line.quantityOverride) return 'user_project_manual';
+  return 'system_default';
+}
+function priceSourceLabel(source: string) {
+  return { system_default: '系统默认', region_price_library: '地区价格库', user_project_manual: '项目手工', historical_project: '历史项目', excel_imported: 'Excel 导入', contract_price: '合同价', market_inquiry: '市场询价', supplier_quote: '供应商报价' }[source] || source;
+}
+function calculatedQuantity(line: CostLinePreview) { return round2(num(line.measureValue) * (num(line.coefficient) || 1)); }
+function overrideNotice(mode: string) {
+  if (mode === 'manual_entered') return '当前工程量已手算覆盖，后续含量变化不会自动覆盖 finalQuantity';
+  if (mode === 'auto_calculated') return '当前工程量由基础指标 × 含量自动推算';
+  if (mode === 'locked_confirmed') return '当前工程量已锁定，不允许修改';
+  return '按接口返回口径展示';
+}
 
 const SUBJECT_NAMES: Record<string, string> = {
   '01': '土地费',
@@ -182,6 +224,16 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
     ORDER BY "subjectCode" ASC
   `, project.id, version.id).catch(() => []) : [];
 
+  const costLinePreview: CostLinePreview[] = version ? await prisma.costLine.findMany({
+    where: {
+      projectVersionId: version.id,
+      OR: [{ productTypeId: null }, { productType: { isActive: true } }]
+    },
+    include: { costSubject: { select: { code: true, name: true } }, productType: { select: { name: true } } },
+    orderBy: [{ professionalGroup: 'asc' }, { sortOrder: 'asc' }, { detailName: 'asc' }],
+    take: 80
+  }) as CostLinePreview[] : [];
+
   const levelOneRows = rows.filter((row) => subjectLevel(row.subjectCode) <= 1 || Object.keys(SUBJECT_NAMES).includes(row.subjectCode));
   const total = rows.reduce((sum, row) => sum + Number(row.taxInclusiveAmount || 0), 0);
   const totalExclusive = rows.reduce((sum, row) => sum + Number(row.taxExclusiveAmount || 0), 0);
@@ -223,8 +275,9 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
             <h2 style={{ margin: 0 }}>刷新目标成本测算表</h2>
             <p className="meta" style={{ margin: '6px 0 0' }}>从明细测算结果汇总到目标成本测算表，并同步刷新目标成本汇总表。刷新完成前，页面仍展示上一次结果。</p>
           </div>
-          {version ? <form action={refreshTargetCostFromDetails}><input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="versionId" value={version.id} /><RefreshSubmitButton pendingText="正在刷新">从明细结果刷新</RefreshSubmitButton></form> : null}
+          {version ? <form action={refreshTargetCostFromDetails}><input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="versionId" value={version.id} /><RefreshSubmitButton pendingText="正在刷新" disabled={locked}>从明细结果刷新</RefreshSubmitButton></form> : null}
         </div>
+        {locked ? <p className="meta" style={{ margin: '10px 0 0', color: '#c92a2a' }}>当前版本已锁定，目标成本刷新操作只读禁用。</p> : null}
       </section>
 
       <section className="card" style={{ marginBottom: 12 }}>
@@ -254,6 +307,33 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
             <tfoot><tr><td colSpan={3} style={{ padding: 10, fontWeight: 900 }}>合计</td><td style={{ padding: 10, textAlign: 'right', fontWeight: 900 }}>{fmt(total)}</td><td style={{ padding: 10, textAlign: 'right' }}>{fmt(totalExclusive)}</td><td style={{ padding: 10, textAlign: 'right' }}>{fmt(totalTax)}</td><td style={{ padding: 10, textAlign: 'right' }}>{fmt(unitCost(total, buildingArea))}</td><td style={{ padding: 10, textAlign: 'right' }}>{fmt(unitCost(total, saleableArea))}</td><td /></tr></tfoot>
           </table>
         </div>
+      </section>
+
+      <section className="card" style={{ marginTop: 12 }}>
+        <h2>目标成本量价额明细预览</h2>
+        <p className="meta">金额单位：万元；finalAmount 统一按含税金额展示。若后端未单独返回 finalAmount，本页使用 taxInclusiveAmount 作为含税金额口径。</p>
+        {costLinePreview.length === 0 ? <EmptyState title="暂无目标成本明细数据">请先生成或录入目标成本明细；形成成本行后，本区会展示 finalQuantity、unitPrice、finalAmount 和手算覆盖状态。</EmptyState> : <div style={{ overflowX: 'auto', marginTop: 12 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1680, fontSize: 12 }}>
+            <thead><tr>{['科目', '对象 / 依据', 'calculatedQuantity', 'finalQuantity', 'unitPrice', 'priceSource', 'taxRate', 'finalAmount 含税金额', '不含税 / 税额', 'quantityCalcMode', '手算覆盖状态'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #e6edf5', background: '#f8fafc', color: '#667085' }}>{head}</th>)}</tr></thead>
+            <tbody>{costLinePreview.map((line) => {
+              const mode = quantityMode(line);
+              const source = priceSource(line);
+              return <tr key={line.id} style={line.quantityOverride ? { background: '#fffaf0' } : undefined}>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{line.costSubject.code} {line.costSubject.name}<div className="meta">{line.detailName}</div></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{line.productType?.name || line.regionOrProductType || '全项目'}<div className="meta">{line.measureBasis || '未配置基础指标绑定'}</div></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(calculatedQuantity(line))} {line.unit || ''}<div className="meta">基础指标 {fmt(line.measureValue)} x 含量 {fmt(line.coefficient || 1)}</div></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{fmt(line.quantity)} {line.unit || ''}</td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(line.taxInclusiveUnitPrice)}<div className="meta">priceUnit: {line.unit ? `元/${line.unit}` : '按后端返回'}</div></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{priceSourceLabel(source)}<div className="meta">{source}</div></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(num(line.taxRate) * 100)}%</td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{fmt(line.taxInclusiveAmount)}<div className="meta">finalAmount / taxInclusiveAmount</div></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(line.taxExclusiveAmount)} / {fmt(line.taxAmount)}</td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{quantityModeLabel(mode)}<div className="meta">{mode}</div></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{line.quantityOverride ? '已手算覆盖' : '未覆盖'}<div className="meta" style={{ maxWidth: 260 }}>{line.quantityOverride ? (line.remark || overrideNotice(mode)) : overrideNotice(mode)}</div></td>
+              </tr>;
+            })}</tbody>
+          </table>
+        </div>}
       </section>
     </div>
   </main>;

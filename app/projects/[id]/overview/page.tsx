@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { StatusNotice, VersionContextBar } from '@/components/commercial-status';
+import { EmptyState, StatusNotice, VersionContextBar } from '@/components/commercial-status';
 import { ProfileObjectAction, ProfileSectionForm } from '@/components/profile-section-form';
 import { QuantityOverrideActions } from '@/components/quantity-override-actions';
 import {
@@ -38,6 +38,51 @@ const inputStyle = { height: 34, border: '1px solid #d9e2ec', borderRadius: 6, p
 const readonlyStyle = { ...inputStyle, background: '#f2f4f7', color: '#667085' };
 const cell = { padding: 9, borderBottom: '1px solid #eef2f6', whiteSpace: 'nowrap' as const };
 
+const standardCategories = [
+  ['structure', '结构'],
+  ['basement', '地下室'],
+  ['civil_defense', '人防'],
+  ['prefabricated', '装配式'],
+  ['facade', '外立面'],
+  ['window_door', '门窗'],
+  ['indoor_decoration', '户内精装修'],
+  ['public_area_decoration', '公区装修'],
+  ['equipment', '设备'],
+  ['garage', '地库'],
+  ['landscape', '景观'],
+  ['intelligent', '智能化'],
+  ['demo_sales_sample', '示范区 / 售楼处 / 样板间'],
+  ['ancient_building', '古建专项']
+] as const;
+
+const levelLabel: Record<string, string> = {
+  project_level: '项目级',
+  object_level: '对象级',
+  detail_subject_level: '明细科目级',
+  project: '项目级',
+  object: '对象级',
+  detail: '明细科目级'
+};
+
+const quantityModeLabel: Record<string, string> = {
+  auto_calculated: '系统推算',
+  manual_entered: '手算输入',
+  excel_imported: 'Excel 导入',
+  drawing_measured: '图纸算量',
+  locked_confirmed: '锁定确认'
+};
+
+const priceSourceLabel: Record<string, string> = {
+  system_default: '系统默认',
+  region_price_library: '地区价格库',
+  user_project_manual: '项目手工',
+  historical_project: '历史项目',
+  excel_imported: 'Excel 导入',
+  contract_price: '合同价',
+  market_inquiry: '市场询价',
+  supplier_quote: '供应商报价'
+};
+
 function n(value: unknown) {
   const num = Number(value || 0);
   return Number.isFinite(num) ? num : 0;
@@ -58,14 +103,69 @@ function display(value: unknown, suffix = '') {
   return typeof value === 'number' ? `${fmt(value)}${suffix}` : `${value}${suffix}`;
 }
 
+function dateText(value: unknown) {
+  if (!value) return '未返回';
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { hour12: false });
+}
+
+function booleanText(value: unknown) {
+  return value ? '是' : '否';
+}
+
+function modeText(value?: string | null) {
+  return quantityModeLabel[String(value || '')] || value || '未返回';
+}
+
+function priceSourceText(value?: string | null) {
+  return priceSourceLabel[String(value || '')] || value || '未返回';
+}
+
+function overrideNotice(item: any) {
+  if (item.quantityCalcMode === 'manual_entered') return '当前工程量已手算覆盖，后续含量变化不会自动覆盖 finalQuantity';
+  if (item.quantityCalcMode === 'locked_confirmed' || item.isQuantityLocked) return '当前工程量已锁定，不允许修改';
+  if (item.quantityCalcMode === 'auto_calculated') return '当前工程量由基础指标 × 含量自动推算';
+  return item.overrideReason || item.quantitySourceRemark || '按接口返回口径展示';
+}
+
+function standardRow(input: any, fallbackCategory: string, fallbackName: string) {
+  return {
+    standardLevel: input.standardLevel || 'project_level',
+    standardCategory: input.standardCategory || fallbackCategory,
+    standardCode: input.standardCode || fallbackCategory,
+    standardName: input.standardName || fallbackName,
+    costObjectName: input.costObjectName || input.costObjectId || '项目整体',
+    costObjectId: input.costObjectId || null,
+    detailSubjectName: input.detailSubjectName || input.detailSubjectId || '未绑定明细科目',
+    detailSubjectId: input.detailSubjectId || null,
+    region: input.region || '全项目',
+    difficultyLevel: input.difficultyLevel || '未设置',
+    difficultyCoefficient: input.difficultyCoefficient ?? '未设置',
+    materialGrade: input.materialGrade || input.standardName || input.value || '未设置',
+    equipmentGrade: input.equipmentGrade || '未设置',
+    affectsSubjectEnabled: input.affectsSubjectEnabled ?? input.isEnabled ?? false,
+    affectsContentRule: input.affectsContentRule ?? true,
+    affectsUnitPrice: input.affectsUnitPrice ?? true,
+    affectsDifficulty: input.affectsDifficulty ?? false,
+    affectsCostPool: input.affectsCostPool ?? false,
+    isEnabled: input.isEnabled ?? Boolean(input.value || input.standardName),
+    recalculationRequired: input.recalculationRequired ?? false,
+    remark: input.remark || 'V1 仅展示后端已支持字段，不做复杂标准库管理。'
+  };
+}
+
 function objectTypeLabel(type?: string | null) {
   const map: Record<string, string> = {
+    saleable_object: '可售对象 / 经营对象',
+    cost_object: '成本对象',
     product_type: '普通产品业态',
     basement_cost_object: '地下室成本对象',
-    parking_income_object: '车位收入对象',
-    supporting_cost_object: '配套成本对象',
-    marketing_display_object: '营销展示对象',
-    special_config_object: '专项配置对象'
+    parking_income_object: '车位收入 / 利润对象',
+    supporting_cost_object: '配套 / 不可售成本对象',
+    marketing_display_object: '营销展示 / 专项成本对象',
+    construction_standard_object: '建造标准 / 专项配置对象',
+    special_config_object: '建造标准 / 专项配置对象',
+    tax_object: '税务对象'
   };
   return map[String(type || '')] || String(type || '未分类');
 }
@@ -173,16 +273,27 @@ function SectionShell({ children }: { children: ReactNode }) {
 
 async function OverviewSection({ projectId, versionId, locked }: { projectId: string; versionId: string; locked: boolean }) {
   const result = await getProfileOverview(projectId, versionId);
-  if (!result.body.success) return <StatusNotice title="读取失败" tone="danger">{result.body.error.message}</StatusNotice>;
+  if (!result.body.success) return <StatusNotice title="profile 聚合接口读取失败" tone="danger">{result.body.error.message}<div style={{ marginTop: 10 }}><Link href={`/projects/${projectId}/overview?section=overview`} className="btn">刷新重试</Link></div></StatusNotice>;
   const data: any = resultData(result);
   const metrics = await getProfileProjectMetrics(projectId, versionId);
   const m: any = metrics.body.success ? resultData(metrics) : {};
+  const completeness = data.dataCompleteness || {};
+  const sectionStatus = [
+    ['overview', '总览'],
+    ['productObjects', '业态产品与对象'],
+    ['constructionStandards', '建造标准'],
+    ['projectMetrics', '项目指标'],
+    ['quantityIndicators', '工程量指标']
+  ] as const;
   return <ProfileSectionForm formId="profile-overview-form" endpoint={profileUrl(projectId, versionId, 'overview')} locked={locked} successMessage="项目总览已保存。">
     <SectionShell>
+      <StatusNotice title="profile 聚合接口加载状态" tone="success">已读取当前项目、当前版本、版本状态、数据完整性与五页入口状态。最近更新时间：{dateText(data.updatedAt)}。<div style={{ marginTop: 10 }}><Link href={`/projects/${projectId}/overview?section=overview`} className="btn">刷新本页</Link></div></StatusNotice>
+      {locked ? <StatusNotice title="当前版本已锁定" tone="danger">当前版本已锁定，概况、对象、指标、建造标准和工程量相关配置不可修改。</StatusNotice> : null}
       <div className="summary-strip">
         <Stat label="项目名称" value={data.projectName || '未命名'} />
-        <Stat label="所在地区" value={data.region || '未配置'} />
+        <Stat label="版本状态" value={data.versionStatus || '未设置'} />
         <Stat label="当前版本" value={data.versionName || '暂无版本'} note={data.versionStatus || '未设置'} />
+        <Stat label="是否锁定" value={data.isLocked ? '是' : '否'} />
         <Stat label="下一建议分区" value={data.nextRecommendedSection || '无'} />
       </div>
       <Card title="基础信息" note="总览页只保留轻量基础字段，更多指标请进入对应分区。">
@@ -205,10 +316,19 @@ async function OverviewSection({ projectId, versionId, locked }: { projectId: st
       </Card>
       <Card title="数据完整性" note="V1 仅做存在性判断，不做复杂评分。">
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {Object.entries(data.dataCompleteness || {}).map(([key, value]) => <Badge key={key} tone={value ? 'green' : 'orange'}>{key}: {value ? '已录入' : '待补充'}</Badge>)}
+          {Object.entries(completeness).map(([key, value]) => <Badge key={key} tone={value ? 'green' : 'orange'}>{key}: {value ? '已录入' : '待补充'}</Badge>)}
         </div>
         {data.warningMessages?.length ? <p className="meta" style={{ marginBottom: 0 }}>{data.warningMessages.join('；')}</p> : null}
       </Card>
+      <Card title="五页入口状态" note="保持五个 Tab 结构；每个入口只展示该分区是否已具备接口数据。">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+          {sectionStatus.map(([key, label]) => <Link key={key} href={`/projects/${projectId}/overview?section=${key === 'overview' ? 'overview' : key.replace(/[A-Z]/g, (s) => `-${s.toLowerCase()}`)}`} style={{ border: '1px solid #e6eef7', borderRadius: 8, padding: 10, background: '#fbfdff', textDecoration: 'none', color: 'inherit' }}>
+            <b>{label}</b>
+            <div style={{ marginTop: 6 }}><Badge tone={completeness[key] ? 'green' : 'orange'}>{completeness[key] ? '已录入' : '待补充'}</Badge></div>
+          </Link>)}
+        </div>
+      </Card>
+      {metrics.body.success ? null : <StatusNotice title="项目指标接口读取异常" tone="warning">总览摘要仍可查看，项目指标分区返回：{metrics.body.error?.message || '未知错误'}。</StatusNotice>}
     </SectionShell>
   </ProfileSectionForm>;
 }
@@ -223,36 +343,68 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
   const addable = presetObjects.map((group) => ({ ...group, names: group.names.filter((name) => !existingNames.has(name)) })).filter((group) => group.names.length);
   const endpoint = profileUrl(projectId, versionId, 'product-objects');
 
-  function table(rows: any[], title: string) {
-    return <Card title={title} note="状态、原因与操作共用 product-types 语义。">
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980, fontSize: 12 }}>
-          <thead><tr>{['对象', '对象口径', '属性', '单位', '数据状态', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
-          <tbody>{rows.length ? rows.map((item) => <tr key={item.objectId}>
-            <td style={{ ...cell, fontWeight: 900 }}>{item.objectName}<div className="meta">{item.objectCode}</div></td>
-            <td style={cell}><Badge tone={objectTypeTone(item.objectType)}>{objectTypeLabel(item.objectType)}</Badge><div className="meta">{item.objectCategory}</div></td>
-            <td style={cell}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-              {item.isSaleable ? <Badge tone="blue">可售</Badge> : <Badge>不可售</Badge>}
-              {item.isIncomeObject ? <Badge tone="green">收入对象</Badge> : null}
-              {item.isCostObject ? <Badge tone="green">成本对象</Badge> : null}
-              {item.isTaxObject ? <Badge tone="orange">税务对象</Badge> : null}
-              {item.isProfitObject ? <Badge tone="blue">利润对象</Badge> : null}
-            </div></td>
-            <td style={cell}>
-              {item.quantityUnit || item.pricingUnit ? <><b>{item.quantityUnit || '-'}</b><div className="meta">{item.pricingUnit || '未设置计价单位'}</div></> : <span className="meta">按对象口径维护</span>}
-            </td>
-            <td style={cell}>
-              <Badge tone={item.isEnabled ? 'green' : 'red'}>{item.status}</Badge>
-              {item.blockedReason ? <div className="meta" style={{ color: '#c92a2a' }}>不可停用<Tip text={item.blockedReason} /></div> : null}
-              {item.warningMessage ? <div className="meta">{item.warningMessage}</div> : null}
-            </td>
-            <td style={cell}>
-              <ProfileObjectAction endpoint={endpoint} objectCode={item.objectCode} objectName={item.objectName} objectType={item.objectType} objectCategory={item.objectCategory} isEnabled={!item.isEnabled} locked={locked} disabled={item.isEnabled ? !item.canDisable : !item.canRestore} label={item.isEnabled ? '停用' : '恢复'} />
-            </td>
-          </tr>) : <tr><td colSpan={6} style={{ padding: 14, color: '#667085' }}>暂无数据。</td></tr>}</tbody>
-        </table>
-      </div>
+  function objectFlags(item: any) {
+    return [
+      ['isSaleableObject', '可售'],
+      ['isOperatingObject', '经营'],
+      ['isIncomeObject', '收入'],
+      ['isCostObject', '成本'],
+      ['isAllocationObject', '分摊'],
+      ['isProfitObject', '利润'],
+      ['isTaxObject', '税务'],
+      ['isParkingObject', '车位'],
+      ['isBasementObject', '地下室'],
+      ['isSupportingObject', '配套'],
+      ['isMarketingDisplayObject', '营销展示']
+    ].map(([key, label]) => <Badge key={key} tone={item[key] ? 'green' : 'neutral'}>{label}: {booleanText(item[key])}</Badge>);
+  }
+
+  function table(rows: any[], title: string, collapsed = false) {
+    const content = <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1420, fontSize: 12 }}>
+        <thead><tr>{['对象', '对象分类', '启用与业务状态', '对象角色', '成本承担 / 单位', '操作能力', '提示', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+        <tbody>{rows.length ? rows.map((item) => <tr key={item.objectId}>
+          <td style={{ ...cell, fontWeight: 900 }}>{item.objectName}<div className="meta">{item.objectCode || item.objectId}</div><div className="meta">objectType: {item.objectType || '未返回'}</div></td>
+          <td style={cell}><Badge tone={objectTypeTone(item.objectType)}>{objectTypeLabel(item.objectType)}</Badge><div className="meta">{item.objectCategory || '未分类'}</div></td>
+          <td style={cell}>
+            <Badge tone={item.isEnabled ? 'green' : 'red'}>{item.objectStatus || item.status}</Badge>
+            <div className="meta">isEnabled: {booleanText(item.isEnabled)}</div>
+            <div className="meta">objectStatus: {item.objectStatus || item.status || '未返回'}</div>
+          </td>
+          <td style={cell}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', maxWidth: 420 }}>{objectFlags(item)}</div></td>
+          <td style={cell}>
+            <b>{item.displayCostBearingType || '未返回'}</b>
+            <div className="meta">工程量单位：{item.quantityUnit || '按后端返回'}</div>
+            <div className="meta">计价单位：{item.pricingUnit || '按后端返回'}</div>
+            {item.isParkingObject ? <div className="meta">车位收入按数量 x 单价，不按面积 x 元/㎡。</div> : null}
+            {item.isMarketingDisplayObject ? <div className="meta">V1 默认进入开发成本口径，不自动进入销售费用。</div> : null}
+          </td>
+          <td style={cell}>
+            <div>canEnable: {booleanText(item.canEnable)}</div>
+            <div>canDisable: {booleanText(item.canDisable)}</div>
+            <div>canRestore: {booleanText(item.canRestore)}</div>
+            {item.blockedReason ? <div className="meta" style={{ color: '#c92a2a' }}>不可直接停用<Tip text={item.blockedReason} /></div> : null}
+          </td>
+          <td style={{ ...cell, minWidth: 260 }}>
+            {item.warningMessage ? <div>{item.warningMessage}</div> : <span className="meta">暂无预警。</span>}
+            {item.isBasementObject ? <div className="meta">主楼地下室/非主楼地下室为空间归属口径；地下车库面积为功能使用口径。</div> : null}
+          </td>
+          <td style={cell}>
+            <ProfileObjectAction endpoint={endpoint} objectCode={item.objectCode} objectName={item.objectName} objectType={item.objectType} objectCategory={item.objectCategory} isEnabled={!item.isEnabled} locked={locked} disabled={item.isEnabled ? !item.canDisable : !item.canRestore} label={item.isEnabled ? '停用' : '恢复'} />
+          </td>
+        </tr>) : <tr><td colSpan={8} style={{ padding: 14, color: '#667085' }}>暂无对象数据。请先在完整维护页维护对象，或等待后端返回系统默认对象。</td></tr>}</tbody>
+      </table>
+    </div>;
+    if (collapsed) return <details style={{ border: '1px solid #d9e2ec', borderRadius: 8, background: '#fff', overflow: 'hidden' }}><summary style={{ cursor: 'pointer', padding: '12px 14px', background: '#f8fafc', fontWeight: 900 }}>{title}（{rows.length}）</summary><div style={{ padding: 14 }}>{content}</div></details>;
+    return <Card title={title} note="状态、原因与操作共用 product-types 语义；概况页和完整维护页状态保持一致。">
+      {content}
     </Card>;
+  }
+
+  function groupedEnabled() {
+    const groups = [...new Set(enabled.map((item) => objectTypeLabel(item.objectType)))];
+    if (!groups.length) return <Card title="启用对象" note="enabled 对象默认显示。"><EmptyState title="暂无启用对象数据">请先在业态产品完整维护页维护对象，或等待后端返回系统默认对象。</EmptyState></Card>;
+    return groups.map((group) => table(enabled.filter((item) => objectTypeLabel(item.objectType) === group), group));
   }
 
   return <SectionShell>
@@ -268,8 +420,9 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
         {addable.length ? addable.flatMap((group) => group.names.map((name) => <ProfileObjectAction key={name} endpoint={endpoint} objectCode={name} objectName={name} objectType="product_type" objectCategory={group.category} isEnabled locked={locked} label={`新增 ${name}`} />)) : <span className="meta">暂无可新增预设业态。</span>}
       </div>
     </Card>
-    {table(enabled, '启用业态 / 对象')}
-    {table(disabled, '已停用业态 / 对象')}
+    <StatusNotice title="对象口径说明">主楼地下室 / 非主楼地下室 = 空间归属口径；地下车库面积 = 功能使用口径。车位是收入对象 / 利润对象，收入按数量 x 单价。样板间、售楼处、示范区展示为营销展示 / 专项成本对象，V1 默认进入开发成本口径。</StatusNotice>
+    {groupedEnabled()}
+    {table(disabled, '已停用对象', true)}
   </SectionShell>;
 }
 
@@ -277,8 +430,27 @@ async function ConstructionStandardsSection({ projectId, versionId, locked }: { 
   const result = await getProfileConstructionStandards(projectId, versionId);
   if (!result.body.success) return <StatusNotice title="读取失败" tone="danger">{result.body.error.message}</StatusNotice>;
   const data: any = resultData(result);
+  const rawStandards = Array.isArray(data.standards) ? data.standards : [];
+  const fallbackStandards = [
+    standardRow({ value: data.deliveryStandard, affectsDifficulty: true }, 'structure', data.deliveryStandard || '基础结构标准'),
+    standardRow({ value: data.garageStandard, standardLevel: 'object_level', costObjectName: '地下室 / 地库', affectsCostPool: true }, 'basement', data.garageStandard || '地下室标准'),
+    standardRow({ value: data.civilDefenseStandard, isEnabled: data.isCivilDefenseEnabled, affectsSubjectEnabled: true, affectsContentRule: true }, 'civil_defense', data.civilDefenseStandard || '人防标准'),
+    standardRow({ value: data.prefabStandard, isEnabled: data.isPrefabEnabled, affectsSubjectEnabled: true, affectsContentRule: true, affectsDifficulty: true }, 'prefabricated', data.prefabStandard || '装配式标准'),
+    standardRow({ value: data.facadeStandard, affectsUnitPrice: true, affectsDifficulty: true }, 'facade', data.facadeStandard || '外立面标准'),
+    standardRow({ value: data.doorWindowStandard, affectsUnitPrice: true }, 'window_door', data.doorWindowStandard || '门窗标准'),
+    standardRow({ value: data.fineDecorationStandard, isEnabled: data.isFineDecorationEnabled, affectsSubjectEnabled: true, affectsContentRule: true, affectsUnitPrice: true }, 'indoor_decoration', data.fineDecorationStandard || '户内精装修标准'),
+    standardRow({ value: data.fineDecorationScope, standardLevel: 'object_level', affectsCostPool: true }, 'public_area_decoration', data.fineDecorationScope || '公区装修标准'),
+    standardRow({ value: data.heatingStandard, isEnabled: data.isHeatingEnabled, affectsSubjectEnabled: true, affectsUnitPrice: true }, 'equipment', data.heatingStandard || '设备 / 采暖标准'),
+    standardRow({ value: data.garageStandard, standardLevel: 'object_level', costObjectName: '地下车库' }, 'garage', data.garageStandard || '车库品质标准'),
+    standardRow({ value: data.landscapeStandard, affectsContentRule: true, affectsUnitPrice: true }, 'landscape', data.landscapeStandard || '景观标准'),
+    standardRow({ value: data.intelligentStandard, affectsUnitPrice: true }, 'intelligent', data.intelligentStandard || '智能化标准'),
+    standardRow({ value: data.demoAreaStandard, isEnabled: data.isDemoAreaEnabled, standardLevel: 'object_level', costObjectName: '营销展示对象', affectsSubjectEnabled: true, affectsCostPool: true }, 'demo_sales_sample', data.demoAreaStandard || '示范区 / 售楼处 / 样板间标准'),
+    standardRow({ value: data.ancientBuildingStandard, isEnabled: data.isAncientBuildingEnabled, affectsSubjectEnabled: true, affectsDifficulty: true }, 'ancient_building', data.ancientBuildingStandard || '古建专项标准')
+  ];
+  const standards = rawStandards.length ? rawStandards.map((item: any) => standardRow(item, item.standardCategory || 'structure', item.standardName || '建造标准')) : fallbackStandards;
   return <ProfileSectionForm formId="profile-construction-standards-form" endpoint={profileUrl(projectId, versionId, 'construction-standards')} locked={locked} successMessage="建造标准已保存。">
     <SectionShell>
+      {locked ? <StatusNotice title="当前版本已锁定" tone="danger">建造标准配置只读，不能保存或触发重算。</StatusNotice> : null}
       <Card title="基础建造标准" note="只保留影响含量、单价和工程量推算的轻量字段。">
         <FieldGrid locked={locked} fields={[
           ['deliveryStandard', '交付标准', 'text', data.deliveryStandard],
@@ -311,6 +483,37 @@ async function ConstructionStandardsSection({ projectId, versionId, locked }: { 
           ]} />
         </div>
       </Card>
+      <Card title="建造标准分类展示" note="按 Z3 支持的标准分类展示；后端未返回标准库行时，以当前配置字段生成只读兼容行。">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {standardCategories.map(([category, label]) => {
+            const rows = standards.filter((item: any) => item.standardCategory === category);
+            return <details key={category} open={rows.some((item: any) => item.isEnabled)} style={{ border: '1px solid #e6eef7', borderRadius: 8, background: '#fbfdff' }}>
+              <summary style={{ cursor: 'pointer', padding: '10px 12px', fontWeight: 900 }}>{label}（{rows.length}）</summary>
+              {rows.length ? <div style={{ overflowX: 'auto', padding: 12 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1320, fontSize: 12 }}>
+                  <thead><tr>{['层级', '编码 / 名称', '对象 / 明细科目', '地区 / 难度', '材料 / 设备档次', '影响范围', '状态', '备注'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fff' }}>{head}</th>)}</tr></thead>
+                  <tbody>{rows.map((item: any) => <tr key={`${item.standardCategory}-${item.standardCode}-${item.standardName}`}>
+                    <td style={cell}><Badge tone="blue">{levelLabel[item.standardLevel] || item.standardLevel || '项目级'}</Badge><div className="meta">{item.standardLevel || 'project_level'}</div></td>
+                    <td style={{ ...cell, fontWeight: 900 }}>{item.standardCode}<div className="meta">{item.standardName}</div></td>
+                    <td style={cell}>{item.costObjectName || item.costObjectId || '项目整体'}<div className="meta">{item.detailSubjectName || item.detailSubjectId || '未绑定明细科目'}</div></td>
+                    <td style={cell}>{item.region || '全项目'}<div className="meta">难度：{item.difficultyLevel || '未设置'} / 系数 {display(item.difficultyCoefficient)}</div></td>
+                    <td style={cell}>{item.materialGrade || '未设置'}<div className="meta">设备：{item.equipmentGrade || '未设置'}</div></td>
+                    <td style={cell}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', maxWidth: 360 }}>
+                      <Badge tone={item.affectsSubjectEnabled ? 'green' : 'neutral'}>科目启用 {booleanText(item.affectsSubjectEnabled)}</Badge>
+                      <Badge tone={item.affectsContentRule ? 'green' : 'neutral'}>含量 {booleanText(item.affectsContentRule)}</Badge>
+                      <Badge tone={item.affectsUnitPrice ? 'green' : 'neutral'}>单价 {booleanText(item.affectsUnitPrice)}</Badge>
+                      <Badge tone={item.affectsDifficulty ? 'green' : 'neutral'}>难度 {booleanText(item.affectsDifficulty)}</Badge>
+                      <Badge tone={item.affectsCostPool ? 'green' : 'neutral'}>成本池 {booleanText(item.affectsCostPool)}</Badge>
+                    </div></td>
+                    <td style={cell}><Badge tone={item.isEnabled ? 'green' : 'neutral'}>{item.isEnabled ? '启用' : '未启用'}</Badge>{item.recalculationRequired ? <div style={{ marginTop: 5 }}><Badge tone="orange">需要重新计算</Badge></div> : null}</td>
+                    <td style={{ ...cell, minWidth: 240 }}>{item.remark || '无'}</td>
+                  </tr>)}</tbody>
+                </table>
+              </div> : <div style={{ padding: 12 }}><EmptyState title="暂无建造标准数据">当前版本可能尚未生成标准配置，可先使用系统默认标准。</EmptyState></div>}
+            </details>;
+          })}
+        </div>
+      </Card>
     </SectionShell>
   </ProfileSectionForm>;
 }
@@ -319,9 +522,12 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
   const result = await getProfileProjectMetrics(projectId, versionId);
   if (!result.body.success) return <StatusNotice title="读取失败" tone="danger">{result.body.error.message}</StatusNotice>;
   const data: any = resultData(result);
+  const basementDiff = n(data.basement?.basementTotalArea) > 0 && n(data.basement?.mainBuildingBasementArea) + n(data.basement?.nonMainBuildingBasementArea) !== n(data.basement?.basementTotalArea);
   return <ProfileSectionForm formId="profile-project-metrics-form" endpoint={profileUrl(projectId, versionId, 'project-metrics')} locked={locked} successMessage="项目指标已保存。">
     <SectionShell>
       {data.warnings?.length ? <StatusNotice title="指标复核提醒" tone="warning">{data.warnings.join('；')}</StatusNotice> : null}
+      {basementDiff ? <StatusNotice title="地下空间口径提示" tone="warning">主楼地下室 + 非主楼地下室与地下总面积存在差异，请复核空间归属口径；该提示不强阻断。地下车库面积是功能使用口径，不要与非主楼地下室面积混淆。</StatusNotice> : null}
+      {locked ? <StatusNotice title="当前版本已锁定" tone="danger">项目指标只读，不允许修改。</StatusNotice> : null}
       <Card title="土地与面积指标">
         <FieldGrid locked={locked} fields={[
           ['land.landArea', '地块面积', 'number', data.land?.landArea],
@@ -369,10 +575,14 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
           ['landscapeRoad.landscapeArea', '景观面积', 'number', data.landscapeRoad?.landscapeArea],
           ['landscapeRoad.hardLandscapeArea', '硬景面积', 'number', data.landscapeRoad?.hardLandscapeArea],
           ['landscapeRoad.softLandscapeArea', '软景面积', 'number', data.landscapeRoad?.softLandscapeArea],
+          ['landscapeRoad.pedestrianRoadArea', '人行道路面积', 'number', data.landscapeRoad?.pedestrianRoadArea],
           ['landscapeRoad.vehicleRoadArea', '车行道路面积', 'number', data.landscapeRoad?.vehicleRoadArea],
           ['landscapeRoad.fireRoadAreaIncluded', '消防道路面积', 'number', data.landscapeRoad?.fireRoadAreaIncluded],
           ['landscapeRoad.boundaryLength', '周界长度', 'number', data.landscapeRoad?.boundaryLength]
+          ,['landscapeRoad.wallLength', '围墙长度', 'number', data.landscapeRoad?.wallLength],
+          ['landscapeRoad.entranceCount', '出入口数量', 'number', data.landscapeRoad?.entranceCount]
         ]} />
+        <p className="meta" style={{ margin: '10px 0 0' }}>车位数量用于收入对象，收入按个测算，不按面积计收入；消防道路面积不得大于车行道路面积。</p>
       </Card>
       <Card title="营销展示对象" note={data.marketingDisplay?.remark || '样板间、售楼处、示范区只作为展示对象或专项成本口径，不作为普通收入业态。'}>
         <FieldGrid locked={locked} fields={[
@@ -411,11 +621,29 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
   if (!result.body.success) return <StatusNotice title="读取失败" tone="danger">{result.body.error.message}</StatusNotice>;
   const data: any = resultData(result);
   const version = await prisma.projectVersion.findFirst({ where: { id: versionId, projectId }, include: { products: true } });
+  const costLines = await prisma.costLine.findMany({ where: { projectVersionId: versionId }, select: { id: true, taxInclusiveUnitPrice: true, taxInclusiveAmount: true, taxExclusiveAmount: true, taxAmount: true, taxRate: true, unit: true, measureBasis: true, importBatchId: true, remark: true } });
+  const costLineMap = new Map(costLines.map((line) => [line.id, line]));
   const activeProductNames = new Set((version?.products || []).filter((item) => item.isActive).map((item) => item.name));
-  const indicators = (data.indicators || []).filter((item: any) => !item.relatedProductType || activeProductNames.size === 0 || activeProductNames.has(item.relatedProductType) || item.relatedProductType === '全项目');
+  const indicators = (data.indicators || []).filter((item: any) => !item.relatedProductType || activeProductNames.size === 0 || activeProductNames.has(item.relatedProductType) || item.relatedProductType === '全项目').map((item: any) => {
+    const line = costLineMap.get(item.indicatorId);
+    return {
+      ...item,
+      unitPrice: item.unitPrice ?? line?.taxInclusiveUnitPrice,
+      priceUnit: item.priceUnit || (line?.unit ? `元/${line.unit}` : null),
+      priceSource: item.priceSource || (line?.importBatchId ? 'excel_imported' : item.isQuantityOverridden ? 'user_project_manual' : 'system_default'),
+      taxRate: item.taxRate ?? line?.taxRate,
+      finalAmount: item.finalAmount ?? line?.taxInclusiveAmount,
+      taxExcludedAmount: item.taxExcludedAmount ?? line?.taxExclusiveAmount,
+      taxAmount: item.taxAmount ?? line?.taxAmount,
+      amountSource: item.amountSource || 'cost_line_taxInclusiveAmount'
+    };
+  });
+  const baseIndicators = indicators.filter((item: any) => item.baseIndicatorName || item.baseIndicatorValue !== null);
+  const contentRules = indicators.filter((item: any) => item.contentRatio !== null && item.contentRatio !== undefined);
   return <SectionShell>
     {data.warnings?.length ? <StatusNotice title="工程量复核提醒" tone="warning">{data.warnings.join('；')}</StatusNotice> : null}
     {data.helpText ? <StatusNotice title="工程量口径说明" tone="success">{data.helpText}</StatusNotice> : null}
+    {locked ? <StatusNotice title="当前版本已锁定" tone="danger">工程量指标、手算覆盖与恢复系统推算只读，不允许修改。</StatusNotice> : null}
     <div className="summary-strip">
       <Stat label="指标总数" value={data.summary?.totalIndicators || 0} />
       <Stat label="当前展示" value={indicators.length} />
@@ -424,27 +652,55 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
     </div>
     <Card title="工程量指标分组摘要" note="本页读取 profile quantityIndicators 分区；逐行手算继续使用已验证的覆盖与恢复接口。">
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
-        {['场地景观道路围墙', '外立面门窗', '地下室', '户型精装', '专项基础指标'].map((label) => <div key={label} style={{ border: '1px solid #e6eef7', borderRadius: 8, padding: 10, background: '#fbfdff' }}><b>{label}</b><div className="meta">按成本明细取数依据归集展示。</div></div>)}
+        {[
+          ['基础指标 baseIndicator', baseIndicators.length],
+          ['明细科目基础指标绑定 subjectIndicatorBinding', indicators.length],
+          ['含量规则 contentRule', contentRules.length],
+          ['工程量计算 quantityCalculation', indicators.length],
+          ['单价来源 unitPriceSource', indicators.filter((item: any) => item.unitPrice !== null && item.unitPrice !== undefined).length],
+          ['手算覆盖 / 恢复系统推算', indicators.filter((item: any) => item.isQuantityOverridden).length]
+        ].map(([label, count]) => <div key={label} style={{ border: '1px solid #e6eef7', borderRadius: 8, padding: 10, background: '#fbfdff' }}><b>{label}</b><div className="meta">当前 {count} 条。</div></div>)}
       </div>
+    </Card>
+    <Card title="基础指标、绑定与含量规则" note="必须明确：基础指标 x 含量 = calculatedQuantity。工程量单位按后端返回展示。">
+      {indicators.length ? <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1320, fontSize: 12 }}>
+          <thead><tr>{['明细科目基础指标绑定', 'baseIndicator', 'contentRule', '计算式', 'lockMode / overrideReason', '来源'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+          <tbody>{indicators.map((item: any) => <tr key={`binding-${item.indicatorId}`}>
+            <td style={{ ...cell, fontWeight: 800 }}>{item.indicatorName}<div className="meta">{item.detailSubjectName || item.indicatorCode}</div></td>
+            <td style={cell}>{item.baseIndicatorName || item.measureBasis || '未绑定'}<div className="meta">baseIndicatorValue: {display(item.baseIndicatorValue)} {item.baseIndicatorUnit || item.quantityUnit || ''}</div><div className="meta">source: {item.indicatorSource || 'cost_line'} / {item.sourceRemark || item.quantitySourceRemark || '无备注'}</div><div className="meta">indicatorType: {item.indicatorType || 'cost_line_measure_basis'} / isOverridden: {booleanText(item.isQuantityOverridden)}</div></td>
+            <td style={cell}>contentRatio: {display(item.contentRatio ?? 1)}<div className="meta">quantityUnit: {item.quantityUnit || '-'}</div><div className="meta">applicableRegion: {item.applicableRegion || item.relatedProductType || '全项目'}</div><div className="meta">confidenceLevel: {item.confidenceLevel || '按系统规则'}</div></td>
+            <td style={cell}><b>基础指标 x 含量 = calculatedQuantity</b><div className="meta">{fmt(item.baseIndicatorValue)} x {fmt(item.contentRatio || 1)} = {fmt(item.calculatedQuantity)} {item.quantityUnit || ''}</div></td>
+            <td style={cell}>{item.isQuantityLocked ? 'locked_confirmed' : item.isQuantityOverridden ? 'manual_override' : 'auto'}<div className="meta">{item.overrideReason || '无覆盖原因'}</div></td>
+            <td style={cell}>{item.quantitySource || 'auto'}<div className="meta">{item.quantitySourceRemark || '无备注'}</div></td>
+          </tr>)}</tbody>
+        </table>
+      </div> : <EmptyState title="暂无工程量指标数据">请先在项目指标页维护基础指标，或等待后端返回系统默认指标。</EmptyState>}
     </Card>
     <Card title="成本明细工程量手算" note="系统值来自基础指标和含量系数；生效值以 finalQuantity 为准。锁定版本下禁止修改。">
       {locked ? <StatusNotice title="当前版本已锁定" tone="danger">工程量手算覆盖与恢复系统值不可操作。</StatusNotice> : null}
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1360, fontSize: 12 }}>
-          <thead><tr>{['指标', '适用对象', '系统值', '手算值', '生效值', '单位', '来源', '状态', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1760, fontSize: 12 }}>
+          <thead><tr>{['指标', '适用对象', 'calculatedQuantity', 'manual / excel / drawing / locked', 'finalQuantity', 'quantityCalcMode', 'unitPrice / priceSource', 'finalAmount 含税金额', '状态提示', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
           <tbody>{indicators.length ? indicators.map((item: any) => <tr key={item.indicatorId} style={item.isQuantityOverridden ? { background: '#fffaf0' } : undefined}>
             <td style={{ ...cell, fontWeight: 800 }}>{item.indicatorCode} {item.indicatorName}<div className="meta">{item.baseIndicatorName || '未配置取数依据'}</div></td>
             <td style={cell}>{item.relatedProductType || '全项目'}</td>
             <td style={cell}>{fmt(item.calculatedQuantity)} {item.quantityUnit || ''}<div className="meta">取数 {fmt(item.baseIndicatorValue)} × 系数 {fmt(item.contentRatio || 1)}</div></td>
-            <td style={cell}>{item.manualQuantity === null ? <span className="meta">空值，未覆盖</span> : `${fmt(item.manualQuantity)} ${item.quantityUnit || ''}`}</td>
+            <td style={cell}>
+              <div>manualQuantity: {item.manualQuantity === null ? '空值' : `${fmt(item.manualQuantity)} ${item.quantityUnit || ''}`}</div>
+              <div className="meta">excelImportedQuantity: {item.excelImportedQuantity === null ? '空值' : fmt(item.excelImportedQuantity)}</div>
+              <div className="meta">drawingMeasuredQuantity: {item.drawingMeasuredQuantity === null ? '空值' : fmt(item.drawingMeasuredQuantity)}</div>
+              <div className="meta">lockedQuantity: {item.lockedQuantity === null || item.lockedQuantity === undefined ? '空值' : fmt(item.lockedQuantity)}</div>
+            </td>
             <td style={{ ...cell, fontWeight: 900 }}>{fmt(item.finalQuantity)} {item.quantityUnit || ''}</td>
-            <td style={cell}><b>{item.quantityUnit || '-'}</b><div className="meta">{item.pricingUnit || '计价单位随成本明细单价口径'}</div></td>
-            <td style={cell}>{item.quantitySource || item.indicatorSource}</td>
-            <td style={cell}>{item.isQuantityOverridden ? <Badge tone="orange">已手算覆盖</Badge> : <Badge tone="green">使用系统值</Badge>}</td>
+            <td style={cell}><Badge tone={item.isQuantityOverridden ? 'orange' : 'green'}>{modeText(item.quantityCalcMode)}</Badge><div className="meta">{item.quantityCalcMode || '未返回'}</div><div className="meta">quantitySource: {item.quantitySource || item.indicatorSource}</div></td>
+            <td style={cell}>{fmt(item.unitPrice)}<div className="meta">{item.priceUnit || item.quantityUnit || '按后端返回'}</div><div className="meta">priceSource: {priceSourceText(item.priceSource)}</div><div className="meta">taxRate: {fmt(n(item.taxRate) * 100)}%</div></td>
+            <td style={{ ...cell, fontWeight: 900 }}>{fmt(item.finalAmount)} 万元<div className="meta">finalAmount = 含税金额；不含税 {fmt(item.taxExcludedAmount)} / 税额 {fmt(item.taxAmount)}</div><div className="meta">amountSource: {item.amountSource}</div></td>
+            <td style={cell}>{item.isQuantityOverridden ? <Badge tone="orange">已手算覆盖</Badge> : <Badge tone="green">使用系统值</Badge>}<div className="meta" style={{ maxWidth: 260, whiteSpace: 'normal' }}>{overrideNotice(item)}</div></td>
             <td style={{ ...cell, minWidth: 280 }}>
               <QuantityOverrideActions projectId={projectId} versionId={versionId} costLineId={item.indicatorId} currentQuantity={valueText(item.finalQuantity)} hasOverride={item.isQuantityOverridden} locked={locked} />
             </td>
-          </tr>) : <tr><td colSpan={9} style={{ padding: 14, color: '#667085' }}>暂无工程量指标。请先生成或录入目标成本明细。</td></tr>}</tbody>
+          </tr>) : <tr><td colSpan={10} style={{ padding: 14, color: '#667085' }}>暂无工程量指标数据。请先在项目指标页维护基础指标，或等待后端返回系统默认指标。</td></tr>}</tbody>
         </table>
       </div>
     </Card>
