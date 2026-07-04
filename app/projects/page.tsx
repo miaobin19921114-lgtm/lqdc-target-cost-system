@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { listProjects } from '@/lib/project-service';
 import { NON_V1_SCOPE_MESSAGE } from '@/lib/v1-maintenance-copy';
+import { MoveProjectToTrashButton, ProjectTrashPanel } from '@/components/project-recycle-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +42,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
             <p className="subtitle">V1.0.0 聚焦项目管理与项目测算中心，先完成项目概况、收入、成本、税费、Excel 和自检主流程。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
+            <ProjectTrashPanel />
             <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
           </div>
         </div>
@@ -81,7 +83,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
                   <div className="actions">
                     <Link href={`/projects/${project.id}`} className="btn btn-primary">进入项目测算中心</Link>
                     <Link href={`/projects/${project.id}/versions`} className="btn">版本管理</Link>
-                    <form action={`/api/projects/${project.id}/delete`} method="post"><button className="btn" style={{ color: '#c92a2a' }}>删除项目</button></form>
+                    <MoveProjectToTrashButton projectId={project.id} projectName={project.name} />
                   </div>
                 </article>;
               })}
