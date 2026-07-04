@@ -52,23 +52,30 @@ export async function GET(_request: Request, { params }: { params: { versionId: 
           taxInclusiveRevenue: 0,
           taxExclusiveRevenue: 0,
           taxAmount: 0,
+          finalQuantity: null,
+          finalAmount: 0,
+          amountSource: 'system_default',
           remark: null
         };
       }
       const parking = isParkingProduct(row.productType?.name);
+      const finalQuantity = parking ? Number(row.saleableArea || 0) : Number(row.saleableArea || 0);
       return {
         id: row.id,
         productTypeId: row.productTypeId,
         productTypeName: row.productType?.name || '',
         incomeType: parking ? 'parking' : 'saleable_property',
-        saleableArea: parking ? 0 : Number(row.saleableArea || 0),
+        saleableArea: parking ? 0 : finalQuantity,
         unitPrice: parking ? 0 : Number(row.salePrice || 0),
-        parkingCount: parking ? Number(row.saleableArea || 0) : Number(row.productType?.parkingCount || 0),
+        parkingCount: parking ? finalQuantity : Number(row.productType?.parkingCount || 0),
         parkingUnitPrice: parking ? Number(row.salePrice || 0) : 0,
         taxRate: Number(row.taxRate || 0),
         taxInclusiveRevenue: Number(row.taxInclusiveRevenue || 0),
         taxExclusiveRevenue: Number(row.taxExclusiveRevenue || 0),
         taxAmount: Number(row.taxAmount || 0),
+        finalQuantity,
+        finalAmount: Number(row.taxInclusiveRevenue || 0),
+        amountSource: Number(row.saleableArea || 0) > 0 && Number(row.salePrice || 0) > 0 ? 'calculated_by_quantity' : 'manual_entered',
         remark: row.remark
       };
     })
