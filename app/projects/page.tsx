@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { prisma } from '@/lib/prisma';
+import { listProjects } from '@/lib/project-service';
 import { NON_V1_SCOPE_MESSAGE } from '@/lib/v1-maintenance-copy';
 
 export const dynamic = 'force-dynamic';
@@ -29,7 +29,7 @@ const laterVersionCards = [
 ] as const;
 
 export default async function ProjectsPage({ searchParams }: { searchParams?: { deleted?: string } }) {
-  const projects = await prisma.project.findMany({ orderBy: { updatedAt: 'desc' }, include: { versions: { orderBy: { createdAt: 'asc' } } } });
+  const { projects } = await listProjects();
 
   return (
     <main className="page">
@@ -45,7 +45,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
           </div>
         </div>
 
-        {searchParams?.deleted === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>项目已删除。</div> : null}
+        {searchParams?.deleted === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb' }}>项目已移入回收站。</div> : null}
 
         <section className="card" style={{ marginBottom: 18, borderColor: '#c5eef3' }}>
           <div className="page-header" style={{ marginBottom: 12 }}>
@@ -68,7 +68,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
           ) : (
             <div className="card-grid">
               {projects.map((project) => {
-                const activeVersion = project.versions.find((item) => item.id === project.activeVersionId) || project.versions[0];
+                const activeVersion = project.versions.find((item: { id: string }) => item.id === project.activeVersionId) || project.versions[0];
                 return <article key={project.id} className="card" style={{ background: '#fff' }}>
                   <span className="badge">{activeVersion?.stage || '投拓阶段'}</span>
                   <h2 style={{ marginTop: 12 }}>{project.name}</h2>

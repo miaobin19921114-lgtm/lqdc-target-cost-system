@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { defaultVersionStage, normalizeVersionStage } from '@/lib/version-stage';
 import { findProductTypePresetKey } from '@/data/product-type-presets';
 import { parseTemplateAllocationRules, writeTemplateAllocationRemark } from '@/lib/template-allocation-rules';
+import { listProjects } from '@/lib/project-service';
 
 const toNumber = (value: FormDataEntryValue | null) => Number(value || 0);
 
@@ -26,6 +27,16 @@ function cookieValue(request: Request, name: string) {
   const cookie = request.headers.get('cookie') || '';
   const found = cookie.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`));
   return found ? decodeURIComponent(found.slice(name.length + 1)) : '';
+}
+
+export async function GET(request: Request) {
+  const searchParams = new URL(request.url).searchParams;
+  const result = await listProjects({
+    search: searchParams.get('search') || searchParams.get('q'),
+    page: searchParams.get('page'),
+    pageSize: searchParams.get('pageSize') || searchParams.get('limit')
+  });
+  return NextResponse.json({ success: true, ...result });
 }
 
 async function copyTemplateToUser(templateId: string, userId: string) {

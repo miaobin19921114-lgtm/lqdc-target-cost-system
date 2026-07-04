@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { trashProject } from '@/lib/project-service';
 
 function getBaseUrl(request: Request) {
   const proto = request.headers.get('x-forwarded-proto') || 'https';
@@ -8,7 +8,7 @@ function getBaseUrl(request: Request) {
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
-  const project = await prisma.project.findUnique({ where: { id: params.id }, select: { id: true } });
-  if (project) await prisma.project.delete({ where: { id: params.id } });
+  const form = await request.formData().catch(() => null);
+  await trashProject(params.id, { deletedBy: null, deleteReason: form ? String(form.get('deleteReason') || '').trim() : null });
   return NextResponse.redirect(`${getBaseUrl(request)}/projects?deleted=1`, 303);
 }

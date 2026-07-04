@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
+import { getProject, jsonError, trashProject } from '@/lib/project-service';
 
 const toNumber = (value: FormDataEntryValue | null) => Number(value || 0);
 const toInt = (value: FormDataEntryValue | null) => Math.round(toNumber(value));
@@ -12,8 +13,35 @@ function getBaseUrl(request: Request) {
   return new URL(request.url).origin;
 }
 
+async function readDeleteReason(request: Request) {
+  const contentType = request.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    const body = await request.json().catch(() => ({}));
+    return typeof body?.deleteReason === 'string' ? body.deleteReason : null;
+  }
+  if (contentType.includes('form')) {
+    const form = await request.formData().catch(() => null);
+    return form ? String(form.get('deleteReason') || '').trim() : null;
+  }
+  return null;
+}
+
+export async function GET(_request: Request, { params }: { params: { id: string } }) {
+  const result = await getProject(params.id);
+  if (!result.ok) return jsonError(result.code, result.message, result.status);
+  return NextResponse.json({ success: true, project: result.project });
+}
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const result = await trashProject(params.id, { deletedBy: null, deleteReason: await readDeleteReason(request) });
+  if (!result.ok) return jsonError(result.code, result.message, result.status);
+  return NextResponse.json({ success: true, ...result.result, alreadyDeleted: result.alreadyDeleted || false });
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const form = await request.formData();
+  const projectResult = await getProject(params.id);
+  if (!projectResult.ok) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/overview?deleted=1`, 303);
   const { version, locked } = await getEditableActiveVersion(params.id);
   const baseUrl = getBaseUrl(request);
   if (!version) return NextResponse.redirect(`${baseUrl}/projects/${params.id}/overview?saved=0`, 303);
