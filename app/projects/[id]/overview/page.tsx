@@ -344,7 +344,7 @@ function MetricInputCell({ name, value, type, locked }: { name: string; value: u
   return <input name={name} type={type} step={type === 'number' ? '0.01' : undefined} defaultValue={valueText(value)} disabled={locked} style={{ ...(locked ? readonlyStyle : inputStyle), width: type === 'number' ? 110 : 150 }} />;
 }
 
-function MetricTable({ section, rows, fields, locked, emptyTitle, emptyChildren, blankRows = 0, leading }: { section: string; rows: any[]; fields: Array<readonly [string, string, 'text' | 'number' | 'checkbox']>; locked: boolean; emptyTitle: string; emptyChildren: ReactNode; blankRows?: number; leading?: (row: any) => ReactNode }) {
+function MetricTable({ section, rows, fields, locked, emptyTitle, emptyChildren, blankRows = 0, rowOffset = 0, leading }: { section: string; rows: any[]; fields: Array<readonly [string, string, 'text' | 'number' | 'checkbox']>; locked: boolean; emptyTitle: string; emptyChildren: ReactNode; blankRows?: number; rowOffset?: number; leading?: (row: any) => ReactNode }) {
   const displayRows = rows.length ? rows : Array.from({ length: blankRows }, () => ({}));
   if (!displayRows.length) return <EmptyState title={emptyTitle}>{emptyChildren}</EmptyState>;
   return <div style={{ overflowX: 'auto' }}>
@@ -353,7 +353,7 @@ function MetricTable({ section, rows, fields, locked, emptyTitle, emptyChildren,
       <tbody>{displayRows.map((row, rowIndex) => <tr key={`${section}-${rowIndex}`}>
         {fields.map(([name, label, type], fieldIndex) => <td key={name} style={{ ...cell, verticalAlign: 'top' }}>
           {fieldIndex === 0 && leading ? leading(row) : null}
-          <MetricInputCell name={`${section}.${rowIndex}.${name}`} value={row?.[name]} type={type} locked={locked} />
+          <MetricInputCell name={`${section}.${rowOffset + rowIndex}.${name}`} value={row?.[name]} type={type} locked={locked} />
           <div className="meta">{row?.[name] === null || row?.[name] === undefined || row?.[name] === '' ? '未维护' : metricCellValue(row?.[name], name)}</div>
           {name === 'saleableArea' && (row?.[name] === null || row?.[name] === undefined || row?.[name] === '') ? <div className="meta" style={{ color: '#d9480f', whiteSpace: 'normal' }}>会影响收入测算和可售单方成本。</div> : null}
           {fieldIndex === 0 && label.includes('object') ? <div className="meta" style={{ whiteSpace: 'normal' }}>停用对象默认不参与汇总。</div> : null}
@@ -655,7 +655,7 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
   const disabledProducts = products.filter((item) => item.isEnabled === false || item.objectStatus === 'disabled');
   const mappings: any[] = Array.isArray(center.baseIndicatorMappings) ? center.baseIndicatorMappings : [];
   const metricCenterEndpoint = `/api/projects/${projectId}/versions/${versionId}/metric-center`;
-  return <ProfileSectionForm formId="profile-project-metrics-form" endpoint={metricCenterEndpoint} locked={locked} successMessage="项目指标中心已保存。">
+  return <ProfileSectionForm formId="profile-project-metrics-form" endpoint={metricCenterEndpoint} locked={locked} successMessage="项目指标中心已保存。" statusPlacement="top">
     <SectionShell>
       <StatusNotice title="项目指标中心口径">项目指标页负责维护项目级、业态级、楼栋级、地下室、车位、景观道路、配套及专项对象等基础指标。工程量指标页会读取这些指标作为 baseIndicator，并通过 baseIndicator x contentRule = calculatedQuantity；目标成本表最终读取 finalQuantity x unitPrice = finalAmount。finalAmount 仍为含税金额口径。</StatusNotice>
       {locked ? <StatusNotice title="当前版本已锁定" tone="danger">项目指标中心只读，不允许修改或同步基础指标。</StatusNotice> : null}
@@ -671,7 +671,7 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
       </Card>
       <Card title="2. 分业态 / 分产品对象指标" note="每行代表一个产品对象或业态，不把产品对象全部统称为业态。停用对象默认不参与汇总。">
         <MetricTable section="productObjectMetrics" rows={enabledProducts} fields={productMetricFields} locked={locked} emptyTitle="暂无分业态 / 分产品对象指标" emptyChildren="请先在业态产品与对象页启用对象，或维护产品对象面积指标。" leading={(row) => <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 5 }}><Badge tone={row?.displayKind === '独立商业对象' ? 'orange' : row?.displayKind === '楼层商业对象' ? 'blue' : 'neutral'}>{row?.displayKind || '产品对象'}</Badge><Badge tone={row?.isSaleableObject ? 'green' : 'neutral'}>可售对象</Badge><Badge tone={row?.isCostObject ? 'green' : 'neutral'}>成本对象</Badge><Badge tone={row?.isIncomeObject ? 'green' : 'neutral'}>收入对象</Badge><Badge tone={row?.isProfitObject ? 'green' : 'neutral'}>利润对象</Badge></div>} />
-        {disabledProducts.length ? <details style={{ marginTop: 12, border: '1px solid #e6eef7', borderRadius: 8 }}><summary style={{ padding: 10, cursor: 'pointer', fontWeight: 900 }}>已停用对象（{disabledProducts.length}，默认不参与汇总）</summary><div style={{ padding: 10 }}><MetricTable section="productObjectMetrics" rows={disabledProducts} fields={productMetricFields} locked={locked} emptyTitle="暂无停用对象" emptyChildren="当前没有停用对象。" /></div></details> : null}
+        {disabledProducts.length ? <details style={{ marginTop: 12, border: '1px solid #e6eef7', borderRadius: 8 }}><summary style={{ padding: 10, cursor: 'pointer', fontWeight: 900 }}>已停用对象（{disabledProducts.length}，默认不参与汇总）</summary><div style={{ padding: 10 }}><MetricTable section="productObjectMetrics" rows={disabledProducts} fields={productMetricFields} locked={locked} rowOffset={enabledProducts.length} emptyTitle="暂无停用对象" emptyChildren="当前没有停用对象。" /></div></details> : null}
       </Card>
       <Card title="3. 楼栋维度指标" note="后续影响电梯、外立面、门窗、入户门、公区精装、消防、电气、楼栋单方成本等工程量推算；V1 不做楼栋级成本分析。">
         <MetricTable section="buildingMetrics" rows={center.buildingMetrics || []} fields={buildingMetricFields} locked={locked} blankRows={1} emptyTitle="暂无楼栋指标" emptyChildren="V1 可先按业态测算，后续可补充楼栋编号、层数、单元数、户数和标准层面积。" />

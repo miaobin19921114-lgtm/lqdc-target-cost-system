@@ -8,6 +8,7 @@ type Props = {
   endpoint: string;
   locked?: boolean;
   successMessage?: string;
+  statusPlacement?: 'top' | 'bottom';
   children?: React.ReactNode;
 };
 
@@ -43,7 +44,7 @@ function inputValue(input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectEl
   return input.value;
 }
 
-export function ProfileSectionForm({ formId, endpoint, locked = false, successMessage = '已保存。', children }: Props) {
+export function ProfileSectionForm({ formId, endpoint, locked = false, successMessage = '已保存。', statusPlacement = 'bottom', children }: Props) {
   const router = useRouter();
   const [message, setMessage] = useState('');
   const [tone, setTone] = useState<'success' | 'danger' | 'info'>('info');
@@ -80,7 +81,7 @@ export function ProfileSectionForm({ formId, endpoint, locked = false, successMe
         return;
       }
       setTone('success');
-      setMessage(successMessage);
+      setMessage(`${successMessage} 正在刷新当前数据...`);
       startTransition(() => router.refresh());
     } catch {
       setTone('danger');
@@ -91,9 +92,11 @@ export function ProfileSectionForm({ formId, endpoint, locked = false, successMe
   }
 
   const color = tone === 'danger' ? '#c92a2a' : tone === 'success' ? '#2b8a3e' : '#0b7285';
+  const status = message ? <div role="status" aria-live="polite" className="meta" style={{ marginTop: statusPlacement === 'top' ? 0 : 10, marginBottom: statusPlacement === 'top' ? 10 : 0, color }}>{message}</div> : null;
   return <form id={formId} onSubmit={submit}>
+    {statusPlacement === 'top' ? status : null}
     {children}
-    {message ? <div role="status" className="meta" style={{ marginTop: 10, color }}>{message}</div> : null}
+    {statusPlacement === 'bottom' ? status : null}
   </form>;
 }
 
