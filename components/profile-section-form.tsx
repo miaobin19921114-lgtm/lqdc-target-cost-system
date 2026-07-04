@@ -11,14 +11,30 @@ type Props = {
   children?: React.ReactNode;
 };
 
+const metricCenterListSections = new Set(['productObjectMetrics', 'buildingMetrics', 'unitPlanMetrics']);
+
 function setPath(target: Record<string, any>, path: string, value: unknown) {
   const parts = path.split('.');
-  let cursor = target;
-  for (const part of parts.slice(0, -1)) {
-    cursor[part] = cursor[part] || {};
+  let cursor: any = target;
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    const part = parts[index];
+    const next = parts[index + 1];
+    if (/^\d+$/.test(next)) cursor[part] = cursor[part] || [];
+    else cursor[part] = cursor[part] || {};
     cursor = cursor[part];
   }
   cursor[parts[parts.length - 1]] = value;
+}
+
+function hasFilledValue(row: Record<string, unknown>) {
+  return Object.values(row || {}).some((value) => value !== null && value !== undefined && value !== '' && value !== false);
+}
+
+function compactMetricCenterPayload(payload: Record<string, any>) {
+  for (const section of metricCenterListSections) {
+    if (Array.isArray(payload[section])) payload[section] = payload[section].filter(hasFilledValue);
+  }
+  return payload;
 }
 
 function inputValue(input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement) {
@@ -44,7 +60,7 @@ export function ProfileSectionForm({ formId, endpoint, locked = false, successMe
     const response = await fetch(endpoint, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(compactMetricCenterPayload(payload))
     });
     const result = await response.json().catch(() => null);
     if (!response.ok || result?.success === false) {
@@ -59,6 +75,30 @@ export function ProfileSectionForm({ formId, endpoint, locked = false, successMe
     {children}
     {message ? <div className="meta" style={{ marginTop: 10, color: message.includes('失败') ? '#c92a2a' : '#2b8a3e' }}>{message}</div> : null}
   </form>;
+}
+
+export function MetricCenterSyncAction({ endpoint, locked }: { endpoint: string; locked?: boolean }) {
+  const router = useRouter();
+  const [message, setMessage] = useState('');
+  const [isPending, startTransition] = useTransition();
+
+  async function run() {
+    if (locked || isPending) return;
+    const response = await fetch(endpoint, { method: 'POST' });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.success === false) {
+      setMessage(result?.error?.message || '基础指标映射刷新失败。');
+      return;
+    }
+    const count = result?.data?.syncedCount;
+    setMessage(typeof count === 'number' ? `已同步 ${count} 条基础指标映射。` : '已刷新基础指标映射。');
+    startTransition(() => router.refresh());
+  }
+
+  return <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>
+    <button type="button" className="btn btn-primary" disabled={locked || isPending} onClick={run}>同步到工程量基础指标</button>
+    {message ? <span className="meta" style={{ color: message.includes('失败') ? '#c92a2a' : '#2b8a3e' }}>{message}</span> : null}
+  </span>;
 }
 
 export function ProfileObjectAction({
