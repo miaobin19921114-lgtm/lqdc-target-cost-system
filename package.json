@@ -43,7 +43,7 @@
     "db:sync:metric-values": "tsx prisma/sync-project-metric-values.ts",
     "db:sync:v60-land": "tsx prisma/sync-v60-land-subjects.ts",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "docker:start": "sh scripts/docker-start.sh"
+    "docker:start": "sh scripts/docker-entrypoint.sh"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
