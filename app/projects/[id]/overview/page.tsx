@@ -28,6 +28,12 @@ const sections: Array<{ key: SectionKey; label: string; title: string; note: str
   { key: 'quantity-indicators', label: '工程量指标', title: '工程量指标', note: '查看系统值、手算值、生效值，并保留逐行手算覆盖能力。' }
 ];
 
+const sectionFormIds: Partial<Record<SectionKey, string>> = {
+  overview: 'profile-overview-form',
+  'construction-standards': 'profile-construction-standards-form',
+  'project-metrics': 'profile-project-metrics-form'
+};
+
 const presetObjects = [
   { category: '住宅类', names: ['高层住宅', '小高层住宅', '洋房', '叠拼', '合院', '别墅'] },
   { category: '商业及经营类', names: ['底商', '集中商业', '商业街', '公寓', '办公', '酒店'] },
@@ -199,9 +205,10 @@ function TabNav({ projectId, current }: { projectId: string; current: SectionKey
 }
 
 function HeaderActions({ projectId, versionId, current, locked }: { projectId: string; versionId?: string; current: SectionKey; locked: boolean }) {
-  const saveable = current !== 'quantity-indicators' && versionId;
+  const formId = versionId ? sectionFormIds[current] : undefined;
   return <div className="actions" style={{ marginTop: 0 }}>
-    {saveable ? <button form={`profile-${current}-form`} className="btn btn-primary" disabled={locked}>保存本分区</button> : null}
+    {formId ? <button type="submit" form={formId} className="btn btn-primary" disabled={locked} title={locked ? '当前版本已锁定，本分区不可保存。' : undefined}>保存本分区</button> : null}
+    {current === 'product-objects' ? <button type="button" className="btn" disabled title="本分区暂不支持整区保存，请使用每行的新增、停用或恢复按钮。">按单项保存</button> : null}
     {current === 'quantity-indicators' ? <Link href={`/projects/${projectId}/quantity-indicators`} className="btn">完整工程量页</Link> : null}
     {current === 'product-objects' ? locked ? <button className="btn" disabled>完整维护页</button> : <Link href={`/projects/${projectId}/product-maintenance`} className="btn">完整维护页</Link> : null}
     <Link href={`/projects/${projectId}`} className="btn">返回项目测算中心</Link>
@@ -291,6 +298,45 @@ function metricCellValue(value: unknown, field: string) {
   if (typeof value === 'boolean') return value ? '是' : '否';
   const unit = metricUnit(field);
   return display(value, unit === '按接口' || unit === '%' ? '' : unit);
+}
+
+function productObjectDisplayKind(row: any) {
+  const name = String(row?.objectName || '');
+  const type = String(row?.objectType || '');
+  const remark = String(row?.remark || '');
+  const text = `${name} ${type} ${remark}`;
+  if (/一层|二层|首层|底商|裙楼|沿街/.test(text)) return '楼层商业对象';
+  if (/独立商业|集中商业|商业街|盒子商业/.test(text)) return '独立商业对象';
+  if (/车位|parking/.test(text)) return '车位对象';
+  if (/地下|地库|basement/.test(text)) return '地下室对象';
+  if (/配套|物业|社区|幼儿园|会所/.test(text)) return '配套对象';
+  return '产品对象';
+}
+
+function productObjectDedupeKey(row: any) {
+  const id = String(row?.objectId || '').trim();
+  if (id) return `id:${id}`;
+  return `name:${String(row?.objectName || '').trim()}|type:${String(row?.objectType || '').trim()}`;
+}
+
+function hasMetricValue(value: unknown) {
+  return value !== null && value !== undefined && value !== '' && value !== false;
+}
+
+function mergeProductMetricRows(rows: any[]) {
+  const merged = new Map<string, any>();
+  for (const row of rows) {
+    const key = productObjectDedupeKey(row);
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, { ...row, displayKind: productObjectDisplayKind(row) });
+      continue;
+    }
+    for (const [field, value] of Object.entries(row || {})) {
+      if (!hasMetricValue(existing[field]) && hasMetricValue(value)) existing[field] = value;
+    }
+  }
+  return [...merged.values()];
 }
 
 function MetricInputCell({ name, value, type, locked }: { name: string; value: unknown; type: 'text' | 'number' | 'checkbox'; locked: boolean }) {
@@ -467,6 +513,7 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
 
   return <SectionShell>
     {locked ? <StatusNotice title="当前版本已锁定" tone="danger">业态新增、停用、恢复均不可操作。</StatusNotice> : null}
+    <StatusNotice title="本分区保存方式">业态产品与对象当前按单项操作保存；请使用每行或预设业态按钮新增、停用、恢复。顶部“按单项保存”为只读提示，不会表现为无反馈的整区保存。</StatusNotice>
     <div className="summary-strip">
       <Stat label="启用对象" value={enabled.length} />
       <Stat label="已停用对象" value={disabled.length} />
@@ -603,7 +650,7 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
   const center: any = resultData(result).projectMetricCenter || {};
   const summary: any = center.metricValidationSummary || { warnings: [] };
   const warnings: any[] = Array.isArray(summary.warnings) ? summary.warnings : [];
-  const products: any[] = Array.isArray(center.productObjectMetrics) ? center.productObjectMetrics : [];
+  const products: any[] = mergeProductMetricRows(Array.isArray(center.productObjectMetrics) ? center.productObjectMetrics : []);
   const enabledProducts = products.filter((item) => item.isEnabled !== false && item.objectStatus !== 'disabled');
   const disabledProducts = products.filter((item) => item.isEnabled === false || item.objectStatus === 'disabled');
   const mappings: any[] = Array.isArray(center.baseIndicatorMappings) ? center.baseIndicatorMappings : [];
@@ -623,7 +670,7 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
         {!Object.values(center.projectTotalMetrics || {}).some((value) => value !== null && value !== '') ? <EmptyState title="暂无项目总指标">请先维护用地面积、建筑面积、地下室、景观道路和车位等基础数据。</EmptyState> : null}
       </Card>
       <Card title="2. 分业态 / 分产品对象指标" note="每行代表一个产品对象或业态，不把产品对象全部统称为业态。停用对象默认不参与汇总。">
-        <MetricTable section="productObjectMetrics" rows={enabledProducts} fields={productMetricFields} locked={locked} emptyTitle="暂无分业态 / 分产品对象指标" emptyChildren="请先在业态产品与对象页启用对象，或维护产品对象面积指标。" leading={(row) => <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 5 }}><Badge tone="blue">对象</Badge><Badge tone={row?.isSaleableObject ? 'green' : 'neutral'}>可售对象</Badge><Badge tone={row?.isCostObject ? 'green' : 'neutral'}>成本对象</Badge><Badge tone={row?.isIncomeObject ? 'green' : 'neutral'}>收入对象</Badge><Badge tone={row?.isProfitObject ? 'green' : 'neutral'}>利润对象</Badge></div>} />
+        <MetricTable section="productObjectMetrics" rows={enabledProducts} fields={productMetricFields} locked={locked} emptyTitle="暂无分业态 / 分产品对象指标" emptyChildren="请先在业态产品与对象页启用对象，或维护产品对象面积指标。" leading={(row) => <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 5 }}><Badge tone={row?.displayKind === '独立商业对象' ? 'orange' : row?.displayKind === '楼层商业对象' ? 'blue' : 'neutral'}>{row?.displayKind || '产品对象'}</Badge><Badge tone={row?.isSaleableObject ? 'green' : 'neutral'}>可售对象</Badge><Badge tone={row?.isCostObject ? 'green' : 'neutral'}>成本对象</Badge><Badge tone={row?.isIncomeObject ? 'green' : 'neutral'}>收入对象</Badge><Badge tone={row?.isProfitObject ? 'green' : 'neutral'}>利润对象</Badge></div>} />
         {disabledProducts.length ? <details style={{ marginTop: 12, border: '1px solid #e6eef7', borderRadius: 8 }}><summary style={{ padding: 10, cursor: 'pointer', fontWeight: 900 }}>已停用对象（{disabledProducts.length}，默认不参与汇总）</summary><div style={{ padding: 10 }}><MetricTable section="productObjectMetrics" rows={disabledProducts} fields={productMetricFields} locked={locked} emptyTitle="暂无停用对象" emptyChildren="当前没有停用对象。" /></div></details> : null}
       </Card>
       <Card title="3. 楼栋维度指标" note="后续影响电梯、外立面、门窗、入户门、公区精装、消防、电气、楼栋单方成本等工程量推算；V1 不做楼栋级成本分析。">

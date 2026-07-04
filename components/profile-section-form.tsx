@@ -46,34 +46,54 @@ function inputValue(input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectEl
 export function ProfileSectionForm({ formId, endpoint, locked = false, successMessage = '已保存。', children }: Props) {
   const router = useRouter();
   const [message, setMessage] = useState('');
+  const [tone, setTone] = useState<'success' | 'danger' | 'info'>('info');
+  const [isSaving, setIsSaving] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (locked || isPending) return;
+    if (locked) {
+      setTone('danger');
+      setMessage('当前版本已锁定，本分区不可保存。');
+      return;
+    }
+    if (isPending || isSaving) return;
     const form = event.currentTarget;
     const payload: Record<string, any> = {};
     form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input[name], textarea[name], select[name]').forEach((input) => {
       if (input.disabled) return;
       setPath(payload, input.name, inputValue(input));
     });
-    const response = await fetch(endpoint, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(compactMetricCenterPayload(payload))
-    });
-    const result = await response.json().catch(() => null);
-    if (!response.ok || result?.success === false) {
-      setMessage(result?.error?.message || '保存失败。');
-      return;
+    setIsSaving(true);
+    setTone('info');
+    setMessage('保存中...');
+    try {
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(compactMetricCenterPayload(payload))
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || result?.success === false) {
+        setTone('danger');
+        setMessage(result?.error?.message || '保存失败。');
+        return;
+      }
+      setTone('success');
+      setMessage(successMessage);
+      startTransition(() => router.refresh());
+    } catch {
+      setTone('danger');
+      setMessage('保存失败，请检查网络或稍后重试。');
+    } finally {
+      setIsSaving(false);
     }
-    setMessage(successMessage);
-    startTransition(() => router.refresh());
   }
 
+  const color = tone === 'danger' ? '#c92a2a' : tone === 'success' ? '#2b8a3e' : '#0b7285';
   return <form id={formId} onSubmit={submit}>
     {children}
-    {message ? <div className="meta" style={{ marginTop: 10, color: message.includes('失败') ? '#c92a2a' : '#2b8a3e' }}>{message}</div> : null}
+    {message ? <div role="status" className="meta" style={{ marginTop: 10, color }}>{message}</div> : null}
   </form>;
 }
 
