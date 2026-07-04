@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionEditable } from '@/lib/project-version';
 import { disableVersionProductType, restoreVersionProductType } from '@/lib/product-type-service';
 
 function getBaseUrl(request: Request) {
@@ -22,7 +22,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const product = await prisma.productType.findUnique({ where: { id: productId }, include: { projectVersion: true } });
   if (!product || product.projectVersion.projectId !== params.id) return redirectTo(request, params.id, 'missing');
-  if (isVersionLocked(product.projectVersion)) return redirectTo(request, params.id, 'locked');
+  if (!isVersionEditable(product.projectVersion)) return redirectTo(request, params.id, 'locked');
 
   if (action === 'disable') {
     const result = await disableVersionProductType(product.projectVersionId, productId, String(form.get('operationReason') || '') || null);

@@ -3,7 +3,7 @@ import { assertEditable, jsonError, loadVersion, recalculateCostLines } from '@/
 
 export async function POST(_request: Request, { params }: { params: { id: string; versionId: string } }) {
   const version = await loadVersion(params.id, params.versionId);
-  const locked = assertEditable(version, '当前测算版本已锁定，禁止重新计算测算事项。');
+  const locked = assertEditable(version);
   if (locked) return locked;
   try {
     const recalculatedCount = await recalculateCostLines(params.id, version!);

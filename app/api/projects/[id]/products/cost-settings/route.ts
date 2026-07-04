@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { writeCostSettingsRemark } from '@/lib/cost-product-settings';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionEditable } from '@/lib/project-version';
 
 function getBaseUrl(request: Request) {
   const proto = request.headers.get('x-forwarded-proto') || 'https';
@@ -21,7 +21,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!product || product.projectVersion.projectId !== params.id) {
     return NextResponse.redirect(`${baseUrl}/projects/${params.id}/product-maintenance?missing=1`, 303);
   }
-  if (isVersionLocked(product.projectVersion)) {
+  if (!isVersionEditable(product.projectVersion)) {
     return NextResponse.redirect(`${baseUrl}/projects/${params.id}/product-maintenance?locked=1`, 303);
   }
 

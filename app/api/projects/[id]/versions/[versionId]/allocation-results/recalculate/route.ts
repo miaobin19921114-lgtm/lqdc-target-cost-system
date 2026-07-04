@@ -5,7 +5,7 @@ import { writeOperationLog } from '@/lib/operation-log';
 
 export async function POST(request: Request, { params }: { params: { id: string; versionId: string } }) {
   const version = await loadVersion(params.id, params.versionId);
-  const locked = assertEditable(version, '当前测算版本已锁定，禁止重新计算分摊结果。');
+  const locked = assertEditable(version);
   if (locked) return locked;
   const body = await request.json().catch(() => ({}));
   const purpose = String(body.allocationPurpose || 'operation_profit');

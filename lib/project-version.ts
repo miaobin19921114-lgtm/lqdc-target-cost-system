@@ -87,5 +87,5 @@ export async function getOrCreateActiveVersion(projectId: string) {
 export async function getEditableActiveVersion(projectId: string) {
   const version = await getOrCreateActiveVersion(projectId);
   if (!version) return { version: null, locked: false };
-  return { version, locked: isVersionLocked(version) };
+  return { version, locked: !isVersionEditable(version) };
 }

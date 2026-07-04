@@ -9,7 +9,7 @@ export async function GET(_request: Request, { params }: { params: { id: string;
 
 export async function PUT(request: Request, { params }: { params: { id: string; versionId: string } }) {
   const version = await loadSemanticVersion(params.id, params.versionId);
-  const locked = assertSemanticEditable(version, '当前测算版本已锁定，禁止修改明细科目基础指标绑定。');
+  const locked = assertSemanticEditable(version);
   if (locked) return locked;
   const body = await request.json().catch(() => ({}));
   const rows = Array.isArray(body.rows) ? body.rows : Array.isArray(body.subjectIndicatorBindings) ? body.subjectIndicatorBindings : [];

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { calculateCostLine, round2 } from '@/lib/calculations';
 import { overrideCostLineQuantity, restoreCostLineAutoQuantity } from '@/lib/cost-line-quantity-service';
 import { writeOperationLog } from '@/lib/operation-log';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 import { v60ProjectMetricDefinitions } from '@/data/project-metric-definitions';
 import { priceIndicatorPresets } from '@/data/price-indicator-presets';
 
@@ -33,9 +33,9 @@ export async function loadSemanticVersion(projectId: string, versionId: string) 
   return prisma.projectVersion.findFirst({ where: { id: versionId, projectId }, include: { project: true } });
 }
 
-export function assertSemanticEditable(version: ProjectVersionWithProject | null, message: string) {
+export function assertSemanticEditable(version: ProjectVersionWithProject | null) {
   if (!version) return semanticJsonError('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version) || version.isLocked) return semanticJsonError('VERSION_LOCKED', message, 423);
+  if (isVersionLocked(version) || version.isLocked) return semanticJsonError('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
   return null;
 }
 

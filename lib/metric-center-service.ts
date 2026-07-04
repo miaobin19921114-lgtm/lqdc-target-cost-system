@@ -1,8 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { writeOperationLog } from '@/lib/operation-log';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 
-const VERSION_LOCKED_MESSAGE = '当前测算版本已锁定，不能修改项目指标中心。';
 const metricCenterSource = 'z4_metric_center';
 const metricBaseIndicatorSource = 'z4_metric_base_indicator';
 

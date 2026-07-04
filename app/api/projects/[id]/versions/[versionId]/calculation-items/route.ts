@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: { params: { id: string;
 
 export async function PUT(request: Request, { params }: { params: { id: string; versionId: string } }) {
   const version = await loadVersion(params.id, params.versionId);
-  const locked = assertEditable(version, '当前测算版本已锁定，禁止修改测算事项。');
+  const locked = assertEditable(version);
   if (locked) return locked;
 
   const body = await request.json().catch(() => ({}));

@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 import { writeOperationLog } from '@/lib/operation-log';
 
 type Tx = Prisma.TransactionClient;
@@ -55,7 +55,7 @@ async function loadCostLine(tx: Tx, projectId: string, versionId: string, costLi
 async function validateLineEditable(tx: Tx, projectId: string, versionId: string, costLineId: string) {
   const line = await loadCostLine(tx, projectId, versionId, costLineId);
   if (!line) return { error: jsonError('COST_LINE_NOT_FOUND', '成本明细不存在。', 404) };
-  if (isVersionLocked(line.projectVersion)) return { error: jsonError('VERSION_LOCKED', '当前测算版本已锁定，不能修改工程量。', 423) };
+  if (isVersionLocked(line.projectVersion) || line.projectVersion.isLocked) return { error: jsonError('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423) };
   if (line.productTypeId && line.productType?.isActive === false) return { error: jsonError('PRODUCT_TYPE_DISABLED', '停用业态不能修改工程量。', 409) };
 
   const inactiveProducts = await tx.productType.findMany({

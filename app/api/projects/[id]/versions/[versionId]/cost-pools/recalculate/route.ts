@@ -5,7 +5,7 @@ import { writeOperationLog } from '@/lib/operation-log';
 
 export async function POST(_request: Request, { params }: { params: { id: string; versionId: string } }) {
   const version = await loadVersion(params.id, params.versionId);
-  const locked = assertEditable(version, '当前测算版本已锁定，禁止重新计算成本池。');
+  const locked = assertEditable(version);
   if (locked) return locked;
   const pools = await getCostPools(params.id, params.versionId);
   if (!pools) return jsonError('VERSION_NOT_FOUND', '测算版本不存在。', 404);

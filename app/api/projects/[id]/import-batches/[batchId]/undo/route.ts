@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionEditable } from '@/lib/project-version';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +23,7 @@ export async function POST(request: Request, { params }: { params: { id: string;
   });
 
   if (!projectVersion) return NextResponse.redirect(`${back}?missing=1`, 303);
-  if (isVersionLocked(projectVersion)) return NextResponse.redirect(`${back}?locked=1`, 303);
+  if (!isVersionEditable(projectVersion)) return NextResponse.redirect(`${back}?locked=1`, 303);
   if (batch.status === 'undone') return NextResponse.redirect(`${back}?undone=1&deleted=0`, 303);
 
   const deleted = await prisma.costLine.deleteMany({ where: { importBatchId: batch.id } });

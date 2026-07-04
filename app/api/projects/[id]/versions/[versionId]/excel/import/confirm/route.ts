@@ -3,7 +3,7 @@ import { calculateCostLine, calculateRevenueLine } from '@/lib/calculations';
 import { getExcelImportPreview } from '@/lib/excel-import-store';
 import { EXCEL_TEMPLATE_VERSION, excelError, parseV60WorkbookImportData, type ParsedTaxField, type ParsedV60ImportData } from '@/lib/excel-v60';
 import { prisma } from '@/lib/prisma';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 import { defaultVersionStage } from '@/lib/version-stage';
 
 type ImportMode = 'overwrite_current' | 'create_version';
@@ -302,7 +302,7 @@ export async function POST(request: Request, { params }: { params: { id: string;
   const currentVersion = project?.versions[0];
   if (!project || !currentVersion) return jsonError('EXCEL_IMPORT_PREVIEW_NOT_FOUND', '项目或版本不存在。', 404);
   if (projectLooksArchived(project)) return jsonError('EXCEL_IMPORT_PROJECT_ARCHIVED', '当前项目已归档，禁止导入。');
-  if (importMode === 'overwrite_current' && isVersionLocked(currentVersion)) return jsonError('VERSION_LOCKED', '当前版本已锁定，禁止覆盖导入。');
+  if (importMode === 'overwrite_current' && (isVersionLocked(currentVersion) || currentVersion.isLocked)) return jsonError('VERSION_LOCKED', VERSION_LOCKED_MESSAGE);
 
   let data: ParsedV60ImportData;
   try {
@@ -334,8 +334,8 @@ export async function POST(request: Request, { params }: { params: { id: string;
       const targetVersion = importMode === 'overwrite_current'
         ? currentVersion
         : await tx.projectVersion.findFirst({ where: { id: targetVersionId, projectId: params.id } });
-      if (!targetVersion || isVersionLocked(targetVersion)) {
-        throw new Error('VERSION_LOCKED: 目标版本已锁定，禁止确认导入。');
+      if (!targetVersion || isVersionLocked(targetVersion) || targetVersion.isLocked) {
+        throw new Error(`VERSION_LOCKED: ${VERSION_LOCKED_MESSAGE}`);
       }
 
       await writeImportData(tx, {

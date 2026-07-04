@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { writeOperationLog } from '@/lib/operation-log';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 import { getProjectMetricCenter } from '@/lib/metric-center-service';
 import {
   addVersionProductType,
@@ -95,8 +95,6 @@ const profileObjectTypes = new Set([
   'marketing_display_object',
   'special_config_object'
 ]);
-
-const VERSION_LOCKED_MESSAGE = '当前测算版本已锁定，不能调整对象。如需修改，请复制新版本后操作。';
 
 function ok(data: unknown, status = 200) {
   return { status, body: { success: true as const, data } };
@@ -253,7 +251,7 @@ export async function getProfileOverview(projectId: string, versionId: string) {
     templateSource: parseMetricValue(metricMap.get('templateSource')) || project.sourceTemplateName || project.sourceTemplateType || null,
     versionName: version.name || null,
     versionStatus: version.status || null,
-    isLocked: isVersionLocked(version),
+    isLocked: isVersionLocked(version) || version.isLocked,
     lockedAt: null,
     lockedBy: null,
     createdAt: version.createdAt?.toISOString() || null,
@@ -268,7 +266,7 @@ export async function getProfileOverview(projectId: string, versionId: string) {
 export async function saveProfileOverview(projectId: string, versionId: string, body: Record<string, unknown>) {
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
+  if (isVersionLocked(version) || version.isLocked) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
 
   const before = resultData(await getProfileOverview(projectId, versionId)) as Record<string, unknown>;
   const projectData: Record<string, unknown> = {};
@@ -345,7 +343,7 @@ export async function getProfileProductObjects(projectId: string, versionId: str
       hasTaxData: item.hasTaxData,
       hasProfitData: item.hasProfitData,
       hasExcelImportData: item.hasExcelImportData,
-      canEnable: !isVersionLocked(version) && item.status === 'disabled',
+      canEnable: !isVersionLocked(version) && !version.isLocked && item.status === 'disabled',
       canDisable: item.canDisable,
       canRestore: item.canRestore,
       blockedReason: item.blockedReason,
@@ -398,10 +396,10 @@ export async function getProfileProductObjects(projectId: string, versionId: str
       hasTaxData: false,
       hasProfitData: false,
       hasExcelImportData: false,
-      canEnable: !isVersionLocked(version) && !bool(parsed?.isEnabled ?? row.value),
-      canDisable: !isVersionLocked(version) && bool(parsed?.isEnabled ?? row.value),
-      canRestore: !isVersionLocked(version) && !bool(parsed?.isEnabled ?? row.value),
-      blockedReason: isVersionLocked(version) ? VERSION_LOCKED_MESSAGE : null,
+      canEnable: !isVersionLocked(version) && !version.isLocked && !bool(parsed?.isEnabled ?? row.value),
+      canDisable: !isVersionLocked(version) && !version.isLocked && bool(parsed?.isEnabled ?? row.value),
+      canRestore: !isVersionLocked(version) && !version.isLocked && !bool(parsed?.isEnabled ?? row.value),
+      blockedReason: isVersionLocked(version) || version.isLocked ? VERSION_LOCKED_MESSAGE : null,
       warningMessage: '兼容对象保存于 ProjectMetricValue，暂不参与普通业态面积或收入测算。',
       createdAt: row.createdAt?.toISOString() || null,
       updatedAt: row.updatedAt?.toISOString() || null
@@ -413,7 +411,7 @@ export async function getProfileProductObjects(projectId: string, versionId: str
 export async function saveProfileProductObjects(projectId: string, versionId: string, body: Record<string, unknown>) {
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
+  if (isVersionLocked(version) || version.isLocked) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
   const objects = Array.isArray(body.objects) ? body.objects as Record<string, unknown>[] : [];
   const before = resultData(await getProfileProductObjects(projectId, versionId));
   const results: unknown[] = [];
@@ -532,7 +530,7 @@ export async function getProfileConstructionStandards(projectId: string, version
 export async function saveProfileConstructionStandards(projectId: string, versionId: string, body: Record<string, unknown>) {
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
+  if (isVersionLocked(version) || version.isLocked) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
   const before = resultData(await getProfileConstructionStandards(projectId, versionId)) as Record<string, unknown>;
   const projectData: Record<string, unknown> = {};
   if ('isPrefabEnabled' in body) projectData.isPrefabricated = bool(body.isPrefabEnabled);
@@ -682,7 +680,7 @@ export async function getProfileProjectMetrics(projectId: string, versionId: str
 export async function saveProfileProjectMetrics(projectId: string, versionId: string, body: Record<string, unknown>) {
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
+  if (isVersionLocked(version) || version.isLocked) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
   const flat = { ...(body.land as any), ...(body.buildingArea as any), ...(body.buildings as any), ...(body.basement as any), ...(body.parking as any), ...(body.landscapeRoad as any), ...(body.marketingDisplay as any) };
   for (const [key, value] of Object.entries(flat)) {
     if (value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) < 0) return error('INVALID_PROJECT_METRIC', `${key} 不能为负数。`);
@@ -792,7 +790,7 @@ export async function getProfileQuantityIndicators(projectId: string, versionId:
       overrideReason: line.quantityOverride ? line.remark || null : null,
       overriddenBy: null,
       overriddenAt: null,
-      isQuantityLocked: isVersionLocked(version)
+      isQuantityLocked: isVersionLocked(version) || version.isLocked
     };
   });
   return ok({
@@ -800,7 +798,7 @@ export async function getProfileQuantityIndicators(projectId: string, versionId:
     summary: {
       totalIndicators: indicators.length,
       overriddenCount: indicators.filter((item) => item.isQuantityOverridden).length,
-      lockedCount: isVersionLocked(version) ? indicators.length : 0
+      lockedCount: isVersionLocked(version) || version.isLocked ? indicators.length : 0
     }
   });
 }
@@ -808,7 +806,7 @@ export async function getProfileQuantityIndicators(projectId: string, versionId:
 export async function saveProfileQuantityIndicators(projectId: string, versionId: string, body: Record<string, unknown>) {
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
+  if (isVersionLocked(version) || version.isLocked) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
   const indicators = Array.isArray(body.indicators) ? body.indicators as Record<string, unknown>[] : [];
   const results: unknown[] = [];
   for (const indicator of indicators) {

@@ -46,9 +46,9 @@ export async function loadVersion(projectId: string, versionId: string) {
   return prisma.projectVersion.findFirst({ where: { id: versionId, projectId } });
 }
 
-export function assertEditable(version: ProjectVersionWithProject | null, message: string) {
+export function assertEditable(version: ProjectVersionWithProject | null) {
   if (!version) return jsonError('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(version) || version.isLocked) return jsonError('VERSION_LOCKED', VERSION_LOCKED_MESSAGE || message, 423);
+  if (isVersionLocked(version) || version.isLocked) return jsonError('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
   return null;
 }
 

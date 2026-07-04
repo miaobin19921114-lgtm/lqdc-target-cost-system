@@ -3,7 +3,7 @@ import { assertSemanticEditable, loadSemanticVersion, recalculateQuantity, seman
 
 export async function POST(_request: Request, { params }: { params: { id: string; versionId: string } }) {
   const version = await loadSemanticVersion(params.id, params.versionId);
-  const locked = assertSemanticEditable(version, '当前测算版本已锁定，禁止重新计算工程量。');
+  const locked = assertSemanticEditable(version);
   if (locked) return locked;
   try {
     const data = await recalculateQuantity(params.id, version!);

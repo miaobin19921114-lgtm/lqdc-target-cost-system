@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 import { writeOperationLog } from '@/lib/operation-log';
 
 const metricFields = [
@@ -114,7 +114,7 @@ function validateOverview(body: Record<string, unknown>) {
 async function saveOverview(versionId: string, body: Record<string, unknown>) {
   const loaded = await loadOverview(versionId);
   if (!loaded) return jsonError('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  if (isVersionLocked(loaded.version)) return jsonError('VERSION_LOCKED', '当前测算版本已锁定，不能修改概况。', 423);
+  if (isVersionLocked(loaded.version) || loaded.version.isLocked) return jsonError('VERSION_LOCKED', VERSION_LOCKED_MESSAGE, 423);
 
   const validationMessage = validateOverview(body);
   if (validationMessage) return jsonError('VALIDATION_FAILED', validationMessage);

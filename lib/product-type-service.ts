@@ -1,14 +1,14 @@
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { isVersionLocked } from '@/lib/project-version';
+import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 
 type Tx = Prisma.TransactionClient;
 
 const VERSION_LOCKED_MESSAGES = {
-  add: '当前测算版本已锁定，不能调整对象。如需修改，请复制新版本后操作。',
-  disable: '当前测算版本已锁定，不能调整对象。如需修改，请复制新版本后操作。',
-  restore: '当前测算版本已锁定，不能调整对象。如需修改，请复制新版本后操作。'
+  add: VERSION_LOCKED_MESSAGE,
+  disable: VERSION_LOCKED_MESSAGE,
+  restore: VERSION_LOCKED_MESSAGE
 };
 
 const BUSINESS_DATA_BLOCKED_MESSAGE =
@@ -236,7 +236,7 @@ export async function getProductTypeImpact(versionId: string, productTypeId: str
   ]);
 
   const overviewData = hasOverviewData(product) || metricCount > 0;
-  const locked = isVersionLocked(product.projectVersion);
+  const locked = isVersionLocked(product.projectVersion) || product.projectVersion.isLocked;
   const incomeData = incomeRows.some(hasRealIncomeData);
   const taxData = false;
   const profitData = false;
@@ -323,10 +323,10 @@ export async function listVersionProductTypes(versionId: string, includeDisabled
         hasTaxData: impact?.hasTaxData ?? false,
         hasProfitData: impact?.hasProfitData ?? false,
         hasExcelImportData: impact?.hasExcelImportData ?? false,
-        canAdd: !isVersionLocked(version),
-        canEnable: status === 'disabled' && !isVersionLocked(version),
-        canDisable: status === 'enabled' && Boolean(impact?.canDisable),
-        canRestore: status === 'disabled' && !isVersionLocked(version),
+        canAdd: !isVersionLocked(version) && !version.isLocked,
+        canEnable: status === 'disabled' && !isVersionLocked(version) && !version.isLocked,
+        canDisable: status === 'enabled' && !isVersionLocked(version) && !version.isLocked && Boolean(impact?.canDisable),
+        canRestore: status === 'disabled' && !isVersionLocked(version) && !version.isLocked,
         blockedReason: impact?.blockedReason ?? null,
         warningMessage: impact?.warningMessage ?? null,
         sortOrder: index + 1,
@@ -346,7 +346,7 @@ export async function addVersionProductType(
   return prisma.$transaction(async (tx) => {
     const version = await getVersion(tx, versionId);
     if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-    if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGES.add, 423);
+    if (isVersionLocked(version) || version.isLocked) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGES.add, 423);
 
     const code = String(input.productTypeCode || '').trim();
     const requestedName = String(input.productTypeName || '').trim();
@@ -409,7 +409,7 @@ export async function disableVersionProductType(versionId: string, productTypeId
   return prisma.$transaction(async (tx) => {
     const version = await getVersion(tx, versionId);
     if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-    if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGES.disable, 423);
+    if (isVersionLocked(version) || version.isLocked) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGES.disable, 423);
 
     const product = await tx.productType.findFirst({ where: { id: productTypeId, projectVersionId: versionId } });
     if (!product) return error('OBJECT_NOT_FOUND', '对象不存在。', 404);
@@ -454,7 +454,7 @@ export async function restoreVersionProductType(versionId: string, productTypeId
   return prisma.$transaction(async (tx) => {
     const version = await getVersion(tx, versionId);
     if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-    if (isVersionLocked(version)) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGES.restore, 423);
+    if (isVersionLocked(version) || version.isLocked) return error('VERSION_LOCKED', VERSION_LOCKED_MESSAGES.restore, 423);
 
     const product = await tx.productType.findFirst({ where: { id: productTypeId, projectVersionId: versionId } });
     if (!product) return error('OBJECT_NOT_FOUND', '对象不存在。', 404);
