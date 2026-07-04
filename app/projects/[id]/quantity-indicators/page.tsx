@@ -137,7 +137,7 @@ export default async function QuantityIndicatorsPage({ params, searchParams }: {
       <StatusNotice title="地下室层高字段支持状态" tone="warning">当前前端已维护地下室层数和地下一层层高；地下二层层高、其他地下层平均层高仍为只读口径提示，暂未完整接入保存与规则引用。当前版本状态：{versionStatusLabel(version?.status)}。</StatusNotice>
       <Block title="五、土建工程量" note="用于桩基、土方、防水、屋面、保温、外墙、门窗、栏杆等土建科目。"><FieldGrid project={project} fields={civilFields} locked={locked} /></Block>
       <Block title="六、机电设备指标" note="用于配电房、水泵房、消防水池等安装设备类测算。"><FieldGrid project={project} fields={mepFields} locked={locked} /></Block>
-      <Block title="七、成本明细工程量手算" note="按成本明细行录入手算覆盖；清除覆盖会恢复系统测算值，不会删除指标。">
+      <Block title="七、成本明细工程量手算" note="按成本明细行录入手算覆盖；恢复系统值会重新采用系统测算值，不会删除指标。">
         {locked ? <div style={{ border: '1px solid #ffc9c9', background: '#fff5f5', borderRadius: 8, padding: 10, marginBottom: 12 }}>当前版本已锁定，不能修改手算值。</div> : null}
         {overrideRows.length === 0 ? <EmptyState title="暂无可手算的成本明细工程量">请先生成或录入目标成本明细。形成成本行后，本区会显示系统测算值、手算覆盖值和当前生效值。</EmptyState> : <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1240, fontSize: 12 }}>

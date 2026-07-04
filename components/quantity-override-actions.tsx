@@ -57,7 +57,7 @@ export function QuantityOverrideActions({ projectId, versionId, costLineId, curr
     const response = await fetch(`/api/projects/${projectId}/versions/${versionId}/cost-lines/${costLineId}/restore-auto`, { method: 'POST' });
     const result = await response.json().catch(() => null);
     if (!response.ok || result?.success === false) {
-      setMessage(result?.error?.message || '清除手算覆盖失败。');
+      setMessage(result?.error?.message || '恢复系统值失败。');
       return;
     }
     setManualValue('');
@@ -84,7 +84,7 @@ export function QuantityOverrideActions({ projectId, versionId, costLineId, curr
       aria-label="手算原因"
     />
     <button type="button" className="btn btn-primary" onClick={saveOverride} disabled={disabled} style={{ minHeight: 30, padding: '4px 10px' }}>保存覆盖</button>
-    <button type="button" className="btn" onClick={clearOverride} disabled={disabled || !hasOverride} style={{ minHeight: 30, padding: '4px 10px' }}>清除覆盖</button>
+    <button type="button" className="btn" onClick={clearOverride} disabled={disabled || !hasOverride} style={{ minHeight: 30, padding: '4px 10px' }}>恢复系统值</button>
     {locked ? <div className="meta" style={{ gridColumn: '1 / -1', color: '#c92a2a' }}>当前版本已锁定</div> : message ? <div className="meta" style={{ gridColumn: '1 / -1' }}>{message}</div> : null}
   </div>;
 }
