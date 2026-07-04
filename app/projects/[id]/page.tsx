@@ -13,6 +13,13 @@ function fmt(value: number) {
   return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
+function versionStatusText(status?: string | null) {
+  if (status === 'locked') return '已锁定';
+  if (status === 'final') return '已定稿';
+  if (status === 'draft') return '草稿';
+  return status || '未设置';
+}
+
 function unitCost(amountWan: number, area: number) {
   return area ? amountWan * 10000 / area : 0;
 }
@@ -98,7 +105,7 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
 
         <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <StatusMessage searchParams={searchParams} />
-          <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#0f4c5c', fontWeight: 900, fontSize: 12 }}>项目测算中心</div><h1 style={{ margin: '6px 0', fontSize: 24 }}>{project.name}</h1><div style={{ color: '#667085', fontSize: 14 }}>当前阶段：{version?.stage || '投拓阶段'}　版本：{version?.name || '初始版本'}　状态：草稿　启用业态：{activeProducts.length} 个　科目规则：{version?.costRules.length || 0} 条</div><div style={{ color: '#0b7285', fontSize: 13, marginTop: 6 }}>项目来源模板：{sourceTemplateLabel}</div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>{coreActions.map(([name, href]) => <Link key={name} href={`/projects/${project.id}/${href}`} className="btn btn-primary" style={{ minHeight: 34 }}>{name}</Link>)}</div></div>
+          <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#0f4c5c', fontWeight: 900, fontSize: 12 }}>项目测算中心</div><h1 style={{ margin: '6px 0', fontSize: 24 }}>{project.name}</h1><div style={{ color: '#667085', fontSize: 14 }}>当前阶段：{version?.stage || '投拓阶段'}　版本：{version?.name || '初始版本'}　状态：{versionStatusText(version?.status)}　启用业态：{activeProducts.length} 个　科目规则：{version?.costRules.length || 0} 条</div><div style={{ color: '#0b7285', fontSize: 13, marginTop: 6 }}>项目来源模板：{sourceTemplateLabel}</div><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>{coreActions.map(([name, href]) => <Link key={name} href={`/projects/${project.id}/${href}`} className="btn btn-primary" style={{ minHeight: 34 }}>{name}</Link>)}</div></div>
           <div className="sys-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>{[['含税销售收入', revenue.taxInclusive, '万元'], ['含税目标成本', cost.taxInclusive, '万元'], ['建面单方', unitCost(cost.taxInclusive, buildingArea), '元/㎡'], ['可售单方', unitCost(cost.taxInclusive, saleableArea), '元/㎡']].map(([label, value, unit]) => <div key={String(label)} style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><div style={{ color: '#667085', fontSize: 12 }}>{label}</div><div style={{ fontWeight: 900, fontSize: 18, marginTop: 6 }}>{fmt(Number(value))}</div><div className="meta">{unit}</div></div>)}</div>
           {effective.ignoredNonLeaf > 0 ? <div style={{ background: '#fff9db', border: '1px solid #ffd8a8', borderRadius: 10, padding: 12, color: '#8a6d00' }}>成本汇总已排除 {effective.ignoredNonLeaf} 条父级/非末级成本行，避免土地费、科目汇总行重复计入。</div> : null}
           <div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>项目全流程</b><p className="meta" style={{ margin: '6px 0 0' }}>V1.0.0 主线已收敛为：基础数据 → 测算控制 → 收入成本明细 → 税费利润 → Excel 与自检。</p><div className="sys-flow" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))', gap: 10, marginTop: 12 }}>{flow.map(([name, href, desc]) => <Link key={name} href={href.startsWith('/') ? href : `/projects/${project.id}/${href}`} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#f8fafc' }}><b style={{ display: 'block' }}>{name}</b><div style={{ color: '#667085', fontSize: 12, marginTop: 8 }}>{desc}</div></Link>)}</div></div>
@@ -106,7 +113,7 @@ export default async function ProjectMeasureCenter({ params, searchParams }: { p
           <div style={{ background: '#fff', border: '1px dashed #d0d5dd', borderRadius: 10, padding: 14 }}><b style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>后续版本能力<PlannedBadge /></b><p className="meta">{NON_V1_SCOPE_MESSAGE}</p></div>
         </section>
 
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本管理</b><p className="meta">当前阶段：{version?.stage || '投拓阶段'}；当前版本：{version?.name || '初始版本'}；状态：草稿。</p><Link className="btn btn-primary" href={`/projects/${project.id}/versions`}>进入版本管理</Link></div><div style={{ background: '#fff', border: '1px solid #c5eef3', borderRadius: 10, padding: 14 }}><b>Excel</b><p className="meta">模板下载、上传预览、确认导入和版本级工作台统一从 Excel 工作台进入。</p><div className="actions"><Link className="btn btn-primary" href={`/projects/${project.id}/excel`}>Excel 工作台</Link></div></div><div style={{ background: '#fff', border: '1px dashed #d0d5dd', borderRadius: 10, padding: 14 }}><b>后续能力</b><p className="meta">{NON_V1_SCOPE_MESSAGE}</p><PlannedBadge /></div></aside>
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ background: '#fff', border: '1px solid #d9e2ec', borderRadius: 10, padding: 14 }}><b>版本管理</b><p className="meta">当前阶段：{version?.stage || '投拓阶段'}；当前版本：{version?.name || '初始版本'}；状态：{versionStatusText(version?.status)}。</p><Link className="btn btn-primary" href={`/projects/${project.id}/versions`}>进入版本管理</Link></div><div style={{ background: '#fff', border: '1px solid #c5eef3', borderRadius: 10, padding: 14 }}><b>Excel</b><p className="meta">模板下载、上传预览、确认导入和版本级工作台统一从 Excel 工作台进入。</p><div className="actions"><Link className="btn btn-primary" href={`/projects/${project.id}/excel`}>Excel 工作台</Link></div></div><div style={{ background: '#fff', border: '1px dashed #d0d5dd', borderRadius: 10, padding: 14 }}><b>后续能力</b><p className="meta">{NON_V1_SCOPE_MESSAGE}</p><PlannedBadge /></div></aside>
       </div>
       <style>{`@media (max-width: 1100px){.sys-shell,.sys-kpis,.sys-flow{grid-template-columns:1fr!important}.sys-shell{padding:8px!important}}`}</style>
     </main>

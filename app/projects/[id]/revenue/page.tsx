@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueLine } from '@/lib/calculations';
-import { activeVersionOrder, activeVersionWhere } from '@/lib/project-version';
+import { activeVersionOrder, activeVersionWhere, isVersionLocked } from '@/lib/project-version';
+import { VersionContextBar } from '@/components/commercial-status';
 import { isChargingProductName, isCommercialBaseProductName, isCommercialRevenueProductName, isOtherRevenueProductName, isParkingProductName } from '@/lib/tax-summary';
 import { LOCKED_VERSION_EDIT_MESSAGE } from '@/lib/v1-maintenance-copy';
 
@@ -24,6 +25,7 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
     orderBy: activeVersionOrder(project),
     include: { products: true, taxes: true, revenues: { include: { productType: true } } }
   });
+  const locked = version ? isVersionLocked(version) : false;
   const commercialRevenueLines = version ? await prisma.commercialRevenueLine.findMany({ where: { projectVersionId: version.id } }) : [];
 
   const taxRate = Number(version?.taxes?.vatRate || 0.09);
@@ -77,6 +79,7 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
         </div>
       </div>
 
+      <VersionContextBar projectName={project.name} versionName={version?.name} versionStatus={version?.status} editable={!locked} extra={[['普通可售业态', rows.length], ['税率', `${(taxRate * 100).toFixed(2)}%`]]} />
       {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb', background: '#f0fff4' }}>销售收入单价已保存，并已同步收入明细。{searchParams?.rows ? `本次处理 ${searchParams.rows} 行。` : ''}</div> : null}
       {searchParams?.synced === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb', background: '#f0fff4' }}>销售收入已同步。{searchParams?.rows ? `本次同步 ${searchParams.rows} 行。` : ''}</div> : null}
       {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8' }}>{LOCKED_VERSION_EDIT_MESSAGE}</div> : null}
@@ -103,7 +106,7 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
             <h2 style={{ margin: 0 }}>销售收入明细</h2>
             <p className="meta">面积在项目概况维护；本表维护含税销售单价，并同步收入明细。</p>
           </div>
-          <button form="revenue-batch" className="btn btn-primary">保存销售单价并同步</button>
+          <button form="revenue-batch" className="btn btn-primary" disabled={locked}>保存销售单价并同步</button>
         </div>
         {rows.length === 0 ? <p className="meta">暂无普通可售业态。请先到项目概况维护可售业态；商业收入请到“商业收入”页面维护。</p> : <div style={{ overflowX: 'auto' }}>
           <form id="revenue-batch" action={`/api/projects/${project.id}/revenue/batch`} method="post" />
@@ -113,7 +116,7 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
             <tbody>{rows.map((row, index) => <tr key={row.id}>
               <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 700 }}><input form="revenue-batch" type="hidden" name={`productId-${index}`} value={row.id} />{row.name}</td>
               <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.area)}</td>
-              <td style={{ padding: 6, borderBottom: '1px solid var(--border)' }}><input form="revenue-batch" name={`salePrice-${index}`} type="number" step="0.01" defaultValue={row.price || ''} style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 6, padding: '4px 8px', width: 140 }} /></td>
+              <td style={{ padding: 6, borderBottom: '1px solid var(--border)' }}><input form="revenue-batch" name={`salePrice-${index}`} type="number" step="0.01" defaultValue={row.price || ''} disabled={locked} style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 6, padding: '4px 8px', width: 140, background: locked ? '#f2f4f7' : '#fff', color: locked ? '#667085' : undefined }} /></td>
               <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{(taxRate * 100).toFixed(2)}%</td>
               <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.total)}</td>
               <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.net)}</td>
@@ -130,7 +133,7 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
           <div style={{ border: '1px solid #eef2f6', borderRadius: 10, padding: 12 }}><b>销售单价</b><p className="meta">可售面积大于0但单价为0：{zeroPriceRows} 行</p><strong style={{ color: statusColor(zeroPriceRows === 0) }}>{zeroPriceRows === 0 ? '正常' : '待补充'}</strong></div>
           <div style={{ border: '1px solid #eef2f6', borderRadius: 10, padding: 12 }}><b>可售面积</b><p className="meta">可售面积为0：{zeroAreaRows} 行</p><strong style={{ color: statusColor(zeroAreaRows === 0) }}>{zeroAreaRows === 0 ? '正常' : '待补充'}</strong></div>
-          <div style={{ border: '1px solid #eef2f6', borderRadius: 10, padding: 12 }}><b>同步差异</b><p className="meta">自动测算与已同步收入差异：{fmt(diffTotal)} 元</p><form action={`/api/projects/${project.id}/revenue/sync`} method="post"><button className="btn btn-primary">同步销售收入</button></form></div>
+          <div style={{ border: '1px solid #eef2f6', borderRadius: 10, padding: 12 }}><b>同步差异</b><p className="meta">自动测算与已同步收入差异：{fmt(diffTotal)} 元</p><form action={`/api/projects/${project.id}/revenue/sync`} method="post"><button className="btn btn-primary" disabled={locked}>同步销售收入</button></form></div>
         </div>
       </section>
     </div>

@@ -99,7 +99,7 @@ export default async function AllocationPage({ params }: { params: { id: string 
             <p className="subtitle">按成本明细的分摊方式，将含税目标成本自动分摊到参与分摊的业态。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
-            <Link href={`/projects/${project.id}/costs`} className="btn btn-primary">目标成本测算</Link>
+            <Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">目标成本测算</Link>
             <Link href={`/projects/${project.id}`} className="btn">返回项目测算中心</Link>
           </div>
         </div>
