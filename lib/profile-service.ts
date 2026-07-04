@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { writeOperationLog } from '@/lib/operation-log';
 import { isVersionLocked } from '@/lib/project-version';
+import { getProjectMetricCenter } from '@/lib/metric-center-service';
 import {
   addVersionProductType,
   classifyProductObject,
@@ -193,12 +194,13 @@ async function saveMetrics(tx: typeof prisma, projectId: string, versionId: stri
 }
 
 export async function getProfile(projectId: string, versionId: string, includeDisabled = false) {
-  const [overview, productObjects, constructionStandards, projectMetrics, quantityIndicators] = await Promise.all([
+  const [overview, productObjects, constructionStandards, projectMetrics, quantityIndicators, projectMetricCenter] = await Promise.all([
     getProfileOverview(projectId, versionId),
     getProfileProductObjects(projectId, versionId, includeDisabled),
     getProfileConstructionStandards(projectId, versionId),
     getProfileProjectMetrics(projectId, versionId),
-    getProfileQuantityIndicators(projectId, versionId)
+    getProfileQuantityIndicators(projectId, versionId),
+    getProjectMetricCenter(projectId, versionId)
   ]);
   if ('error' in overview.body) return overview;
   const dataOr = (result: { body: any }, fallback: unknown) => result.body?.success ? result.body.data : fallback;
@@ -207,6 +209,18 @@ export async function getProfile(projectId: string, versionId: string, includeDi
     productObjects: dataOr(productObjects, { objects: [] }),
     constructionStandards: dataOr(constructionStandards, {}),
     projectMetrics: dataOr(projectMetrics, {}),
+    projectMetricCenter: dataOr(projectMetricCenter, {
+      projectTotalMetrics: {},
+      productObjectMetrics: [],
+      buildingMetrics: [],
+      unitPlanMetrics: [],
+      basementMetrics: {},
+      parkingMetrics: {},
+      landscapeRoadMetrics: {},
+      supportingSpecialMetrics: {},
+      metricValidationSummary: { warnings: [] },
+      baseIndicatorMappings: []
+    }),
     quantityIndicators: dataOr(quantityIndicators, { indicators: [], summary: { totalIndicators: 0, overriddenCount: 0, lockedCount: 0 } })
   });
 }

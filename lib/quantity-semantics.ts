@@ -13,6 +13,7 @@ type Tx = Prisma.TransactionClient;
 
 const z3Sources = {
   baseIndicator: 'z3_base_indicator',
+  z4MetricBaseIndicator: 'z4_metric_base_indicator',
   subjectBinding: 'z3_subject_indicator_binding',
   contentRule: 'z3_content_rule',
   constructionStandard: 'z3_construction_standard',
@@ -181,9 +182,10 @@ function contentRatioUnit(line: CostLineRow, indicatorUnit?: string | null) {
 export async function getBaseIndicators(projectId: string, versionId: string) {
   const version = await loadSemanticVersion(projectId, versionId);
   if (!version) return null;
-  const [products, saved] = await Promise.all([
+  const [products, saved, z4Saved] = await Promise.all([
     prisma.productType.findMany({ where: { projectVersionId: versionId, isActive: true }, orderBy: { name: 'asc' } }),
-    loadSaved(z3Sources.baseIndicator, projectId, versionId)
+    loadSaved(z3Sources.baseIndicator, projectId, versionId),
+    loadSaved(z3Sources.z4MetricBaseIndicator, projectId, versionId)
   ]);
   const project = version.project as any;
   const indicators: any[] = v60ProjectMetricDefinitions.filter((def) => def.scope === 'project').map((def) => ({
@@ -233,7 +235,7 @@ export async function getBaseIndicators(projectId: string, versionId: string) {
       });
     }
   }
-  saved.forEach(({ row, payload }) => {
+  [...saved, ...z4Saved].forEach(({ row, payload }) => {
     indicators.push({
       id: row.id,
       projectId,
