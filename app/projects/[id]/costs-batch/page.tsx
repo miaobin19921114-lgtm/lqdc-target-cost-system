@@ -60,11 +60,11 @@ function priceSource(line: CostLinePreview) {
   return 'system_default';
 }
 function priceSourceLabel(source: string) {
-  return { system_default: '系统默认', region_price_library: '地区价格库', user_project_manual: '项目手工', historical_project: '历史项目', excel_imported: 'Excel 导入', contract_price: '合同价', market_inquiry: '市场询价', supplier_quote: '供应商报价' }[source] || source;
+  return { system_default: '系统默认', region_price_library: '地区价格库', user_project_manual: '项目手工', historical_project: '历史项目', excel_imported: 'Excel 导入', contract_price: '合同价', market_inquiry: '市场询价', supplier_quote: '供应商报价' }[source] || '其他来源';
 }
 function calculatedQuantity(line: CostLinePreview) { return round2(num(line.measureValue) * (num(line.coefficient) || 1)); }
 function overrideNotice(mode: string) {
-  if (mode === 'manual_entered') return '当前工程量已手算覆盖，后续含量变化不会自动覆盖 finalQuantity';
+  if (mode === 'manual_entered') return '当前工程量已手算覆盖，后续含量变化不会自动覆盖实际采用工程量';
   if (mode === 'auto_calculated') return '当前工程量由基础指标 × 含量自动推算';
   if (mode === 'locked_confirmed') return '当前工程量已锁定，不允许修改';
   return '按接口返回口径展示';
@@ -333,11 +333,11 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(calculatedQuantity(line))} {line.unit || ''}<div className="meta">基础指标 {fmt(line.measureValue)} x 含量 {fmt(line.coefficient || 1)}</div></td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{fmt(line.quantity)} {line.unit || ''}</td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(line.taxInclusiveUnitPrice)}<div className="meta">{line.unit ? `元/${line.unit}` : '按后端返回'}</div></td>
-                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{priceSourceLabel(source)}<div className="meta">{source}</div></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{priceSourceLabel(source)}</td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(num(line.taxRate) * 100)}%</td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{fmt(line.taxInclusiveAmount)}</td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(line.taxExclusiveAmount)} / {fmt(line.taxAmount)}</td>
-                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{quantityModeLabel(mode)}<div className="meta">{mode}</div></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{quantityModeLabel(mode)}</td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{line.quantityOverride ? '已手算覆盖' : '未覆盖'}<div className="meta" style={{ maxWidth: 260 }}>{line.quantityOverride ? (line.remark || overrideNotice(mode)) : overrideNotice(mode)}</div></td>
               </tr>;
             })}</tbody>

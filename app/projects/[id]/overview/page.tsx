@@ -25,7 +25,7 @@ const sections: Array<{ key: SectionKey; label: string; title: string; note: str
   { key: 'product-objects', label: '业态产品与对象', title: '业态产品与对象', note: '维护启用业态、停用业态和兼容对象状态。' },
   { key: 'construction-standards', label: '建造标准', title: '建造标准', note: '维护交付标准、专项开关和关键配置字段。' },
   { key: 'project-metrics', label: '项目指标', title: '项目指标', note: '维护面积、楼栋、地下室、车位、景观道路等基础指标。' },
-  { key: 'quantity-indicators', label: '工程量指标', title: '工程量指标', note: '查看系统值、手算值、生效值，并保留逐行手算覆盖能力。' }
+  { key: 'quantity-indicators', label: '工程量指标', title: '工程量指标', note: '查看专业工程量、来源、覆盖状态和备注，并保留逐行手算覆盖能力。' }
 ];
 
 const sectionFormIds: Partial<Record<SectionKey, string>> = {
@@ -122,11 +122,11 @@ function booleanText(value: unknown) {
 }
 
 function modeText(value?: string | null) {
-  return quantityModeLabel[String(value || '')] || value || '未返回';
+  return quantityModeLabel[String(value || '')] || '其他口径';
 }
 
 function priceSourceText(value?: string | null) {
-  return priceSourceLabel[String(value || '')] || value || '未返回';
+  return priceSourceLabel[String(value || '')] || '其他来源';
 }
 
 function overrideNotice(item: any) {
@@ -356,7 +356,7 @@ function MetricTable({ section, rows, fields, locked, emptyTitle, emptyChildren,
           <MetricInputCell name={`${section}.${rowOffset + rowIndex}.${name}`} value={row?.[name]} type={type} locked={locked} />
           <div className="meta">{row?.[name] === null || row?.[name] === undefined || row?.[name] === '' ? '未维护' : metricCellValue(row?.[name], name)}</div>
           {name === 'saleableArea' && (row?.[name] === null || row?.[name] === undefined || row?.[name] === '') ? <div className="meta" style={{ color: '#d9480f', whiteSpace: 'normal' }}>会影响收入测算和可售单方成本。</div> : null}
-          {fieldIndex === 0 && label.includes('object') ? <div className="meta" style={{ whiteSpace: 'normal' }}>停用对象默认不参与汇总。</div> : null}
+          {fieldIndex === 0 && label.includes('对象') ? <div className="meta" style={{ whiteSpace: 'normal' }}>停用对象默认不参与汇总。</div> : null}
         </td>)}
       </tr>)}</tbody>
     </table>
@@ -520,7 +520,7 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
       <Stat label="启用对象" value={enabled.length} />
       <Stat label="已停用对象" value={disabled.length} />
       <Stat label="不可直接停用" value={enabled.filter((item) => item.canDisable === false).length} />
-      <Stat label="其他对象" value={objects.filter((item) => item.objectType !== 'product_type').length} />
+      <Stat label="专项 / 成本对象" value={objects.filter((item) => item.objectType !== 'product_type').length} />
     </div>
     <Card title="可新增业态" note="新增后将同步到业态明细维护页。" action={locked ? <button className="btn" disabled title="当前版本已锁定，仅支持查看。">进入业态明细维护</button> : <Link className="btn" href={`/projects/${projectId}/product-maintenance`}>进入业态明细维护</Link>}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -695,11 +695,30 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
       <Card title="8. 配套 / 不可售 / 专项对象指标" note="配套 / 不可售对象通常不直接产生收入，但会进入成本和分摊。样板间、售楼处、示范区 V1 默认进入 development_cost，不自动进入销售费用。">
         <MetricFieldGrid section="supportingSpecialMetrics" fields={supportingSpecialMetricFields} data={center.supportingSpecialMetrics || {}} locked={locked} />
       </Card>
-      <Card title="9. 指标汇总校验" note="warnings 只提示，不阻断；早期测算数据不完整时允许保存。">
+      <Card title="9. 指标汇总校验" note="校验提示只提醒，不阻断；早期测算数据不完整时允许保存。">
         <div className="summary-strip">
-          {['productGroundAreaTotal', 'projectGroundArea', 'productPlotRatioAreaTotal', 'projectPlotRatioArea', 'productSaleableAreaTotal', 'productHouseholdCountTotal', 'projectHouseholdTotalCount', 'productBuildingCountTotal', 'projectBuildingTotalCount', 'parkingSubTotal', 'parkingTotalCount', 'basementSubAreaTotal', 'basementTotalArea', 'civilDefensePlusNonCivilDefenseArea', 'hardSoftRoadAreaTotal', 'landscapeTotalArea', 'fireRoadArea', 'vehicleRoadArea'].map((key) => <Stat key={key} label={key} value={display(summary[key])} />)}
+          {[
+            ['productGroundAreaTotal', '分业态占地面积合计'],
+            ['projectGroundArea', '项目占地面积'],
+            ['productPlotRatioAreaTotal', '分业态计容面积合计'],
+            ['projectPlotRatioArea', '项目计容面积'],
+            ['productSaleableAreaTotal', '分业态可售面积合计'],
+            ['productHouseholdCountTotal', '分业态户数合计'],
+            ['projectHouseholdTotalCount', '项目户数合计'],
+            ['productBuildingCountTotal', '分业态楼栋数合计'],
+            ['projectBuildingTotalCount', '项目楼栋数合计'],
+            ['parkingSubTotal', '分类车位合计'],
+            ['parkingTotalCount', '项目车位总数'],
+            ['basementSubAreaTotal', '地下室分项面积合计'],
+            ['basementTotalArea', '地下建筑面积'],
+            ['civilDefensePlusNonCivilDefenseArea', '人防与非人防面积合计'],
+            ['hardSoftRoadAreaTotal', '景观道路面积合计'],
+            ['landscapeTotalArea', '景观面积'],
+            ['fireRoadArea', '消防道路面积'],
+            ['vehicleRoadArea', '车行道路面积']
+          ].map(([key, label]) => <Stat key={key} label={label} value={display(summary[key])} />)}
         </div>
-        {warnings.length ? <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>{warnings.map((item, index) => <div key={`${item.code}-${index}`} style={{ border: '1px solid #ffd8a8', background: item.level === 'info' || item.level === 'notice' ? '#f8fbff' : '#fff9db', borderRadius: 8, padding: 10 }}><Badge tone={item.level === 'info' || item.level === 'notice' ? 'blue' : 'orange'}>{item.level || 'warning'}</Badge> <b>{item.code}</b><div className="meta">{item.message}</div><div className="meta">relatedField: {item.relatedField || '未返回'}</div></div>)}</div> : <p className="meta">暂无校验提示。</p>}
+        {warnings.length ? <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>{warnings.map((item, index) => <div key={`${item.code}-${index}`} style={{ border: '1px solid #ffd8a8', background: item.level === 'info' || item.level === 'notice' ? '#f8fbff' : '#fff9db', borderRadius: 8, padding: 10 }}><Badge tone={item.level === 'info' || item.level === 'notice' ? 'blue' : 'orange'}>{item.level === 'info' || item.level === 'notice' ? '提示' : '需复核'}</Badge> <b>指标校验 {index + 1}</b><div className="meta">{item.message}</div><div className="meta">关联业务字段：{item.relatedField || '未返回'}</div></div>)}</div> : <p className="meta">当前指标没有发现需要提示的问题。</p>}
       </Card>
       <Card title="10. 工程量取数映射与衔接" note="同步后会把项目指标传递给工程量指标页，映射表以当前版本数据为准。" action={<MetricCenterSyncAction endpoint={`/api/projects/${projectId}/versions/${versionId}/metrics/sync-base-indicators`} locked={locked} />}>
         <StatusNotice title="与工程量指标页衔接">可售面积影响收入测算和可售单方成本；建筑面积影响建面单方成本；计容建筑面积用于规划指标和部分测算口径；地下室、地下车库、景观道路、周界、栋数、单元数、户数、层数和标准层面积会进入对应工程量推算；配套 / 不可售对象通常不产生收入，但参与成本归集和分摊。</StatusNotice>
@@ -769,7 +788,7 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
         ].map(([label, count]) => <div key={label} style={{ border: '1px solid #e6eef7', borderRadius: 8, padding: 10, background: '#fbfdff' }}><b>{label}</b><div className="meta">当前 {count} 条。</div></div>)}
       </div>
     </Card>
-    <Card title="基础指标、绑定与含量规则" note="必须明确：基础指标 x 含量 = calculatedQuantity。工程量单位按后端返回展示。">
+    <Card title="基础指标、绑定与含量规则" note="必须明确：基础指标 x 含量 = 计算工程量。工程量单位按后端返回展示。">
       {indicators.length ? <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1320, fontSize: 12 }}>
           <thead><tr>{['明细科目绑定', '基础指标', '含量规则', '计算式', '锁定 / 覆盖说明', '来源'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
@@ -784,26 +803,21 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
         </table>
       </div> : <EmptyState title="暂无工程量指标数据">请先在项目指标页维护基础指标，或等待后端返回系统默认指标。</EmptyState>}
     </Card>
-    <Card title="成本明细工程量手算" note="系统值来自基础指标和含量系数；生效值以 finalQuantity 为准。锁定版本下禁止修改。">
+    <Card title="专业工程量指标表" note="系统值来自基础指标和含量系数；实际采用工程量按当前版本规则展示。锁定版本下禁止修改。">
       {locked ? <StatusNotice title="当前版本已锁定" tone="danger">工程量手算覆盖与恢复系统值不可操作。</StatusNotice> : null}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1760, fontSize: 12 }}>
-          <thead><tr>{['指标名称', '适用范围', '系统计算工程量', '手动 / Excel / 图纸 / 锁定', '生效工程量', '工程量来源', '含税单价 / 单价来源', '含税金额', '状态提示', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+          <thead><tr>{['指标名称', '适用范围', '工程量', '单位', '来源', '是否手动覆盖', '备注', '含税单价 / 单价来源', '含税金额', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
           <tbody>{indicators.length ? indicators.map((item: any) => <tr key={item.indicatorId} style={item.isQuantityOverridden ? { background: '#fffaf0' } : undefined}>
             <td style={{ ...cell, fontWeight: 800 }}>{item.indicatorCode} {item.indicatorName}<div className="meta">{item.baseIndicatorName || '未配置取数依据'}</div></td>
             <td style={cell}>{item.relatedProductType || '全项目'}</td>
-            <td style={cell}>{fmt(item.calculatedQuantity)} {item.quantityUnit || ''}<div className="meta">取数 {fmt(item.baseIndicatorValue)} × 系数 {fmt(item.contentRatio || 1)}</div></td>
-            <td style={cell}>
-              <div>manualQuantity: {item.manualQuantity === null ? '空值' : `${fmt(item.manualQuantity)} ${item.quantityUnit || ''}`}</div>
-              <div className="meta">excelImportedQuantity: {item.excelImportedQuantity === null ? '空值' : fmt(item.excelImportedQuantity)}</div>
-              <div className="meta">drawingMeasuredQuantity: {item.drawingMeasuredQuantity === null ? '空值' : fmt(item.drawingMeasuredQuantity)}</div>
-              <div className="meta">lockedQuantity: {item.lockedQuantity === null || item.lockedQuantity === undefined ? '空值' : fmt(item.lockedQuantity)}</div>
-            </td>
             <td style={{ ...cell, fontWeight: 900 }}>{fmt(item.finalQuantity)} {item.quantityUnit || ''}</td>
-            <td style={cell}><Badge tone={item.isQuantityOverridden ? 'orange' : 'green'}>{modeText(item.quantityCalcMode)}</Badge><div className="meta">来源：{priceSourceText(item.quantitySource || item.indicatorSource)}</div></td>
+            <td style={cell}>{item.quantityUnit || '-'}</td>
+            <td style={cell}><Badge tone={item.isQuantityOverridden ? 'orange' : 'green'}>{modeText(item.quantityCalcMode)}</Badge><div className="meta">计算值：{fmt(item.calculatedQuantity)} {item.quantityUnit || ''}</div><div className="meta">取数 {fmt(item.baseIndicatorValue)} × 系数 {fmt(item.contentRatio || 1)}</div></td>
+            <td style={cell}>{item.isQuantityOverridden ? '是' : '否'}<div className="meta">{item.manualQuantity === null || item.manualQuantity === undefined ? '未手动覆盖' : `手动值：${fmt(item.manualQuantity)} ${item.quantityUnit || ''}`}</div></td>
+            <td style={cell}>{overrideNotice(item)}<div className="meta">数据来源：{priceSourceText(item.quantitySource || item.indicatorSource)}</div></td>
             <td style={cell}>{fmt(item.unitPrice)}<div className="meta">{item.priceUnit || item.quantityUnit || '按后端返回'}</div><div className="meta">单价来源：{priceSourceText(item.priceSource)}</div><div className="meta">税率：{fmt(n(item.taxRate) * 100)}%</div></td>
             <td style={{ ...cell, fontWeight: 900 }}>{fmt(item.finalAmount)} 万元<div className="meta">不含税 {fmt(item.taxExcludedAmount)} / 税额 {fmt(item.taxAmount)}</div></td>
-            <td style={cell}>{item.isQuantityOverridden ? <Badge tone="orange">已手算覆盖</Badge> : <Badge tone="green">使用系统值</Badge>}<div className="meta" style={{ maxWidth: 260, whiteSpace: 'normal' }}>{overrideNotice(item)}</div></td>
             <td style={{ ...cell, minWidth: 280 }}>
               <QuantityOverrideActions projectId={projectId} versionId={versionId} costLineId={item.indicatorId} currentQuantity={valueText(item.finalQuantity)} hasOverride={item.isQuantityOverridden} locked={locked} />
             </td>

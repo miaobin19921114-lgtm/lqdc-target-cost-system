@@ -364,6 +364,6 @@ export function LandFeeFormulaHelper({ formId }: { formId: string }) {
   return null;
 }
 
-export function GroupSaveButton({ formId, groupId, label = '保存本组' }: { formId: string; groupId: string; label?: string }) {
-  return <button type="submit" form={formId} name="saveGroupId" value={groupId} className="btn" onClick={(event) => event.stopPropagation()} style={{ minHeight: 30, padding: '4px 10px' }}>{label}</button>;
+export function GroupSaveButton({ formId, groupId, label = '保存本组', disabled = false }: { formId: string; groupId: string; label?: string; disabled?: boolean }) {
+  return <button type="submit" form={formId} name="saveGroupId" value={groupId} className="btn" disabled={disabled} title={disabled ? '当前版本已锁定，仅支持查看。' : undefined} onClick={(event) => event.stopPropagation()} style={{ minHeight: 30, padding: '4px 10px' }}>{label}</button>;
 }

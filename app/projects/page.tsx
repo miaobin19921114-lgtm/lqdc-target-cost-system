@@ -93,7 +93,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
         <section className="card" style={{ marginBottom: 18 }}>
           <div className="page-header" style={{ marginBottom: 10 }}>
             <div>
-              <p className="eyebrow">后续版本能力</p>
+              <p className="eyebrow">暂未开放</p>
               <h2 style={{ margin: 0 }}>知识库与模板能力</h2>
               <p className="meta">{NON_V1_SCOPE_MESSAGE}</p>
             </div>
