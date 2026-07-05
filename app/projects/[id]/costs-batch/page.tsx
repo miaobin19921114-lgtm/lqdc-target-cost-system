@@ -248,12 +248,12 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
         <div>
           <p className="eyebrow">目标成本测算表</p>
           <h1 className="title">{project.name}</h1>
-          <p className="subtitle">本页不手算明细，只读取各专业明细页汇总后的 TargetCostMeasureAggregate。当前版本：{version?.name || '暂无版本'}。</p>
+          <p className="subtitle">本页汇总各专业明细测算结果，形成目标成本科目树和目标成本汇总表。当前版本：{version?.name || '暂无版本'}。</p>
         </div>
         <div className="actions" style={{ marginTop: 0 }}>
-          <Link href={`/projects/${project.id}/detail-rule-calculation`} className="btn">规则驱动明细测算</Link>
-          <Link href={`/projects/${project.id}/detail-calculation-results`} className="btn">明细测算结果</Link>
-          <Link href={`/projects/${project.id}/summary`} className="btn btn-primary">目标成本汇总表</Link>
+          <Link href={`/projects/${project.id}/detail-calculation-results`} className="btn">查看明细测算结果</Link>
+          <Link href={`/projects/${project.id}/summary`} className="btn btn-primary">查看目标成本汇总表</Link>
+          <Link href={`/projects/${project.id}/excel`} className="btn">导出 Excel</Link>
           <Link href={`/projects/${project.id}`} className="btn">返回项目测算中心</Link>
         </div>
       </div>
@@ -275,17 +275,17 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
       <section className="card" style={{ marginBottom: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>
-            <h2 style={{ margin: 0 }}>刷新目标成本测算表</h2>
+            <h2 style={{ margin: 0 }}>重新生成目标成本测算表</h2>
             <p className="meta" style={{ margin: '6px 0 0' }}>从明细测算结果汇总到目标成本测算表，并同步刷新目标成本汇总表。刷新完成前，页面仍展示上一次结果。</p>
           </div>
-          {version ? <form action={refreshTargetCostFromDetails}><input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="versionId" value={version.id} /><RefreshSubmitButton pendingText="正在刷新" disabled={locked}>从明细结果刷新</RefreshSubmitButton></form> : null}
+          {version ? <form action={refreshTargetCostFromDetails}><input type="hidden" name="projectId" value={project.id} /><input type="hidden" name="versionId" value={version.id} /><RefreshSubmitButton pendingText="正在生成" disabled={locked}>重新生成目标成本测算表</RefreshSubmitButton></form> : null}
         </div>
         {locked ? <p className="meta" style={{ margin: '10px 0 0', color: '#c92a2a' }}>当前版本已锁定，目标成本刷新操作只读禁用。</p> : null}
       </section>
 
       <section className="card" style={{ marginBottom: 12 }}>
         <h2>一级科目成本看板</h2>
-        {rows.length === 0 ? <EmptyState title="尚未形成目标成本聚合数据">请先进入规则驱动明细测算或各专业明细页生成明细行，录入工程量与单价后，再点击“从明细结果刷新”。</EmptyState> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 12 }}>
+        {rows.length === 0 ? <EmptyState title="当前目标成本测算表尚未聚合">当前目标成本测算表尚未聚合，暂不能形成成本汇总。请先保存成本明细并生成明细测算结果，再点击“重新生成目标成本测算表”。</EmptyState> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 12 }}>
           {levelOneRows.map((row) => <div key={row.subjectCode} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#fbfdff' }}><b>{row.subjectCode} {row.subjectName}</b><div style={{ fontSize: 20, fontWeight: 900, marginTop: 6 }}>{fmt(row.taxInclusiveAmount)}</div><div className="meta">万元｜占比 {total ? fmt(Number(row.taxInclusiveAmount) / total * 100) : '0'}%</div><div className="meta">建面 {fmt(unitCost(Number(row.taxInclusiveAmount), buildingArea))} 元/㎡</div><div className="meta">可售 {fmt(unitCost(Number(row.taxInclusiveAmount), saleableArea))} 元/㎡</div></div>)}
         </div>}
       </section>
@@ -295,29 +295,35 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
         <p className="meta">金额单位：万元。该表只做汇总，不直接手工测算。</p>
         <div style={{ overflowX: 'auto', marginTop: 12 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
-            <thead><tr>{['科目编码', '目标成本科目', '层级', '含税金额', '不含税金额', '税额', '建面单方', '可售单方', '来源'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #e6edf5', background: '#f8fafc', color: '#667085' }}>{head}</th>)}</tr></thead>
+            <thead><tr>{['科目编码', '科目名称', '层级', '测算依据', '工程量', '单位', '含税单价', '税率', '不含税金额', '税额', '含税金额', '建面单方', '可售单方', '业态列', '来源'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #e6edf5', background: '#f8fafc', color: '#667085' }}>{head}</th>)}</tr></thead>
             <tbody>{rows.map((row) => <tr key={row.subjectCode}>
               <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{row.subjectCode}</td>
               <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', paddingLeft: 10 + subjectIndent(row.subjectCode) }}>{row.subjectName}</td>
               <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>L{row.subjectLevel || subjectLevel(row.subjectCode)}</td>
-              <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', textAlign: 'right', fontWeight: 900 }}>{fmt(row.taxInclusiveAmount)}</td>
+              <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{row.ruleType || '明细汇总'}</td>
+              <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', textAlign: 'right' }}>-</td>
+              <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>-</td>
+              <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', textAlign: 'right' }}>-</td>
+              <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', textAlign: 'right' }}>-</td>
               <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', textAlign: 'right' }}>{fmt(row.taxExclusiveAmount)}</td>
               <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', textAlign: 'right' }}>{fmt(row.taxAmount)}</td>
+              <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', textAlign: 'right', fontWeight: 900 }}>{fmt(row.taxInclusiveAmount)}</td>
               <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', textAlign: 'right' }}>{fmt(row.buildingAreaUnitCost || unitCost(Number(row.taxInclusiveAmount), buildingArea))}</td>
               <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', textAlign: 'right' }}>{fmt(row.saleableAreaUnitCost || unitCost(Number(row.taxInclusiveAmount), saleableArea))}</td>
+              <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>全项目</td>
               <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>明细页汇总</td>
             </tr>)}</tbody>
-            <tfoot><tr><td colSpan={3} style={{ padding: 10, fontWeight: 900 }}>合计</td><td style={{ padding: 10, textAlign: 'right', fontWeight: 900 }}>{fmt(total)}</td><td style={{ padding: 10, textAlign: 'right' }}>{fmt(totalExclusive)}</td><td style={{ padding: 10, textAlign: 'right' }}>{fmt(totalTax)}</td><td style={{ padding: 10, textAlign: 'right' }}>{fmt(unitCost(total, buildingArea))}</td><td style={{ padding: 10, textAlign: 'right' }}>{fmt(unitCost(total, saleableArea))}</td><td /></tr></tfoot>
+            <tfoot><tr><td colSpan={8} style={{ padding: 10, fontWeight: 900 }}>合计</td><td style={{ padding: 10, textAlign: 'right' }}>{fmt(totalExclusive)}</td><td style={{ padding: 10, textAlign: 'right' }}>{fmt(totalTax)}</td><td style={{ padding: 10, textAlign: 'right', fontWeight: 900 }}>{fmt(total)}</td><td style={{ padding: 10, textAlign: 'right' }}>{fmt(unitCost(total, buildingArea))}</td><td style={{ padding: 10, textAlign: 'right' }}>{fmt(unitCost(total, saleableArea))}</td><td /><td /></tr></tfoot>
           </table>
         </div>
       </section>
 
       <section className="card" style={{ marginTop: 12 }}>
         <h2>目标成本量价额明细预览</h2>
-        <p className="meta">金额单位：万元；finalAmount 统一按含税金额展示。若后端未单独返回 finalAmount，本页使用 taxInclusiveAmount 作为含税金额口径。</p>
-        {costLinePreview.length === 0 ? <EmptyState title="暂无目标成本明细数据">请先生成或录入目标成本明细；形成成本行后，本区会展示 finalQuantity、unitPrice、finalAmount 和手算覆盖状态。</EmptyState> : <div style={{ overflowX: 'auto', marginTop: 12 }}>
+        <p className="meta">金额单位：万元；工程量和含税单价来自专业明细页，本区用于复核量价额和手算覆盖状态。</p>
+        {costLinePreview.length === 0 ? <EmptyState title="当前尚未生成目标成本明细">请先保存成本明细，再点击“生成明细测算结果”。形成成本行后，本区会展示工程量、单价、含税金额和手算覆盖状态。</EmptyState> : <div style={{ overflowX: 'auto', marginTop: 12 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1680, fontSize: 12 }}>
-            <thead><tr>{['科目', '对象 / 依据', 'calculatedQuantity', 'finalQuantity', 'unitPrice', 'priceSource', 'taxRate', 'finalAmount 含税金额', '不含税 / 税额', 'quantityCalcMode', '手算覆盖状态'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #e6edf5', background: '#f8fafc', color: '#667085' }}>{head}</th>)}</tr></thead>
+            <thead><tr>{['科目', '对象 / 依据', '系统计算工程量', '生效工程量', '含税单价', '单价来源', '税率', '含税金额', '不含税 / 税额', '工程量来源', '手算覆盖状态'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #e6edf5', background: '#f8fafc', color: '#667085' }}>{head}</th>)}</tr></thead>
             <tbody>{costLinePreview.map((line) => {
               const mode = quantityMode(line);
               const source = priceSource(line);
@@ -326,10 +332,10 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{line.productType?.name || line.regionOrProductType || '全项目'}<div className="meta">{line.measureBasis || '未配置基础指标绑定'}</div></td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(calculatedQuantity(line))} {line.unit || ''}<div className="meta">基础指标 {fmt(line.measureValue)} x 含量 {fmt(line.coefficient || 1)}</div></td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{fmt(line.quantity)} {line.unit || ''}</td>
-                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(line.taxInclusiveUnitPrice)}<div className="meta">priceUnit: {line.unit ? `元/${line.unit}` : '按后端返回'}</div></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(line.taxInclusiveUnitPrice)}<div className="meta">{line.unit ? `元/${line.unit}` : '按后端返回'}</div></td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{priceSourceLabel(source)}<div className="meta">{source}</div></td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(num(line.taxRate) * 100)}%</td>
-                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{fmt(line.taxInclusiveAmount)}<div className="meta">finalAmount / taxInclusiveAmount</div></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{fmt(line.taxInclusiveAmount)}</td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(line.taxExclusiveAmount)} / {fmt(line.taxAmount)}</td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{quantityModeLabel(mode)}<div className="meta">{mode}</div></td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{line.quantityOverride ? '已手算覆盖' : '未覆盖'}<div className="meta" style={{ maxWidth: 260 }}>{line.quantityOverride ? (line.remark || overrideNotice(mode)) : overrideNotice(mode)}</div></td>

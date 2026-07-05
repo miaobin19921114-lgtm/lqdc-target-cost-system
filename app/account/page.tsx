@@ -32,12 +32,12 @@ export default async function AccountPage() {
       <div className="page-header">
         <div>
           <p className="eyebrow">个人账户</p>
-          <h1 className="title">{user.name || user.email}</h1>
+          <h1 className="title">个人账户</h1>
+          <p className="meta" style={{ margin: 0 }}>账户名称：{user.name || user.email}　角色：{roleName(user.role)}</p>
           <p className="subtitle">这里用于查看当前登录账户和退出登录。V1 仅保留基础账户信息与登录状态管理。</p>
         </div>
         <div className="actions" style={{ marginTop: 0 }}>
           <Link href="/projects" className="btn btn-primary">返回项目中心</Link>
-          <Link href="/projects" className="btn">项目列表</Link>
         </div>
       </div>
 
@@ -60,7 +60,6 @@ export default async function AccountPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 12 }}>
           <Link href="/projects" className="btn btn-primary">项目中心</Link>
           <Link href="/projects/new" className="btn">新建项目</Link>
-          <Link href="/projects" className="btn">项目列表</Link>
           <form action="/api/auth/logout" method="post" style={{ margin: 0 }}>
             <button className="btn" style={{ width: '100%' }}>退出登录</button>
           </form>

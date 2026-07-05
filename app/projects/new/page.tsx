@@ -3,7 +3,6 @@ import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { defaultVersionStage, versionStageOptions } from '@/lib/version-stage';
 import ProductCascadeSelector from './ProductCascadeSelector';
-import CostRuleSelector from './CostRuleSelector';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,30 +26,13 @@ export default async function NewProjectPage() {
       participateAllocation: product.participateAllocation
     }))
   }));
-  const costRuleTemplates = templates.map((item) => ({
-    id: item.id,
-    name: item.ownerId ? `${item.name}${item.isDefault ? '（默认）' : ''}` : `${item.name}（系统）`,
-    costRules: item.costRules.map((rule) => ({
-      id: rule.id,
-      costCode: rule.costCode,
-      category: rule.category,
-      subjectName: rule.subjectName,
-      sourceTable: rule.sourceTable,
-      measureBasis: rule.measureBasis,
-      unit: rule.unit,
-      defaultTaxRate: Number(rule.defaultTaxRate || 0),
-      allocationMethod: rule.allocationMethod,
-      remark: rule.remark,
-      sortOrder: rule.sortOrder
-    }))
-  }));
 
   return <main className="page"><form action="/api/projects" method="post" className="container" style={{ maxWidth: 1180 }}>
-    <div className="page-header"><div><p className="eyebrow">项目初始化向导</p><h1 className="title">新建项目</h1><p className="subtitle">按 V1.0.0 流程创建项目，并生成项目概况、业态、科目和版本基础框架。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href="/projects" className="btn">返回</Link></div></div>
-    <section className="card"><span className="badge">第1步</span><h2>测算阶段</h2><p className="meta">每个项目可按投拓、概念方案、方案、施工图、招采、动态、结算 7 个阶段沉淀不同版本。</p><label style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 360 }}>当前阶段<select name="stage" defaultValue={defaultVersionStage} style={{ height: 38, border: '1px solid #d9e2ec', borderRadius: 8, padding: '0 10px' }}>{versionStageOptions.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}</select></label></section>
-    <section className="card"><span className="badge">第2步</span><h2>选择模板与业态</h2>{templates.length ? <ProductCascadeSelector templates={selectorTemplates} /> : <p className="meta">暂无模板，请先到模板中心检查。</p>}</section>
-    <section className="card"><span className="badge">第3步</span><h2>系统模板规则：科目、税率与分摊方式</h2>{templates.length ? <CostRuleSelector templates={costRuleTemplates} /> : <p className="meta">暂无科目规则，请先到模板中心检查。</p>}</section>
-    <section className="card"><span className="badge">第4步</span><h2>项目基础信息</h2><p className="meta">这里是项目主控基础指标，后续概况表会继续承接和细化，不会和业态选择冲突。</p><div className="form-grid"><label>项目名称<input name="name" required placeholder="如：龙泉140亩项目" /></label><label>城市<input name="city" defaultValue="成都" /></label><label>区域<input name="district" defaultValue="龙泉驿" /></label><label>土地面积㎡<input name="landArea" type="number" step="0.01" /></label><label>容积率<input name="plotRatio" type="number" step="0.01" /></label><label>总建筑面积㎡<input name="totalBuildingArea" type="number" step="0.01" /></label><label>可售面积㎡<input name="saleableArea" type="number" step="0.01" /></label><label>车位数量<input name="parkingCount" type="number" /></label></div><div style={{ marginTop: 14 }}><label>备注<textarea name="remark" placeholder="项目定位、测算口径等" /></label></div></section>
-    <div className="actions" style={{ justifyContent: 'flex-end' }}><button className="btn btn-primary">创建项目并生成框架</button></div>
+    <div className="page-header"><div><p className="eyebrow">项目初始化向导</p><h1 className="title">新建项目</h1><p className="subtitle">按 4 步完成项目基础信息、测算模板、业态选择和创建确认，创建后进入项目测算中心。</p></div><div className="actions" style={{ marginTop: 0 }}><Link href="/projects" className="btn">返回项目中心</Link></div></div>
+    <section className="card" style={{ marginBottom: 14 }}><span className="badge">第 1 步</span><h2>项目基础信息</h2><p className="meta">先录入项目主控信息，后续可在项目概况中继续补充。</p><div className="form-grid"><label>项目名称 *<input name="name" required placeholder="如：龙泉140亩项目" /></label><label>城市 *<input name="city" required defaultValue="成都" /></label><label>区域 *<input name="district" required defaultValue="龙泉驿" /></label><label>测算阶段 *<select name="stage" defaultValue={defaultVersionStage}>{versionStageOptions.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}</select></label><label>土地面积（㎡）<input name="landArea" type="number" step="0.01" /></label><label>容积率<input name="plotRatio" type="number" step="0.01" /></label><label>总建筑面积（㎡）<input name="totalBuildingArea" type="number" step="0.01" /></label><label>可售面积（㎡）<input name="saleableArea" type="number" step="0.01" /></label><label>车位数量（个）<input name="parkingCount" type="number" /></label></div><div style={{ marginTop: 14 }}><label>备注<textarea name="remark" placeholder="项目定位、测算口径等" /></label></div></section>
+    <section className="card" style={{ marginBottom: 14 }}><span className="badge">第 2 步</span><h2>选择测算模板</h2><div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, background: '#f8fafc' }}><b>住宅开发目标成本标准模板</b><p className="meta" style={{ margin: '6px 0 0' }}>适用于住宅、底商、地下车位、配套、公区、景观及税费测算。</p><input type="hidden" name="templateName" value="住宅开发目标成本标准模板" /></div><details style={{ marginTop: 12 }}><summary style={{ cursor: 'pointer', fontWeight: 900 }}>查看模板包含内容</summary><p className="meta" style={{ marginTop: 8 }}>创建后将带入目标成本科目框架、收入明细框架、税费测算框架和常用测算口径。科目税率明细可在项目测算中心继续查看。</p></details></section>
+    <section className="card" style={{ marginBottom: 14 }}><span className="badge">第 3 步</span><h2>选择业态</h2><p className="meta">默认展示住宅、商业、车位、地下室和配套常用业态；更多业态可展开选择。</p>{templates.length ? <ProductCascadeSelector templates={selectorTemplates} /> : <p className="meta">模板中心暂无可用业态。可先填写项目信息，创建后再维护自定义业态。</p>}<details style={{ marginTop: 12 }}><summary style={{ cursor: 'pointer', fontWeight: 900 }}>展开更多业态</summary><p className="meta">可在创建后进入“业态产品与对象”补充办公、酒店、幼儿园、配建用房等非默认业态。</p></details><div className="meta" style={{ marginTop: 10 }}>保留“新增自定义业态”，用于非标准产品测算。</div></section>
+    <section className="card" style={{ marginBottom: 14 }}><span className="badge">第 4 步</span><h2>确认并创建</h2><p className="meta">创建前请复核：项目名称、城市区域、测算阶段、测算模板和已选业态。创建后将生成：项目概况、初始版本、目标成本科目框架、收入明细框架、税费测算框架。</p></section>
+    <div className="actions" style={{ justifyContent: 'flex-end' }}><button className="btn btn-primary">创建项目并进入测算中心</button></div>
   </form></main>;
 }

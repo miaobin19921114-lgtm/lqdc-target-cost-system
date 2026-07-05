@@ -44,9 +44,9 @@ export default async function ProjectExcelPage({ params, searchParams }: { param
       <div className="container" style={{ maxWidth: 1280 }}>
         <div className="page-header">
           <div>
-            <p className="eyebrow">Excel 导入导出</p>
-            <h1 className="title">标准 V60 模板导入预览与完整导出</h1>
-            <p className="subtitle">当前支持标准 V60 母版：模板下载、上传解析预览、问题展示、确认导入落库和当前项目版本完整 Excel 导出。</p>
+            <p className="eyebrow">Excel 工作台</p>
+            <h1 className="title">Excel 工作台</h1>
+            <p className="subtitle">支持标准 V60 模板下载、上传解析、导入预览、确认导入和完整导出。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/versions`} className="btn">版本管理</Link>
@@ -55,6 +55,9 @@ export default async function ProjectExcelPage({ params, searchParams }: { param
         </div>
 
         <section className="card" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginBottom: 14 }}>
+            {['下载标准模板', '上传 Excel 文件', '解析预览与问题检查', '确认导入 / 导出完整版本'].map((step, index) => <div key={step} style={{ border: '1px solid #d9e2ec', borderRadius: 10, padding: 12, background: '#f8fafc' }}><b>{index + 1}. {step}</b></div>)}
+          </div>
           <div className="summary-strip" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <div className="stat"><div className="stat-label">项目名称</div><div className="stat-value">{project.name}</div></div>
             <div className="stat"><div className="stat-label">当前版本</div><div className="stat-value">{version.name}</div></div>

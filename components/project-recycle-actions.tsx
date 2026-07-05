@@ -72,7 +72,7 @@ export function MoveProjectToTrashButton({ projectId, projectName }: { projectId
   }
 
   return <>
-    <button type="button" className="btn" style={{ color: '#c92a2a' }} onClick={() => { setOpen(true); setStatus('idle'); setMessage(''); }}>移入回收站</button>
+    <button type="button" className="btn" style={{ color: '#c92a2a', background: '#fff5f5', borderColor: '#ffc9c9' }} onClick={() => { setOpen(true); setStatus('idle'); setMessage(''); }}>移入回收站</button>
     {message ? <span className="meta" style={{ color: status === 'error' ? '#c92a2a' : '#2b8a3e' }}>{message}</span> : null}
     {open ? <div role="dialog" aria-modal="true" aria-label="确认移入回收站" style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(16,32,51,.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div className="card" style={{ width: 'min(520px, 100%)', background: '#fff', margin: 0 }}>
@@ -80,7 +80,7 @@ export function MoveProjectToTrashButton({ projectId, projectName }: { projectId
         <h2 style={{ marginTop: 0 }}>移入回收站</h2>
         <p className="meta">项目“{projectName}”将从正常项目列表移除，可在回收站中恢复。不会物理删除数据。</p>
         <label style={{ display: 'grid', gap: 6, marginTop: 12 }}>
-          <span style={{ fontWeight: 800 }}>原因</span>
+          <span style={{ fontWeight: 800 }}>移入原因（可选）</span>
           <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} placeholder="可选" style={{ width: '100%', border: '1px solid var(--border)', borderRadius: 10, padding: 10, resize: 'vertical' }} />
         </label>
         {message ? <div style={{ marginTop: 12, color: status === 'error' ? '#c92a2a' : '#2b8a3e' }}>{message}</div> : null}
@@ -149,7 +149,7 @@ export function ProjectTrashPanel() {
   }, [open]);
 
   return <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-    <button type="button" className="btn" onClick={() => setOpen((value) => !value)}>{open ? '收起回收站' : '回收站'}</button>
+    <button type="button" className="btn" onClick={() => setOpen((value) => !value)}>{open ? '收起项目回收站' : '查看项目回收站'}</button>
     {open ? <section className="card" style={{ width: 'min(760px, calc(100vw - 32px))', margin: 0, textAlign: 'left', background: '#fff' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
         <div>
@@ -169,7 +169,7 @@ export function ProjectTrashPanel() {
           <div>
             <b>{project.name}</b>
             <div className="meta">移入时间：{formatDate(project.deletedAt)} · 版本数：{project.versionCount ?? project.versionsCount ?? 0}</div>
-            <div className="meta">原因：{project.deleteReason || '未填写'}</div>
+            <div className="meta">移入原因：{project.deleteReason || '未填写'}</div>
           </div>
           <button type="button" className="btn btn-primary" disabled={restoringId === project.id} onClick={() => restore(project.id)}>{restoringId === project.id ? '恢复中...' : '恢复项目'}</button>
         </article>)}

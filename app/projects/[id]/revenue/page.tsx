@@ -66,9 +66,9 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
     <div className="container" style={{ maxWidth: 1280 }}>
       <div className="page-header">
         <div>
-          <p className="eyebrow">收入测算</p>
-          <h1 className="title">销售收入测算</h1>
-          <p className="subtitle">住宅、配套等普通可售物业按“可售面积 × 含税销售单价”测算；已拆分的一层/二层商业、车位和其他政策性收益在专项页面维护。</p>
+          <p className="eyebrow">收入明细表</p>
+          <h1 className="title">收入明细表</h1>
+          <p className="subtitle">金额单位：万元；单价单位：元/㎡ 或 元/个；面积单位：㎡；数量单位：个。可售产品业态按“可售面积 × 含税销售单价”测算。</p>
         </div>
         <div className="actions" style={{ marginTop: 0 }}>
           <Link href={`/projects/${project.id}/revenue-summary`} className="btn btn-primary">收入汇总</Link>
@@ -79,7 +79,7 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
         </div>
       </div>
 
-      <VersionContextBar projectName={project.name} versionName={version?.name} versionStatus={version?.status} editable={!locked} extra={[['普通可售业态', rows.length], ['税率', `${(taxRate * 100).toFixed(2)}%`]]} />
+      <VersionContextBar projectName={project.name} versionName={version?.name} versionStatus={version?.status} editable={!locked} extra={[['可售产品业态', rows.length], ['税率', `${(taxRate * 100).toFixed(2)}%`]]} />
       {searchParams?.saved === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb', background: '#f0fff4' }}>销售收入单价已保存，并已同步收入明细。{searchParams?.rows ? `本次处理 ${searchParams.rows} 行。` : ''}</div> : null}
       {searchParams?.synced === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#b2f2bb', background: '#f0fff4' }}>销售收入已同步。{searchParams?.rows ? `本次同步 ${searchParams.rows} 行。` : ''}</div> : null}
       {searchParams?.locked === '1' ? <div className="card" style={{ marginBottom: 16, borderColor: '#ffd8a8' }}>{LOCKED_VERSION_EDIT_MESSAGE}</div> : null}
@@ -87,10 +87,10 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
 
       <section className="card" style={{ marginBottom: 16 }}>
         <div className="summary-strip">
-          <div className="stat"><div className="stat-label">普通可售面积</div><div className="stat-value">{fmt(totalArea)}㎡</div></div>
-          <div className="stat"><div className="stat-label">含税销售收入</div><div className="stat-value">{fmt(total)}元</div></div>
-          <div className="stat"><div className="stat-label">不含税销售收入</div><div className="stat-value">{fmt(net)}元</div></div>
-          <div className="stat"><div className="stat-label">销项税额</div><div className="stat-value">{fmt(fee)}元</div></div>
+          <div className="stat"><div className="stat-label">可售产品面积</div><div className="stat-value">{fmt(totalArea)}㎡</div></div>
+          <div className="stat"><div className="stat-label">含税销售收入</div><div className="stat-value">{fmt(total / 10000)}万元</div></div>
+          <div className="stat"><div className="stat-label">不含税销售收入</div><div className="stat-value">{fmt(net / 10000)}万元</div></div>
+          <div className="stat"><div className="stat-label">销项税额</div><div className="stat-value">{fmt(fee / 10000)}万元</div></div>
           <div className="stat"><div className="stat-label">可售单方收入</div><div className="stat-value">{totalArea ? fmt(total / totalArea) : '0'}元/㎡</div></div>
         </div>
       </section>
@@ -106,23 +106,23 @@ export default async function RevenuePage({ params, searchParams }: { params: { 
             <h2 style={{ margin: 0 }}>销售收入明细</h2>
             <p className="meta">面积在项目概况维护；本表维护含税销售单价，并同步收入明细。</p>
           </div>
-          <button form="revenue-batch" className="btn btn-primary" disabled={locked}>保存销售单价并同步</button>
+          <button form="revenue-batch" className="btn btn-primary" disabled={locked}>保存并同步收入</button>
         </div>
         {rows.length === 0 ? <p className="meta">暂无普通可售业态。请先到项目概况维护可售业态；商业收入请到“商业收入”页面维护。</p> : <div style={{ overflowX: 'auto' }}>
           <form id="revenue-batch" action={`/api/projects/${project.id}/revenue/batch`} method="post" />
           <input form="revenue-batch" type="hidden" name="rowCount" value={rows.length} />
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1080 }}>
-            <thead><tr>{['业态', '可售面积㎡', '含税销售单价', '税率', '含税收入', '不含税收入', '销项税额', '已同步收入', '差异'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead>
+            <thead><tr>{['业态', '可售面积（㎡）', '含税销售单价（元/㎡）', '税率', '含税收入（万元）', '不含税收入（万元）', '销项税额（万元）', '已同步收入（万元）', '差异（万元）'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>)}</tr></thead>
             <tbody>{rows.map((row, index) => <tr key={row.id}>
               <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 700 }}><input form="revenue-batch" type="hidden" name={`productId-${index}`} value={row.id} />{row.name}</td>
               <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.area)}</td>
               <td style={{ padding: 6, borderBottom: '1px solid var(--border)' }}><input form="revenue-batch" name={`salePrice-${index}`} type="number" step="0.01" defaultValue={row.price || ''} disabled={locked} style={{ height: 34, border: '1px solid #d9e2ec', borderRadius: 6, padding: '4px 8px', width: 140, background: locked ? '#f2f4f7' : '#fff', color: locked ? '#667085' : undefined }} /></td>
               <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{(taxRate * 100).toFixed(2)}%</td>
-              <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.total)}</td>
-              <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.net)}</td>
-              <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.fee)}</td>
-              <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.maintainedTotal)}</td>
-              <td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: Math.abs(row.diff) > 1 ? '#e03131' : '#2f9e44', fontWeight: 900 }}>{fmt(row.diff)}</td>
+              <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.total / 10000)}</td>
+              <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.net / 10000)}</td>
+              <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.fee / 10000)}</td>
+              <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{fmt(row.maintainedTotal / 10000)}</td>
+              <td style={{ padding: 10, borderBottom: '1px solid var(--border)', color: Math.abs(row.diff) > 1 ? '#e03131' : '#2f9e44', fontWeight: 900 }}>{fmt(row.diff / 10000)}</td>
             </tr>)}</tbody>
           </table>
         </div>}

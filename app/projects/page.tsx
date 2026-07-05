@@ -37,12 +37,11 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
       <div className="container">
         <div className="page-header">
           <div>
-            <p className="eyebrow">地产成本智算平台</p>
+            <p className="eyebrow">项目中心</p>
             <h1 className="title">项目中心</h1>
-            <p className="subtitle">V1.0.0 聚焦项目管理与项目测算中心，先完成项目概况、收入、成本、税费、Excel 和自检主流程。</p>
+            <p className="subtitle">管理地产目标成本测算项目，进入测算中心维护概况、收入、成本、税费、版本和 Excel 交付。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
-            <ProjectTrashPanel />
             <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
           </div>
         </div>
@@ -56,7 +55,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
               <h2 style={{ margin: 0 }}>我的项目</h2>
               <p className="meta">优先进入项目测算中心，完成目标成本测算、Excel 导入导出、成本汇总分析、税费利润分析和版本管理。</p>
             </div>
-            <Link href="/projects/new" className="btn btn-primary">新建项目</Link>
+            <ProjectTrashPanel />
           </div>
 
           {projects.length === 0 ? (
@@ -81,7 +80,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: { 
                     <div className="stat"><div className="stat-label">版本数</div><div className="stat-value">{project.versions.length}</div></div>
                   </div>
                   <div className="actions">
-                    <Link href={`/projects/${project.id}`} className="btn btn-primary">进入项目测算中心</Link>
+                    <Link href={`/projects/${project.id}`} className="btn btn-primary">进入测算</Link>
                     <Link href={`/projects/${project.id}/versions`} className="btn">版本管理</Link>
                     <MoveProjectToTrashButton projectId={project.id} projectName={project.name} />
                   </div>

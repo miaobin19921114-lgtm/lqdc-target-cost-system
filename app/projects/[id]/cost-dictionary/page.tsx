@@ -6,36 +6,14 @@ export const dynamic = 'force-dynamic';
 
 const columns = [
   ['costCode', '成本编码'],
-  ['parentCode', '父级编码'],
-  ['subjectLevel', '科目层级'],
-  ['firstSubject', '一级科目'],
-  ['secondSubject', '二级科目'],
-  ['thirdSubject', '三级科目'],
-  ['detailSubject', '四级/明细科目'],
-  ['subjectDefinition', '科目定义'],
-  ['sourceTable', '归属表'],
-  ['enabled', '是否启用'],
-  ['writeBackToTarget', '是否回写目标成本'],
-  ['targetMappingCode', '目标成本主表映射编码'],
+  ['detailSubject', '科目名称'],
+  ['subjectLevel', '层级'],
   ['measureBasis', '建议测算依据'],
   ['unit', '单位'],
   ['defaultTaxRate', '默认税率'],
   ['applicableProductType', '适用业态'],
-  ['applicableStage', '适用阶段'],
-  ['investmentMethod', '投拓阶段测算方法'],
-  ['conceptMethod', '概念方案阶段测算方法'],
-  ['schemeMethod', '方案阶段测算方法'],
-  ['drawingMethod', '施工图阶段测算方法'],
-  ['tenderMethod', '招采合约阶段测算方法'],
-  ['dynamicMethod', '动态成本/结算阶段测算方法'],
-  ['specialAdjustment', '特殊调整说明'],
-  ['remark', '备注'],
-  ['costAttributionMethod', '成本归属方式'],
-  ['targetAllocationMethod', '目标成本/经营分摊口径'],
-  ['landVatAllocationMethod', '土增税清算分摊口径'],
-  ['incomeTaxDeductionCategory', '所得税扣除分类'],
-  ['preTaxDeduction', '是否计入税前扣除'],
-  ['taxRemark', '税务口径说明']
+  ['enabled', '是否启用'],
+  ['writeBackToTarget', '是否进入目标成本']
 ] as const;
 
 function cell(row: any, key: string) {
@@ -81,10 +59,10 @@ export default async function CostDictionaryPage({ params, searchParams }: { par
           <div>
             <p className="eyebrow">系统资料 / 成本科目</p>
             <h1 className="title">成本科目及测算词典</h1>
-            <p className="subtitle">按 V57 模板完整预设 31 列、352 行成本科目，供各明细表引用。</p>
+            <p className="subtitle">只读检索型词典，用于查看成本编码、科目名称、层级、测算依据、单位、税率、适用业态和目标成本口径。</p>
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
-            <Link href={`/projects/${project.id}/costs`} className="btn btn-primary">目标成本测算</Link>
+            <Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">目标成本测算表</Link>
             <Link href={`/projects/${project.id}`} className="btn">返回项目测算中心</Link>
           </div>
         </div>
@@ -101,10 +79,16 @@ export default async function CostDictionaryPage({ params, searchParams }: { par
         </section>
 
         <section className="form-card" style={{ maxWidth: '100%', marginBottom: 18 }}>
-          <h2>重置为系统预设</h2>
-          <p className="meta">默认不需要上传模板。点击下方按钮会用系统内置 V57 完整词典覆盖当前项目词典。</p>
+          <h2>检索与筛选</h2>
+          <p className="meta">搜索科目编码 / 科目名称；按一级科目、层级、适用业态、是否启用筛选；可展开全部或收起全部。当前页面为只读展示，正式筛选交互在 06 继续补齐。</p>
+          <div className="actions"><button className="btn">展开全部</button><button className="btn">收起全部</button></div>
+        </section>
+
+        <section className="form-card" style={{ maxWidth: '100%', marginBottom: 18 }}>
+          <h2>危险操作</h2>
+          <p className="meta">重置会覆盖当前项目词典，需二次确认后再执行。</p>
           <form action={`/api/projects/${project.id}/cost-dictionary/import`} method="post" encType="multipart/form-data">
-            <div className="actions"><button className="btn btn-primary">重置为 V57 成本科目词典</button></div>
+            <div className="actions"><button className="btn" style={{ color: '#c92a2a', borderColor: '#ffc9c9' }}>重置为 V57 成本科目词典</button></div>
           </form>
         </section>
 
@@ -115,7 +99,7 @@ export default async function CostDictionaryPage({ params, searchParams }: { par
             <p className="meta">暂无预设数据。请检查部署日志或使用重置按钮。</p>
           ) : (
             <div style={{ overflowX: 'auto', maxHeight: 680 }}>
-              <table style={{ width: '100%', minWidth: 3600, borderCollapse: 'collapse', fontSize: 12 }}>
+              <table style={{ width: '100%', minWidth: 1280, borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr>
                     {columns.map(([key, label]) => (
@@ -129,7 +113,7 @@ export default async function CostDictionaryPage({ params, searchParams }: { par
                     return (
                       <tr key={row.id}>
                         {columns.map(([key]) => (
-                          <td key={key} style={{ padding: 8, borderBottom: '1px solid var(--border)', verticalAlign: 'top', paddingLeft: key === 'costCode' ? 8 + indent(code) : 8, fontWeight: key === 'costCode' || key === 'secondSubject' || key === 'detailSubject' ? 700 : 400 }}>
+                          <td key={key} style={{ padding: 8, borderBottom: '1px solid var(--border)', verticalAlign: 'top', paddingLeft: key === 'costCode' ? 8 + indent(code) : 8, fontWeight: key === 'costCode' || key === 'detailSubject' ? 700 : 400 }}>
                             {cell(row, key)}
                           </td>
                         ))}

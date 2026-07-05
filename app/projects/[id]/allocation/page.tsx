@@ -100,6 +100,9 @@ export default async function AllocationPage({ params }: { params: { id: string 
           </div>
           <div className="actions" style={{ marginTop: 0 }}>
             <Link href={`/projects/${project.id}/costs-batch`} className="btn btn-primary">目标成本测算</Link>
+            <button className="btn" disabled={locked} title={locked ? '当前版本已锁定，仅支持查看。' : undefined}>重新计算分摊</button>
+            <button className="btn" disabled={locked} title={locked ? '当前版本已锁定，仅支持查看。' : undefined}>同步至目标成本测算表</button>
+            <Link href={`/projects/${project.id}/profit-analysis`} className="btn">查看业态利润分析</Link>
             <Link href={`/projects/${project.id}`} className="btn">返回项目测算中心</Link>
           </div>
         </div>
@@ -112,6 +115,7 @@ export default async function AllocationPage({ params }: { params: { id: string 
           <div className="stat"><div className="stat-label">当前版本</div><div className="stat-value">{version?.name || '暂无版本'}</div><div className="meta">{locked ? '已锁定' : '可编辑'}</div></div>
         </div>
         {disabledProductCount ? <StatusNotice title="已按启用业态口径展示" tone="warning">停用业态 {disabledProductCount} 个及其直接关联成本行不参与当前分摊展示。</StatusNotice> : null}
+        <section className="card" style={{ marginBottom: 18 }}><h2>分摊口径摘要</h2><p className="meta">本页按成本明细中的分摊方式识别可售面积、建筑面积、计容面积、销售收入或分摊权重，并按启用且参与分摊的业态展示结果。</p></section>
 
         <section className="card" style={{ marginBottom: 18 }}>
           <h2>业态分摊结果</h2>

@@ -10,10 +10,13 @@ export function AccountBar() {
     <div className="global-account-bar" style={{ position: 'sticky', top: 0, zIndex: 50, background: '#102a43', color: '#fff', borderBottom: '1px solid rgba(255,255,255,.12)' }}>
       <div style={{ maxWidth: 1500, margin: '0 auto', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <Link href="/projects" style={{ color: '#fff', fontWeight: 900, whiteSpace: 'nowrap' }}>地产成本智算平台</Link>
+          <Link href="/projects" style={{ color: '#fff', fontWeight: 900, whiteSpace: 'nowrap' }}>地产目标成本测算平台</Link>
         </div>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <Link href="/projects" style={navLink}>项目中心</Link>
+          <Link href="/templates" style={navLink}>模板中心</Link>
+          <Link href="/projects" style={navLink}>Excel 工作台</Link>
+          <Link href="/knowledge" style={navLink}>帮助文档</Link>
           <Link href="/account" style={navLink}>个人账户</Link>
           <form action="/api/auth/logout" method="post" style={{ margin: 0 }}>
             <button type="submit" style={{ ...navLink, border: '1px solid rgba(255,255,255,.28)', cursor: 'pointer' }}>退出登录</button>

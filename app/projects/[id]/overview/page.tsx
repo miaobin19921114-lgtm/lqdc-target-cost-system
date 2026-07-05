@@ -130,7 +130,7 @@ function priceSourceText(value?: string | null) {
 }
 
 function overrideNotice(item: any) {
-  if (item.quantityCalcMode === 'manual_entered') return '当前工程量已手算覆盖，后续含量变化不会自动覆盖 finalQuantity';
+  if (item.quantityCalcMode === 'manual_entered') return '当前工程量已手算覆盖，后续含量变化不会自动覆盖生效工程量';
   if (item.quantityCalcMode === 'locked_confirmed' || item.isQuantityLocked) return '当前工程量已锁定，不允许修改';
   if (item.quantityCalcMode === 'auto_calculated') return '当前工程量由基础指标 × 含量自动推算';
   return item.overrideReason || item.quantitySourceRemark || '按接口返回口径展示';
@@ -207,10 +207,10 @@ function TabNav({ projectId, current }: { projectId: string; current: SectionKey
 function HeaderActions({ projectId, versionId, current, locked }: { projectId: string; versionId?: string; current: SectionKey; locked: boolean }) {
   const formId = versionId ? sectionFormIds[current] : undefined;
   return <div className="actions" style={{ marginTop: 0 }}>
-    {formId ? <button type="submit" form={formId} className="btn btn-primary" disabled={locked} title={locked ? '当前版本已锁定，本分区不可保存。' : undefined}>保存本分区</button> : null}
+    {formId ? <button type="submit" form={formId} className="btn btn-primary" disabled={locked} title={locked ? '当前版本已锁定，仅支持查看。如需调整数据，请在版本管理中复制为新版本后编辑。' : undefined}>保存当前分区</button> : null}
     {current === 'product-objects' ? <button type="button" className="btn" disabled title="本分区暂不支持整区保存，请使用每行的新增、停用或恢复按钮。">按单项保存</button> : null}
     {current === 'quantity-indicators' ? <Link href={`/projects/${projectId}/quantity-indicators`} className="btn">完整工程量页</Link> : null}
-    {current === 'product-objects' ? locked ? <button className="btn" disabled>完整维护页</button> : <Link href={`/projects/${projectId}/product-maintenance`} className="btn">完整维护页</Link> : null}
+    {current === 'product-objects' ? locked ? <button className="btn" disabled title="当前版本已锁定，仅支持查看。">进入业态明细维护</button> : <Link href={`/projects/${projectId}/product-maintenance`} className="btn">进入业态明细维护</Link> : null}
     <Link href={`/projects/${projectId}`} className="btn">返回项目测算中心</Link>
   </div>;
 }
@@ -377,7 +377,7 @@ function SectionShell({ children }: { children: ReactNode }) {
 
 async function OverviewSection({ projectId, versionId, locked }: { projectId: string; versionId: string; locked: boolean }) {
   const result = await getProfileOverview(projectId, versionId);
-  if (!result.body.success) return <StatusNotice title="profile 聚合接口读取失败" tone="danger">{result.body.error.message}<div style={{ marginTop: 10 }}><Link href={`/projects/${projectId}/overview?section=overview`} className="btn">刷新重试</Link></div></StatusNotice>;
+  if (!result.body.success) return <StatusNotice title="项目资料读取失败" tone="danger">{result.body.error.message}<div style={{ marginTop: 10 }}><Link href={`/projects/${projectId}/overview?section=overview`} className="btn">刷新重试</Link></div></StatusNotice>;
   const data: any = resultData(result);
   const metrics = await getProfileProjectMetrics(projectId, versionId);
   const m: any = metrics.body.success ? resultData(metrics) : {};
@@ -391,11 +391,11 @@ async function OverviewSection({ projectId, versionId, locked }: { projectId: st
   ] as const;
   return <ProfileSectionForm formId="profile-overview-form" endpoint={profileUrl(projectId, versionId, 'overview')} locked={locked} successMessage="项目总览已保存。">
     <SectionShell>
-      <StatusNotice title="profile 聚合接口加载状态" tone="success">已读取当前项目、当前版本、版本状态、数据完整性与五页入口状态。最近更新时间：{dateText(data.updatedAt)}。<div style={{ marginTop: 10 }}><Link href={`/projects/${projectId}/overview?section=overview`} className="btn">刷新本页</Link></div></StatusNotice>
+      <StatusNotice title="项目资料已同步" tone="success">资料状态：已加载。最近更新时间：{dateText(data.updatedAt)}。<div style={{ marginTop: 10 }}><Link href={`/projects/${projectId}/overview?section=overview`} className="btn">刷新本页</Link></div></StatusNotice>
       {locked ? <StatusNotice title="当前版本已锁定" tone="danger">当前版本已锁定，概况、对象、指标、建造标准和工程量相关配置不可修改。</StatusNotice> : null}
       <div className="summary-strip">
         <Stat label="项目名称" value={data.projectName || '未命名'} />
-        <Stat label="版本状态" value={data.versionStatus || '未设置'} />
+        <Stat label="版本状态" value={data.versionStatus === 'draft' ? '草稿' : data.versionStatus || '未设置'} />
         <Stat label="当前版本" value={data.versionName || '暂无版本'} note={data.versionStatus || '未设置'} />
         <Stat label="是否锁定" value={data.isLocked ? '是' : '否'} />
         <Stat label="下一建议分区" value={data.nextRecommendedSection || '无'} />
@@ -420,7 +420,10 @@ async function OverviewSection({ projectId, versionId, locked }: { projectId: st
       </Card>
       <Card title="数据完整性" note="V1 仅做存在性判断，不做复杂评分。">
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {Object.entries(completeness).map(([key, value]) => <Badge key={key} tone={value ? 'green' : 'orange'}>{key}: {value ? '已录入' : '待补充'}</Badge>)}
+          {Object.entries(completeness).map(([key, value]) => {
+            const labelMap: Record<string, string> = { overview: '项目总览', productObjects: '业态产品', constructionStandards: '建造标准', projectMetrics: '项目指标', quantityIndicators: '工程量指标' };
+            return <Badge key={key} tone={value ? 'green' : 'orange'}>{labelMap[key] || key}: {value ? '已录入' : '待补充'}</Badge>;
+          })}
         </div>
         {data.warningMessages?.length ? <p className="meta" style={{ marginBottom: 0 }}>{data.warningMessages.join('；')}</p> : null}
       </Card>
@@ -468,12 +471,11 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1420, fontSize: 12 }}>
         <thead><tr>{['对象', '对象分类', '启用与业务状态', '对象角色', '成本承担 / 单位', '操作能力', '提示', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
         <tbody>{rows.length ? rows.map((item) => <tr key={item.objectId}>
-          <td style={{ ...cell, fontWeight: 900 }}>{item.objectName}<div className="meta">{item.objectCode || item.objectId}</div><div className="meta">objectType: {item.objectType || '未返回'}</div></td>
+          <td style={{ ...cell, fontWeight: 900 }}>{item.objectName}<div className="meta">{item.objectCode || item.objectId}</div></td>
           <td style={cell}><Badge tone={objectTypeTone(item.objectType)}>{objectTypeLabel(item.objectType)}</Badge><div className="meta">{item.objectCategory || '未分类'}</div></td>
           <td style={cell}>
-            <Badge tone={item.isEnabled ? 'green' : 'red'}>{item.objectStatus || item.status}</Badge>
-            <div className="meta">isEnabled: {booleanText(item.isEnabled)}</div>
-            <div className="meta">objectStatus: {item.objectStatus || item.status || '未返回'}</div>
+            <Badge tone={item.isEnabled ? 'green' : 'red'}>{item.isEnabled ? '启用' : '停用'}</Badge>
+            <div className="meta">是否启用：{booleanText(item.isEnabled)}</div>
           </td>
           <td style={cell}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', maxWidth: 420 }}>{objectFlags(item)}</div></td>
           <td style={cell}>
@@ -484,9 +486,9 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
             {item.isMarketingDisplayObject ? <div className="meta">V1 默认进入开发成本口径，不自动进入销售费用。</div> : null}
           </td>
           <td style={cell}>
-            <div>canEnable: {booleanText(item.canEnable)}</div>
-            <div>canDisable: {booleanText(item.canDisable)}</div>
-            <div>canRestore: {booleanText(item.canRestore)}</div>
+            <div>可启用：{booleanText(item.canEnable)}</div>
+            <div>可停用：{booleanText(item.canDisable)}</div>
+            <div>可恢复：{booleanText(item.canRestore)}</div>
             {item.blockedReason ? <div className="meta" style={{ color: '#c92a2a' }}>不可直接停用<Tip text={item.blockedReason} /></div> : null}
           </td>
           <td style={{ ...cell, minWidth: 260 }}>
@@ -496,18 +498,18 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
           <td style={cell}>
             <ProfileObjectAction endpoint={endpoint} objectCode={item.objectCode} objectName={item.objectName} objectType={item.objectType} objectCategory={item.objectCategory} isEnabled={!item.isEnabled} locked={locked} disabled={item.isEnabled ? !item.canDisable : !item.canRestore} label={item.isEnabled ? '停用' : '恢复'} />
           </td>
-        </tr>) : <tr><td colSpan={8} style={{ padding: 14, color: '#667085' }}>暂无对象数据。请先在完整维护页维护对象，或等待后端返回系统默认对象。</td></tr>}</tbody>
+        </tr>) : <tr><td colSpan={8} style={{ padding: 14, color: '#667085' }}>当前尚未维护业态对象。请进入业态明细维护补充住宅、商业、车位、地下室或配套对象。</td></tr>}</tbody>
       </table>
     </div>;
     if (collapsed) return <details style={{ border: '1px solid #d9e2ec', borderRadius: 8, background: '#fff', overflow: 'hidden' }}><summary style={{ cursor: 'pointer', padding: '12px 14px', background: '#f8fafc', fontWeight: 900 }}>{title}（{rows.length}）</summary><div style={{ padding: 14 }}>{content}</div></details>;
-    return <Card title={title} note="状态、原因与操作共用 product-types 语义；概况页和完整维护页状态保持一致。">
+    return <Card title={title} note="状态、原因与操作与业态明细维护保持一致。">
       {content}
     </Card>;
   }
 
   function groupedEnabled() {
     const groups = [...new Set(enabled.map((item) => objectTypeLabel(item.objectType)))];
-    if (!groups.length) return <Card title="启用对象" note="enabled 对象默认显示。"><EmptyState title="暂无启用对象数据">请先在业态产品完整维护页维护对象，或等待后端返回系统默认对象。</EmptyState></Card>;
+    if (!groups.length) return <Card title="启用对象" note="当前启用对象默认显示。"><EmptyState title="暂无启用对象数据">请先进入业态明细维护补充对象，或在本页新增常用业态。</EmptyState></Card>;
     return groups.map((group) => table(enabled.filter((item) => objectTypeLabel(item.objectType) === group), group));
   }
 
@@ -518,9 +520,9 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
       <Stat label="启用对象" value={enabled.length} />
       <Stat label="已停用对象" value={disabled.length} />
       <Stat label="不可直接停用" value={enabled.filter((item) => item.canDisable === false).length} />
-      <Stat label="兼容对象" value={objects.filter((item) => item.objectType !== 'product_type').length} />
+      <Stat label="其他对象" value={objects.filter((item) => item.objectType !== 'product_type').length} />
     </div>
-    <Card title="可新增业态" note="新增普通产品业态会调用 profile productObjects 分区保存，并复用后端 product-types 新增逻辑。" action={locked ? <button className="btn" disabled>完整维护页</button> : <Link className="btn" href={`/projects/${projectId}/product-maintenance`}>完整维护页</Link>}>
+    <Card title="可新增业态" note="新增后将同步到业态明细维护页。" action={locked ? <button className="btn" disabled title="当前版本已锁定，仅支持查看。">进入业态明细维护</button> : <Link className="btn" href={`/projects/${projectId}/product-maintenance`}>进入业态明细维护</Link>}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {addable.length ? addable.flatMap((group) => group.names.map((name) => <ProfileObjectAction key={name} endpoint={endpoint} objectCode={name} objectName={name} objectType="product_type" objectCategory={group.category} isEnabled locked={locked} label={`新增 ${name}`} />)) : <span className="meta">暂无可新增预设业态。</span>}
       </div>
@@ -598,7 +600,7 @@ async function ConstructionStandardsSection({ projectId, versionId, locked }: { 
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1320, fontSize: 12 }}>
                   <thead><tr>{['层级', '编码 / 名称', '对象 / 明细科目', '地区 / 难度', '材料 / 设备档次', '影响范围', '状态', '备注'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fff' }}>{head}</th>)}</tr></thead>
                   <tbody>{rows.map((item: any) => <tr key={`${item.standardCategory}-${item.standardCode}-${item.standardName}`}>
-                    <td style={cell}><Badge tone="blue">{levelLabel[item.standardLevel] || item.standardLevel || '项目级'}</Badge><div className="meta">{item.standardLevel || 'project_level'}</div></td>
+                    <td style={cell}><Badge tone="blue">{levelLabel[item.standardLevel] || item.standardLevel || '项目级'}</Badge></td>
                     <td style={{ ...cell, fontWeight: 900 }}>{item.standardCode}<div className="meta">{item.standardName}</div></td>
                     <td style={cell}>{item.costObjectName || item.costObjectId || '项目整体'}<div className="meta">{item.detailSubjectName || item.detailSubjectId || '未绑定明细科目'}</div></td>
                     <td style={cell}>{item.region || '全项目'}<div className="meta">难度：{item.difficultyLevel || '未设置'} / 系数 {display(item.difficultyCoefficient)}</div></td>
@@ -631,7 +633,7 @@ const projectTotalMetricFields: MetricField[] = [
 ];
 
 const productMetricFields = [
-  ['objectId', 'objectId', 'text'], ['objectName', '对象名称', 'text'], ['objectType', '对象类型', 'text'], ['groundBuildingArea', '地上建筑面积', 'number'], ['undergroundLinkedArea', '地下关联面积', 'number'], ['grossFloorArea', '建筑面积', 'number'], ['plotRatioArea', '计容建筑面积', 'number'], ['nonPlotRatioArea', '不计容建筑面积', 'number'], ['saleableArea', '可售面积', 'number'], ['nonSaleableArea', '不可售面积', 'number'], ['giftedArea', '赠送面积', 'number'], ['innerArea', '套内面积', 'number'], ['sharedArea', '公摊面积', 'number'], ['efficiencyRate', '得房率', 'number'], ['householdCount', '户数 / 套数', 'number'], ['unitCount', '单元数', 'number'], ['buildingCount', '栋数', 'number'], ['floorCount', '层数', 'number'], ['typicalFloorArea', '标准层面积', 'number'], ['baseArea', '基底面积', 'number'], ['landOccupationArea', '占地面积', 'number'], ['saleableQuantity', '可售数量', 'number'], ['measureUnit', '计量单位', 'text'], ['remark', '备注', 'text']
+  ['objectName', '业态名称', 'text'], ['landOccupationArea', '占地面积', 'number'], ['plotRatioArea', '计容面积', 'number'], ['grossFloorArea', '建筑面积', 'number'], ['groundBuildingArea', '地上建筑面积', 'number'], ['undergroundLinkedArea', '地下建筑面积', 'number'], ['saleableArea', '可售面积', 'number'], ['nonSaleableArea', '不可售面积', 'number'], ['householdCount', '户数 / 套数', 'number'], ['buildingCount', '楼栋数', 'number'], ['unitCount', '单元数', 'number'], ['floorCount', '层数', 'number'], ['isSaleable', '是否参与收入', 'checkbox'], ['participatesCostCalculation', '是否参与分摊', 'checkbox'], ['measureUnit', '计量单位', 'text'], ['remark', '备注', 'text']
 ] as Array<readonly [string, string, 'text' | 'number' | 'checkbox']>;
 const buildingMetricFields = [
   ['buildingId', 'buildingId', 'text'], ['buildingCode', '楼栋编号', 'text'], ['buildingName', '楼栋名称', 'text'], ['productObjectId', 'productObjectId', 'text'], ['productObjectName', '所属业态 / 产品对象', 'text'], ['groundFloorCount', '地上层数', 'number'], ['undergroundFloorCount', '地下层数', 'number'], ['unitCount', '单元数', 'number'], ['householdCount', '户数', 'number'], ['typicalFloorArea', '标准层面积', 'number'], ['groundBuildingArea', '地上建筑面积', 'number'], ['undergroundMainBuildingArea', '地下主楼面积', 'number'], ['baseArea', '建筑基底面积', 'number'], ['isSaleable', '是否可售', 'checkbox'], ['participatesCostCalculation', '参与成本测算', 'checkbox'], ['participatesIncomeCalculation', '参与收入测算', 'checkbox'], ['elevatorCountReserved', '电梯数量预留', 'number'], ['entranceDoorCountReserved', '入户门数量预留', 'number'], ['facadeAreaReserved', '外立面面积预留', 'number'], ['remark', '备注', 'text']
@@ -657,13 +659,13 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
   const metricCenterEndpoint = `/api/projects/${projectId}/versions/${versionId}/metric-center`;
   return <ProfileSectionForm formId="profile-project-metrics-form" endpoint={metricCenterEndpoint} locked={locked} successMessage="项目指标中心已保存。" statusPlacement="top">
     <SectionShell>
-      <StatusNotice title="项目指标中心口径">项目指标页负责维护项目级、业态级、楼栋级、地下室、车位、景观道路、配套及专项对象等基础指标。工程量指标页会读取这些指标作为 baseIndicator，并通过 baseIndicator x contentRule = calculatedQuantity；目标成本表最终读取 finalQuantity x unitPrice = finalAmount。finalAmount 仍为含税金额口径。</StatusNotice>
+      <StatusNotice title="项目指标中心口径">项目指标页负责维护项目总指标、分业态面积指标、地下室与车位指标、配套与公区指标。工程量指标页会读取这些指标作为取数依据，并通过“基础指标 × 含量系数”得到生效工程量；目标成本表最终读取“生效工程量 × 含税单价”。</StatusNotice>
       {locked ? <StatusNotice title="当前版本已锁定" tone="danger">项目指标中心只读，不允许修改或同步基础指标。</StatusNotice> : null}
       <div className="summary-strip">
         <Stat label="项目总指标" value={Object.values(center.projectTotalMetrics || {}).filter((value) => value !== null && value !== '').length} />
         <Stat label="产品对象指标" value={enabledProducts.length} note={disabledProducts.length ? `停用 ${disabledProducts.length} 个，默认不参与汇总` : '启用对象'} />
         <Stat label="楼栋指标" value={(center.buildingMetrics || []).length} />
-        <Stat label="baseIndicator 映射" value={mappings.length} />
+        <Stat label="工程量取数映射" value={mappings.length} />
       </div>
       <Card title="1. 项目总指标" note="按规划面积、地下室、景观道路、车位和数量指标分组。">
         <MetricFieldGrid section="projectTotalMetrics" fields={projectTotalMetricFields} data={center.projectTotalMetrics || {}} locked={locked} />
@@ -699,13 +701,17 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
         </div>
         {warnings.length ? <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>{warnings.map((item, index) => <div key={`${item.code}-${index}`} style={{ border: '1px solid #ffd8a8', background: item.level === 'info' || item.level === 'notice' ? '#f8fbff' : '#fff9db', borderRadius: 8, padding: 10 }}><Badge tone={item.level === 'info' || item.level === 'notice' ? 'blue' : 'orange'}>{item.level || 'warning'}</Badge> <b>{item.code}</b><div className="meta">{item.message}</div><div className="meta">relatedField: {item.relatedField || '未返回'}</div></div>)}</div> : <p className="meta">暂无校验提示。</p>}
       </Card>
-      <Card title="10. baseIndicator 映射与工程量衔接" note="同步按钮会调用 Z4 的 sync-base-indicators 接口；映射表以接口返回为准。" action={<MetricCenterSyncAction endpoint={`/api/projects/${projectId}/versions/${versionId}/metrics/sync-base-indicators`} locked={locked} />}>
+      <Card title="10. 工程量取数映射与衔接" note="同步后会把项目指标传递给工程量指标页，映射表以当前版本数据为准。" action={<MetricCenterSyncAction endpoint={`/api/projects/${projectId}/versions/${versionId}/metrics/sync-base-indicators`} locked={locked} />}>
         <StatusNotice title="与工程量指标页衔接">可售面积影响收入测算和可售单方成本；建筑面积影响建面单方成本；计容建筑面积用于规划指标和部分测算口径；地下室、地下车库、景观道路、周界、栋数、单元数、户数、层数和标准层面积会进入对应工程量推算；配套 / 不可售对象通常不产生收入，但参与成本归集和分摊。</StatusNotice>
         {mappings.length ? <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1540, fontSize: 12 }}>
-            <thead><tr>{['mappingId', 'metricSourceType', 'metricSourceCode', 'metricSourceName', 'metricValue', 'metricUnit', 'baseIndicatorType', 'baseIndicatorCode', 'baseIndicatorName', 'costObjectId', 'costObjectType', 'canBeUsedByQuantityCalculation', 'usedByDetailSubjects', 'remark'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+            <thead><tr>{['来源名称', '指标值', '单位', '基础指标名称', '适用对象', '是否可用于工程量计算', '已关联明细科目', '备注'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
             <tbody>{mappings.map((item) => <tr key={item.mappingId}>
-              {['mappingId', 'metricSourceType', 'metricSourceCode', 'metricSourceName', 'metricValue', 'metricUnit', 'baseIndicatorType', 'baseIndicatorCode', 'baseIndicatorName', 'costObjectId', 'costObjectType'].map((key) => <td key={key} style={cell}>{display(item[key])}</td>)}
+              <td style={cell}>{display(item.metricSourceName || item.metricSourceCode)}</td>
+              <td style={cell}>{display(item.metricValue)}</td>
+              <td style={cell}>{display(item.metricUnit)}</td>
+              <td style={cell}>{display(item.baseIndicatorName || item.baseIndicatorCode)}</td>
+              <td style={cell}>{display(item.costObjectName || item.costObjectType || '项目整体')}</td>
               <td style={cell}><Badge tone={item.canBeUsedByQuantityCalculation ? 'green' : 'neutral'}>{item.canBeUsedByQuantityCalculation ? '可被工程量计算引用' : '待维护数值'}</Badge></td>
               <td style={cell}>{Array.isArray(item.usedByDetailSubjects) && item.usedByDetailSubjects.length ? item.usedByDetailSubjects.join('、') : '未绑定明细科目'}</td>
               <td style={{ ...cell, minWidth: 220 }}>{item.remark || '无'}</td>
@@ -754,11 +760,11 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
     <Card title="工程量指标分组摘要" note="本页读取 profile quantityIndicators 分区；逐行手算继续使用已验证的覆盖与恢复接口。">
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
         {[
-          ['基础指标 baseIndicator', baseIndicators.length],
-          ['明细科目基础指标绑定 subjectIndicatorBinding', indicators.length],
-          ['含量规则 contentRule', contentRules.length],
-          ['工程量计算 quantityCalculation', indicators.length],
-          ['单价来源 unitPriceSource', indicators.filter((item: any) => item.unitPrice !== null && item.unitPrice !== undefined).length],
+          ['基础指标', baseIndicators.length],
+          ['明细科目绑定', indicators.length],
+          ['含量规则', contentRules.length],
+          ['工程量计算', indicators.length],
+          ['单价来源', indicators.filter((item: any) => item.unitPrice !== null && item.unitPrice !== undefined).length],
           ['手算覆盖 / 恢复系统推算', indicators.filter((item: any) => item.isQuantityOverridden).length]
         ].map(([label, count]) => <div key={label} style={{ border: '1px solid #e6eef7', borderRadius: 8, padding: 10, background: '#fbfdff' }}><b>{label}</b><div className="meta">当前 {count} 条。</div></div>)}
       </div>
@@ -766,14 +772,14 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
     <Card title="基础指标、绑定与含量规则" note="必须明确：基础指标 x 含量 = calculatedQuantity。工程量单位按后端返回展示。">
       {indicators.length ? <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1320, fontSize: 12 }}>
-          <thead><tr>{['明细科目基础指标绑定', 'baseIndicator', 'contentRule', '计算式', 'lockMode / overrideReason', '来源'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+          <thead><tr>{['明细科目绑定', '基础指标', '含量规则', '计算式', '锁定 / 覆盖说明', '来源'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
           <tbody>{indicators.map((item: any) => <tr key={`binding-${item.indicatorId}`}>
             <td style={{ ...cell, fontWeight: 800 }}>{item.indicatorName}<div className="meta">{item.detailSubjectName || item.indicatorCode}</div></td>
-            <td style={cell}>{item.baseIndicatorName || item.measureBasis || '未绑定'}<div className="meta">baseIndicatorValue: {display(item.baseIndicatorValue)} {item.baseIndicatorUnit || item.quantityUnit || ''}</div><div className="meta">source: {item.indicatorSource || 'cost_line'} / {item.sourceRemark || item.quantitySourceRemark || '无备注'}</div><div className="meta">indicatorType: {item.indicatorType || 'cost_line_measure_basis'} / isOverridden: {booleanText(item.isQuantityOverridden)}</div></td>
-            <td style={cell}>contentRatio: {display(item.contentRatio ?? 1)}<div className="meta">quantityUnit: {item.quantityUnit || '-'}</div><div className="meta">applicableRegion: {item.applicableRegion || item.relatedProductType || '全项目'}</div><div className="meta">confidenceLevel: {item.confidenceLevel || '按系统规则'}</div></td>
-            <td style={cell}><b>基础指标 x 含量 = calculatedQuantity</b><div className="meta">{fmt(item.baseIndicatorValue)} x {fmt(item.contentRatio || 1)} = {fmt(item.calculatedQuantity)} {item.quantityUnit || ''}</div></td>
-            <td style={cell}>{item.isQuantityLocked ? 'locked_confirmed' : item.isQuantityOverridden ? 'manual_override' : 'auto'}<div className="meta">{item.overrideReason || '无覆盖原因'}</div></td>
-            <td style={cell}>{item.quantitySource || 'auto'}<div className="meta">{item.quantitySourceRemark || '无备注'}</div></td>
+            <td style={cell}>{item.baseIndicatorName || item.measureBasis || '未绑定'}<div className="meta">基础值：{display(item.baseIndicatorValue)} {item.baseIndicatorUnit || item.quantityUnit || ''}</div><div className="meta">覆盖状态：{booleanText(item.isQuantityOverridden)}</div></td>
+            <td style={cell}>含量系数：{display(item.contentRatio ?? 1)}<div className="meta">工程量单位：{item.quantityUnit || '-'}</div><div className="meta">适用范围：{item.applicableRegion || item.relatedProductType || '全项目'}</div></td>
+            <td style={cell}><b>基础指标 × 含量 = 计算工程量</b><div className="meta">{fmt(item.baseIndicatorValue)} × {fmt(item.contentRatio || 1)} = {fmt(item.calculatedQuantity)} {item.quantityUnit || ''}</div></td>
+            <td style={cell}>{item.isQuantityLocked ? '已锁定' : item.isQuantityOverridden ? '手动覆盖' : '系统推算'}<div className="meta">{item.overrideReason || '无覆盖原因'}</div></td>
+            <td style={cell}>{priceSourceText(item.quantitySource || item.indicatorSource)}<div className="meta">{item.quantitySourceRemark || '无备注'}</div></td>
           </tr>)}</tbody>
         </table>
       </div> : <EmptyState title="暂无工程量指标数据">请先在项目指标页维护基础指标，或等待后端返回系统默认指标。</EmptyState>}
@@ -782,7 +788,7 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
       {locked ? <StatusNotice title="当前版本已锁定" tone="danger">工程量手算覆盖与恢复系统值不可操作。</StatusNotice> : null}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1760, fontSize: 12 }}>
-          <thead><tr>{['指标', '适用对象', 'calculatedQuantity', 'manual / excel / drawing / locked', 'finalQuantity', 'quantityCalcMode', 'unitPrice / priceSource', 'finalAmount 含税金额', '状态提示', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+          <thead><tr>{['指标名称', '适用范围', '系统计算工程量', '手动 / Excel / 图纸 / 锁定', '生效工程量', '工程量来源', '含税单价 / 单价来源', '含税金额', '状态提示', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
           <tbody>{indicators.length ? indicators.map((item: any) => <tr key={item.indicatorId} style={item.isQuantityOverridden ? { background: '#fffaf0' } : undefined}>
             <td style={{ ...cell, fontWeight: 800 }}>{item.indicatorCode} {item.indicatorName}<div className="meta">{item.baseIndicatorName || '未配置取数依据'}</div></td>
             <td style={cell}>{item.relatedProductType || '全项目'}</td>
@@ -794,9 +800,9 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
               <div className="meta">lockedQuantity: {item.lockedQuantity === null || item.lockedQuantity === undefined ? '空值' : fmt(item.lockedQuantity)}</div>
             </td>
             <td style={{ ...cell, fontWeight: 900 }}>{fmt(item.finalQuantity)} {item.quantityUnit || ''}</td>
-            <td style={cell}><Badge tone={item.isQuantityOverridden ? 'orange' : 'green'}>{modeText(item.quantityCalcMode)}</Badge><div className="meta">{item.quantityCalcMode || '未返回'}</div><div className="meta">quantitySource: {item.quantitySource || item.indicatorSource}</div></td>
-            <td style={cell}>{fmt(item.unitPrice)}<div className="meta">{item.priceUnit || item.quantityUnit || '按后端返回'}</div><div className="meta">priceSource: {priceSourceText(item.priceSource)}</div><div className="meta">taxRate: {fmt(n(item.taxRate) * 100)}%</div></td>
-            <td style={{ ...cell, fontWeight: 900 }}>{fmt(item.finalAmount)} 万元<div className="meta">finalAmount = 含税金额；不含税 {fmt(item.taxExcludedAmount)} / 税额 {fmt(item.taxAmount)}</div><div className="meta">amountSource: {item.amountSource}</div></td>
+            <td style={cell}><Badge tone={item.isQuantityOverridden ? 'orange' : 'green'}>{modeText(item.quantityCalcMode)}</Badge><div className="meta">来源：{priceSourceText(item.quantitySource || item.indicatorSource)}</div></td>
+            <td style={cell}>{fmt(item.unitPrice)}<div className="meta">{item.priceUnit || item.quantityUnit || '按后端返回'}</div><div className="meta">单价来源：{priceSourceText(item.priceSource)}</div><div className="meta">税率：{fmt(n(item.taxRate) * 100)}%</div></td>
+            <td style={{ ...cell, fontWeight: 900 }}>{fmt(item.finalAmount)} 万元<div className="meta">不含税 {fmt(item.taxExcludedAmount)} / 税额 {fmt(item.taxAmount)}</div></td>
             <td style={cell}>{item.isQuantityOverridden ? <Badge tone="orange">已手算覆盖</Badge> : <Badge tone="green">使用系统值</Badge>}<div className="meta" style={{ maxWidth: 260, whiteSpace: 'normal' }}>{overrideNotice(item)}</div></td>
             <td style={{ ...cell, minWidth: 280 }}>
               <QuantityOverrideActions projectId={projectId} versionId={versionId} costLineId={item.indicatorId} currentQuantity={valueText(item.finalQuantity)} hasOverride={item.isQuantityOverridden} locked={locked} />

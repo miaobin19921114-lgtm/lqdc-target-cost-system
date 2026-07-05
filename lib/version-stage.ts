@@ -4,7 +4,7 @@ export const versionStageOptions = [
   { value: 'SCHEME', label: '方案版', description: '方案面积、专项指标、业态拆分' },
   { value: 'DRAWING', label: '施工图版', description: '图纸工程量、施工图指标' },
   { value: 'TENDER', label: '招采版', description: '清单工程量、控制价、中标价、合同价' },
-  { value: 'DYNAMIC', label: '动态版', description: '合同、变更、签证、付款、动态成本' },
+  { value: 'DYNAMIC', label: '动态成本版', description: '合同、变更、签证、付款、动态成本' },
   { value: 'SETTLEMENT', label: '结算版', description: '结算书、审定金额、最终成本' }
 ] as const;
 
