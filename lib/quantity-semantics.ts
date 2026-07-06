@@ -6,6 +6,7 @@ import { writeOperationLog } from '@/lib/operation-log';
 import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 import { v60ProjectMetricDefinitions } from '@/data/project-metric-definitions';
 import { priceIndicatorPresets } from '@/data/price-indicator-presets';
+import { costLineQuantityPatch, mapCostLineV101Fields } from '@/lib/cost-line-quantity-fields';
 
 type ProjectVersionWithProject = Prisma.ProjectVersionGetPayload<{ include: { project: true } }>;
 type CostLineRow = Prisma.CostLineGetPayload<{ include: { costSubject: true; productType: true } }>;
@@ -160,11 +161,16 @@ function amountFor(line: CostLineRow, quantity: number, unitPrice: number) {
 async function updateAutoQuantityIfNeeded(tx: Tx, line: CostLineRow, quantity: number) {
   if (line.quantityOverride) return;
   if (quantity < 0) throw new Error('FINAL_QUANTITY_INVALID');
-  const result = amountFor(line, quantity, n(line.taxInclusiveUnitPrice));
+  const quantityState = costLineQuantityPatch({ ...line, quantity, measureValue: line.measureValue, coefficient: line.coefficient });
+  const result = amountFor(line, n(quantityState.quantity), n(line.taxInclusiveUnitPrice));
   await tx.costLine.update({
     where: { id: line.id },
     data: {
-      quantity,
+      quantity: n(quantityState.quantity),
+      quantitySource: quantityState.quantitySource,
+      quantityStatus: quantityState.quantityStatus,
+      quantityFormula: quantityState.quantityFormula,
+      amountStatus: quantityState.amountStatus,
       taxExclusiveUnitPrice: result.taxExclusiveUnitPrice,
       taxInclusiveAmount: result.taxInclusiveAmount,
       taxExclusiveAmount: result.taxExclusiveAmount,
@@ -299,31 +305,54 @@ export async function saveBaseIndicators(projectId: string, version: ProjectVers
 export async function getSubjectIndicatorBindings(projectId: string, versionId: string) {
   const version = await loadSemanticVersion(projectId, versionId);
   if (!version) return null;
-  const [lines, indicators, saved] = await Promise.all([loadCostLines(versionId), getBaseIndicators(projectId, versionId), loadSaved(z3Sources.subjectBinding, projectId, versionId)]);
+  const [lines, indicators, saved, persisted] = await Promise.all([
+    loadCostLines(versionId),
+    getBaseIndicators(projectId, versionId),
+    loadSaved(z3Sources.subjectBinding, projectId, versionId),
+    prisma.subjectIndicatorBinding.findMany({ where: { versionId, isEnabled: true }, include: { detailSubject: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] })
+  ]);
   const savedByRef = new Map(saved.map(({ row, payload }) => [row.sourceRef || payload.detailSubjectId || row.metricKey, { row, payload }]));
+  const persistedBySubject = new Map(persisted.map((row) => [row.detailSubjectId, row]));
   return lines.map((line) => {
     const savedRow = savedByRef.get(line.id);
+    const persistedRow = persistedBySubject.get(line.costSubjectId) || persisted.find((row) => row.costSubjectCode === line.costSubject?.code);
     const indicator = indicators?.find((item: any) => item.id === savedRow?.payload.baseIndicatorId) || findIndicator(indicators || [], line);
     return {
-      id: savedRow?.row.id || `binding:${line.id}`,
+      id: persistedRow?.id || savedRow?.row.id || `binding:${line.id}`,
       projectId,
       versionId,
+      costLineId: line.id,
+      subjectCode: persistedRow?.costSubjectCode || line.costSubject?.code || null,
+      subjectName: line.detailName || line.costSubject?.name || null,
       detailSubjectId: line.costSubjectId,
-      detailSubjectCode: line.costSubject?.code || null,
+      detailSubjectCode: persistedRow?.costSubjectCode || line.costSubject?.code || null,
       detailSubjectName: line.detailName || line.costSubject?.name || null,
       costObjectId: line.productTypeId,
       costObjectType: line.productType?.costObject || line.productType?.productCategory || null,
       baseIndicatorId: savedRow?.payload.baseIndicatorId || indicator?.id || null,
       baseIndicatorType: savedRow?.payload.baseIndicatorType || indicator?.indicatorType || null,
-      baseIndicatorCode: savedRow?.payload.baseIndicatorCode || indicator?.indicatorCode || inferMetricKey(line),
+      baseIndicatorCode: persistedRow?.baseIndicatorCode || savedRow?.payload.baseIndicatorCode || indicator?.indicatorCode || inferMetricKey(line),
       baseIndicatorName: savedRow?.payload.baseIndicatorName || indicator?.indicatorName || line.measureBasis || null,
       baseIndicatorUnit: savedRow?.payload.baseIndicatorUnit || indicator?.indicatorUnit || null,
+      baseIndicatorValue: nullableNumber(line.measureValue),
+      contentRatioCode: persistedRow?.contentRuleCode || null,
+      contentRatioValue: nullableNumber(line.coefficient),
+      contentRatioUnit: contentRatioUnit(line, indicator?.indicatorUnit),
+      quantityUnit: line.unit || line.costSubject?.defaultUnit || null,
+      formula: persistedRow?.defaultFormula || line.quantityFormula || null,
+      source: persistedRow ? 'subject_indicator_binding' : savedRow ? 'project_metric_value' : 'inferred',
+      status: persistedRow?.isEnabled === false ? 'disabled' : 'enabled',
       baseIndicatorLockMode: savedRow?.payload.baseIndicatorLockMode || 'user_selectable',
       isDefault: !savedRow,
       isUserModified: Boolean(savedRow),
+      calculationMode: persistedRow?.calculationMode || 'quantity_unit_price',
+      allowManualOverride: persistedRow?.allowManualOverride ?? true,
+      allowExcelOverride: persistedRow?.allowExcelOverride ?? true,
+      allowDrawingMeasuredOverride: persistedRow?.allowDrawingMeasuredOverride ?? true,
+      unitPriceSourceCode: persistedRow?.unitPriceSourceCode || null,
       overrideReason: savedRow?.payload.overrideReason || null,
-      createdAt: nowIso(savedRow?.row.createdAt),
-      updatedAt: nowIso(savedRow?.row.updatedAt)
+      createdAt: nowIso(persistedRow?.createdAt || savedRow?.row.createdAt),
+      updatedAt: nowIso(persistedRow?.updatedAt || savedRow?.row.updatedAt)
     };
   });
 }
@@ -421,6 +450,7 @@ export async function getQuantityCalculations(projectId: string, versionId: stri
   return lines.map((line) => {
     const indicator = findIndicator(indicators || [], line);
     const rule = (contentRules || []).find((item: any) => item.id === `content:${line.id}` || item.detailSubjectId === line.costSubjectId && (item.costObjectId || null) === (line.productTypeId || null));
+    const quantityState = costLineQuantityPatch(line);
     const calculatedQuantity = round2(n(line.measureValue) * (n(line.coefficient) || 1));
     const finalQuantity = n(line.quantity);
     const mode = quantityMode(line);
@@ -440,14 +470,20 @@ export async function getQuantityCalculations(projectId: string, versionId: stri
       contentRatio: nullableNumber(line.coefficient),
       contentRatioUnit: rule?.contentRatioUnit || contentRatioUnit(line, indicator?.indicatorUnit),
       calculatedQuantity,
-      manualQuantity: mode === 'manual_entered' ? finalQuantity : null,
-      excelImportedQuantity: mode === 'excel_imported' ? finalQuantity : null,
-      drawingMeasuredQuantity: mode === 'drawing_measured' ? finalQuantity : null,
-      lockedQuantity: mode === 'locked_confirmed' ? finalQuantity : null,
+      ...mapCostLineV101Fields(line),
+      engineeringMetricQuantity: nullableNumber(line.engineeringMetricQuantity),
+      manualQuantity: nullableNumber(line.manualQuantity) ?? (mode === 'manual_entered' ? finalQuantity : null),
+      excelImportedQuantity: nullableNumber(line.excelImportedQuantity) ?? (mode === 'excel_imported' ? finalQuantity : null),
+      drawingMeasuredQuantity: nullableNumber(line.drawingMeasuredQuantity) ?? (mode === 'drawing_measured' ? finalQuantity : null),
+      lockedQuantity: nullableNumber(line.lockedQuantity) ?? (mode === 'locked_confirmed' ? finalQuantity : null),
+      templateDefaultQuantity: nullableNumber(line.templateDefaultQuantity),
       finalQuantity,
       quantityUnit: line.unit || line.costSubject?.defaultUnit || null,
       quantityCalcMode: mode,
-      quantitySource: mode === 'auto_calculated' ? 'auto_calculated' : mode,
+      quantitySource: line.quantitySource || quantityState.quantitySource || (mode === 'auto_calculated' ? 'auto_calculated' : mode),
+      quantityStatus: line.quantityStatus && line.quantityStatus !== 'normal' ? line.quantityStatus : quantityState.quantityStatus,
+      quantityFormula: line.quantityFormula || quantityState.quantityFormula,
+      amountStatus: line.amountStatus || quantityState.amountStatus,
       quantitySourceRemark: line.remark || null,
       isQuantityOverridden: line.quantityOverride,
       overrideReason: line.quantityOverride ? line.remark || null : null,
@@ -458,7 +494,7 @@ export async function getQuantityCalculations(projectId: string, versionId: stri
       amountUnit: '万元',
       amountEngine: {
         finalAmount: n(line.taxInclusiveAmount),
-        finalAmountSource: n(line.quantity) > 0 && n(line.taxInclusiveUnitPrice) > 0 ? 'calculated_by_quantity' : 'manual_or_system_amount',
+        finalAmountSource: line.amountStatus || quantityState.amountStatus,
         z2Compatible: true
       },
       createdAt: null,
@@ -497,7 +533,14 @@ export async function manualQuantityOverride(projectId: string, versionId: strin
   if (!quantityCalcModes.includes(mode as any) || mode === 'auto_calculated') return { ok: false as const, status: 400, body: { success: false, error: { code: 'QUANTITY_CALC_MODE_INVALID', message: '工程量来源模式不合法。' } } };
   const quantity = input.finalQuantity ?? input.manualQuantity ?? input.excelImportedQuantity ?? input.drawingMeasuredQuantity ?? input.lockedQuantity;
   if (n(quantity) < 0) return { ok: false as const, status: 400, body: { success: false, error: { code: 'FINAL_QUANTITY_INVALID', message: 'finalQuantity 不能为负数。' } } };
-  return overrideCostLineQuantity(projectId, versionId, costLineId, { quantity, overrideReason: clean(input.overrideReason) || mode });
+  const quantityField = mode === 'excel_imported'
+    ? 'excelImportedQuantity'
+    : mode === 'drawing_measured'
+      ? 'drawingMeasuredQuantity'
+      : mode === 'locked_confirmed'
+        ? 'lockedQuantity'
+        : 'manualQuantity';
+  return overrideCostLineQuantity(projectId, versionId, costLineId, { quantity, quantityField, overrideReason: clean(input.overrideReason) || mode });
 }
 
 export async function restoreAutoQuantity(projectId: string, versionId: string, input: Record<string, unknown>) {
@@ -666,6 +709,7 @@ export async function saveUnitPriceSources(projectId: string, version: ProjectVe
       const line = await tx.costLine.findFirst({ where: { id: costLineId, projectVersionId: version.id }, include: { costSubject: true, productType: true } });
       if (!line) throw new Error('UNIT_PRICE_SOURCE_NOT_FOUND');
       const result = amountFor(line, n(line.quantity), unitPrice);
+      const quantityState = costLineQuantityPatch({ ...line, taxInclusiveUnitPrice: unitPrice });
       await tx.costLine.update({
         where: { id: line.id },
         data: {
@@ -674,6 +718,9 @@ export async function saveUnitPriceSources(projectId: string, version: ProjectVe
           taxInclusiveAmount: result.taxInclusiveAmount,
           taxExclusiveAmount: result.taxExclusiveAmount,
           taxAmount: result.taxAmount,
+          unitPriceSourceType: priceSource,
+          pricingUnit: clean(row.priceUnit) || line.pricingUnit,
+          amountStatus: quantityState.amountStatus,
           remark: clean(row.priceRemark) || line.remark
         }
       });

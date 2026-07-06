@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 import { writeOperationLog } from '@/lib/operation-log';
+import { costLineQuantityPatch } from '@/lib/cost-line-quantity-fields';
 
 type Tx = Prisma.TransactionClient;
 
@@ -72,7 +73,7 @@ export async function overrideCostLineQuantity(
   projectId: string,
   versionId: string,
   costLineId: string,
-  input: { quantity: unknown; overrideReason?: string | null }
+  input: { quantity: unknown; overrideReason?: string | null; quantityField?: 'manualQuantity' | 'excelImportedQuantity' | 'drawingMeasuredQuantity' | 'lockedQuantity' }
 ) {
   return prisma.$transaction(async (tx) => {
     const validation = await validateLineEditable(tx, projectId, versionId, costLineId);
@@ -83,7 +84,22 @@ export async function overrideCostLineQuantity(
     if (quantity < 0) return jsonError('VALIDATION_FAILED', '工程量不能为负数。');
     if (!overrideReason) return jsonError('OVERRIDE_REASON_REQUIRED', '手算工程量必须填写 overrideReason。');
 
-    const amounts = calc(quantity, n(line.taxInclusiveUnitPrice), n(line.taxRate) || 0.09);
+    const quantityField = input.quantityField || 'manualQuantity';
+    const sourcePatch = {
+      manualQuantity: line.manualQuantity,
+      excelImportedQuantity: line.excelImportedQuantity,
+      drawingMeasuredQuantity: line.drawingMeasuredQuantity,
+      lockedQuantity: line.lockedQuantity,
+      [quantityField]: quantity
+    };
+    const quantityPatch = costLineQuantityPatch({
+      ...line,
+      ...sourcePatch,
+      quantity,
+      taxInclusiveUnitPrice: line.taxInclusiveUnitPrice
+    });
+    const finalQuantity = n(quantityPatch.quantity);
+    const amounts = calc(finalQuantity, n(line.taxInclusiveUnitPrice), n(line.taxRate) || 0.09);
     const beforeData = {
       detailId: line.id,
       quantity: n(line.quantity),
@@ -93,7 +109,12 @@ export async function overrideCostLineQuantity(
     const updated = await tx.costLine.update({
       where: { id: line.id },
       data: {
-        quantity,
+        ...sourcePatch,
+        quantity: finalQuantity,
+        quantitySource: quantityPatch.quantitySource,
+        quantityStatus: quantityPatch.quantityStatus,
+        quantityFormula: quantityPatch.quantityFormula,
+        amountStatus: quantityPatch.amountStatus,
         quantityOverride: true,
         taxExclusiveUnitPrice: amounts.taxExclusiveUnitPrice,
         taxInclusiveAmount: amounts.taxInclusiveAmount,
@@ -113,8 +134,8 @@ export async function overrideCostLineQuantity(
       beforeData,
       afterData: {
         detailId: line.id,
-        quantity,
-        finalQuantity: quantity,
+        quantity: finalQuantity,
+        finalQuantity,
         quantityOverride: true,
         taxInclusiveAmount: amounts.taxInclusiveAmount
       },
@@ -137,7 +158,10 @@ export async function overrideCostLineQuantity(
           quantity: n(updated.quantity),
           finalQuantity: n(updated.quantity),
           quantityOverride: updated.quantityOverride,
-          quantitySource: 'manual',
+          quantitySource: updated.quantitySource,
+          quantityStatus: updated.quantityStatus,
+          quantityFormula: updated.quantityFormula,
+          amountStatus: updated.amountStatus,
           taxInclusiveAmount: n(updated.taxInclusiveAmount),
           taxExclusiveAmount: n(updated.taxExclusiveAmount),
           taxAmount: n(updated.taxAmount),
@@ -155,7 +179,16 @@ export async function restoreCostLineAutoQuantity(projectId: string, versionId: 
     const line = validation.line!;
     const measureValue = n(line.measureValue);
     const coefficient = n(line.coefficient) || 1;
-    const quantity = round2(measureValue * coefficient);
+    const quantityPatch = costLineQuantityPatch({
+      ...line,
+      manualQuantity: null,
+      excelImportedQuantity: null,
+      drawingMeasuredQuantity: null,
+      lockedQuantity: null,
+      measureValue,
+      coefficient
+    });
+    const quantity = n(quantityPatch.quantity);
     if (quantity < 0) return jsonError('VALIDATION_FAILED', '系统推算工程量不能为负数。');
 
     const amounts = calc(quantity, n(line.taxInclusiveUnitPrice), n(line.taxRate) || 0.09);
@@ -169,6 +202,11 @@ export async function restoreCostLineAutoQuantity(projectId: string, versionId: 
       where: { id: line.id },
       data: {
         quantity,
+        manualQuantity: null,
+        quantitySource: quantityPatch.quantitySource,
+        quantityStatus: quantityPatch.quantityStatus,
+        quantityFormula: quantityPatch.quantityFormula,
+        amountStatus: quantityPatch.amountStatus,
         quantityOverride: false,
         taxExclusiveUnitPrice: amounts.taxExclusiveUnitPrice,
         taxInclusiveAmount: amounts.taxInclusiveAmount,
@@ -217,7 +255,10 @@ export async function restoreCostLineAutoQuantity(projectId: string, versionId: 
           quantity: n(updated.quantity),
           finalQuantity: n(updated.quantity),
           quantityOverride: updated.quantityOverride,
-          quantitySource: 'system',
+          quantitySource: updated.quantitySource,
+          quantityStatus: updated.quantityStatus,
+          quantityFormula: updated.quantityFormula,
+          amountStatus: updated.amountStatus,
           taxInclusiveAmount: n(updated.taxInclusiveAmount),
           taxExclusiveAmount: n(updated.taxExclusiveAmount),
           taxAmount: n(updated.taxAmount),

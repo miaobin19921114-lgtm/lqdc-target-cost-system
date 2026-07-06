@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
+import { costLineQuantityPatch, costLineV101FieldsFromForm } from '@/lib/cost-line-quantity-fields';
 
 const toNumber = (form: FormData, name: string) => Number(form.get(name) || 0);
 const clean = (value: FormDataEntryValue | null) => String(value || '').trim();
@@ -74,9 +75,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
   });
 
-  const quantity = toNumber(form, 'quantity');
+  let quantity = toNumber(form, 'quantity');
   const taxInclusiveUnitPrice = toNumber(form, 'taxInclusiveUnitPrice');
   const taxRate = dict?.defaultTaxRate ? parseTaxRate(dict.defaultTaxRate, 0.06) : parseTaxRate(clean(form.get('taxRate')), 0.06);
+  const semanticPatch = costLineV101FieldsFromForm(form, (field) => field);
+  const quantityState = costLineQuantityPatch({
+    ...semanticPatch,
+    measureValue: quantity,
+    coefficient: 1,
+    quantity,
+    taxInclusiveUnitPrice
+  });
+  quantity = Number(quantityState.quantity || 0);
   const amounts = taxCalc(quantity, taxInclusiveUnitPrice, taxRate);
 
   await prisma.costLine.create({
@@ -87,7 +97,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
       regionOrProductType: presetValue(form.get('regionOrProductType'), dict?.applicableProductType, '项目整体共用'),
       professionalGroup: '前期费用',
       measureBasis: presetValue(form.get('measureBasis'), dict?.measureBasis),
+      measureValue: quantity,
+      coefficient: 1,
+      ...semanticPatch,
       quantity,
+      quantitySource: quantityState.quantitySource,
+      quantityStatus: quantityState.quantityStatus,
+      quantityFormula: quantityState.quantityFormula,
       unit: presetValue(form.get('unit'), dict?.unit, '项'),
       taxInclusiveUnitPrice,
       taxExclusiveUnitPrice: amounts.taxExclusiveUnitPrice,
@@ -95,6 +111,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       taxInclusiveAmount: amounts.taxInclusiveAmount,
       taxExclusiveAmount: amounts.taxExclusiveAmount,
       taxAmount: amounts.taxAmount,
+      pricingUnit: semanticPatch.pricingUnit ?? `元/${presetValue(form.get('unit'), dict?.unit, '项')}`,
+      amountStatus: quantityState.amountStatus,
       allocationMethod: presetValue(form.get('allocationMethod'), dict?.targetAllocationMethod, '建筑面积分摊'),
       description: dict ? [dict.firstSubject, dict.secondSubject, dict.thirdSubject, dict.detailSubject].filter(Boolean).join(' / ') : '前期工程费',
       remark: clean(form.get('remark')),

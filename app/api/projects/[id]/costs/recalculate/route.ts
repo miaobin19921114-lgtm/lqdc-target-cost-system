@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
 import { calculateRuleDrivenQuantity } from '@/lib/rule-driven-quantity';
 import { recommendPriceIndicator } from '@/lib/price-indicator-matcher';
+import { costLineQuantityPatch } from '@/lib/cost-line-quantity-fields';
 
 function toNumber(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -106,6 +107,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
       }
     }
 
+    const quantityState = costLineQuantityPatch({
+      ...line,
+      measureValue,
+      coefficient,
+      quantity,
+      taxInclusiveUnitPrice
+    });
+    quantity = Number(quantityState.quantity || 0);
     const amounts = calc(quantity, taxInclusiveUnitPrice, taxRate);
     const oldIncl = toNumber(line.taxInclusiveAmount);
     const oldExcl = toNumber(line.taxExclusiveAmount);
@@ -124,6 +133,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
         measureValue,
         coefficient,
         quantity,
+        quantitySource: quantityState.quantitySource,
+        quantityStatus: quantityState.quantityStatus,
+        quantityFormula: quantityState.quantityFormula,
+        unitPriceSourceType: taxInclusiveUnitPrice ? line.unitPriceSourceType : undefined,
+        pricingUnit: unit ? `元/${unit}` : line.pricingUnit,
+        amountStatus: quantityState.amountStatus,
         unit,
         taxRate,
         taxInclusiveUnitPrice,

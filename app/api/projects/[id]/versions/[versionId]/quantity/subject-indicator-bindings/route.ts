@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import { assertSemanticEditable, getSubjectIndicatorBindings, loadSemanticVersion, saveSubjectIndicatorBindings, semanticJsonError } from '@/lib/quantity-semantics';
 
-export async function GET(_request: Request, { params }: { params: { id: string; versionId: string } }) {
+export async function GET(request: Request, { params }: { params: { id: string; versionId: string } }) {
   const data = await getSubjectIndicatorBindings(params.id, params.versionId);
   if (!data) return semanticJsonError('VERSION_NOT_FOUND', '测算版本不存在。', 404);
-  return NextResponse.json({ success: true, data });
+  const { searchParams } = new URL(request.url);
+  const costLineId = searchParams.get('costLineId');
+  const subjectCode = searchParams.get('costSubjectCode') || searchParams.get('subjectCode');
+  const filtered = data.filter((row: any) => {
+    if (costLineId && row.costLineId !== costLineId) return false;
+    if (subjectCode && row.subjectCode !== subjectCode && row.detailSubjectCode !== subjectCode) return false;
+    return true;
+  });
+  return NextResponse.json({ success: true, data: filtered });
 }
 
 export async function PUT(request: Request, { params }: { params: { id: string; versionId: string } }) {

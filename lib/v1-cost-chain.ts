@@ -3,6 +3,7 @@ import { calculateCostLine, calculateIncomeTax, round2 } from '@/lib/calculation
 import { getAllocationResults } from '@/lib/cost-semantics';
 import { getProjectVersionRevenueLines } from '@/lib/project-version-revenue-lines';
 import { costTotals, fullTaxSummary, n, revenueFromProjectData } from '@/lib/tax-summary';
+import { costLineQuantityPatch, mapCostLineV101Fields } from '@/lib/cost-line-quantity-fields';
 
 const AMOUNT_UNIT = '万元';
 const AREA_UNIT = '㎡';
@@ -128,6 +129,16 @@ function parseMissing(remark?: string | null) {
   }
 }
 
+function parseRemarkObject(remark?: string | null) {
+  if (!remark) return {} as Record<string, any>;
+  try {
+    const parsed = JSON.parse(remark);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function unitCost(amountWan: number, area: number) {
   return area > 0 ? round2(amountWan * 10000 / area) : null;
 }
@@ -160,7 +171,8 @@ export async function generateV1DetailCalculationResults(projectId: string, vers
   await prisma.$transaction(async (tx) => {
     for (const line of lines) {
       try {
-        const quantity = n(line.quantity);
+        const quantityState = costLineQuantityPatch(line);
+        const quantity = n(quantityState.quantity);
         const unitPrice = n(line.taxInclusiveUnitPrice);
         const taxRate = n(line.taxRate);
         const savedAmount = n(line.taxInclusiveAmount);
@@ -169,13 +181,23 @@ export async function generateV1DetailCalculationResults(projectId: string, vers
         const taxExclusiveAmount = savedAmount > 0 ? n(line.taxExclusiveAmount) || round2(taxInclusiveAmount / (1 + (taxRate || 0))) : n(calculated?.taxExclusiveAmount);
         const taxAmount = savedAmount > 0 ? n(line.taxAmount) || round2(taxInclusiveAmount - taxExclusiveAmount) : n(calculated?.taxAmount);
         const missingFields = missingFieldsForAmounts({ quantity, unitPrice, taxRate, amount: taxInclusiveAmount });
+        if (quantityState.quantityStatus === 'missing_basis') missingFields.push('待补指标基数');
+        if (quantityState.quantityStatus === 'missing_content_rule') missingFields.push('待补含量规则');
         const status = statusFromMissing(missingFields);
         if (missingFields.length) pendingRowCount += 1;
         if (taxInclusiveAmount > 0) aggregatableRowCount += 1;
         const detailType = detailTypeForLine(line);
         const code = line.costSubject?.code || 'UNMAPPED';
         const subjectName = line.costSubject?.name || line.detailName || '未映射成本科目';
-        const remark = JSON.stringify({ sourceCostLineId: line.id, missingFields, amountUnit: AMOUNT_UNIT });
+        const remark = JSON.stringify({
+          sourceCostLineId: line.id,
+          missingFields: [...new Set(missingFields)],
+          amountUnit: AMOUNT_UNIT,
+          quantitySource: line.quantitySource || quantityState.quantitySource,
+          quantityStatus: line.quantityStatus && line.quantityStatus !== 'normal' ? line.quantityStatus : quantityState.quantityStatus,
+          quantityFormula: line.quantityFormula || quantityState.quantityFormula,
+          amountStatus: line.amountStatus || quantityState.amountStatus
+        });
 
         await tx.$executeRawUnsafe(`
           INSERT INTO "DetailCalculationResult" (
@@ -224,9 +246,9 @@ export async function generateV1DetailCalculationResults(projectId: string, vers
           line.regionOrProductType || null,
           line.professionalGroup || sourceTable(detailType),
           line.measureBasis || line.costSubject?.defaultMeasureBasis || null,
-          quantity > 0 ? '人工录入工程量' : null,
+          line.quantityFormula || quantityState.quantityFormula,
           line.unit ? `元/${line.unit}` : null,
-          line.importBatchId ? 'Excel导入' : '人工录入',
+          line.unitPriceSourceType || (line.importBatchId ? 'Excel导入' : '人工录入'),
           quantity || null,
           unitPrice || null,
           taxRate || null,
@@ -292,6 +314,7 @@ function majorSubjectName(code: string) {
 
 function mapDetailRow(row: RawDetailRow, buildingArea: number, saleableArea: number) {
   const amount = n(row.taxInclusiveAmount);
+  const remark = parseRemarkObject(row.remark);
   const missingFields = parseMissing(row.remark);
   return {
     resultId: row.id,
@@ -318,12 +341,17 @@ function mapDetailRow(row: RawDetailRow, buildingArea: number, saleableArea: num
     dataSource: row.dataSource || 'cost-line',
     status: row.status || statusFromMissing(missingFields),
     missingFields,
+    quantitySource: remark.quantitySource || null,
+    quantityStatus: remark.quantityStatus || row.status || null,
+    quantityFormula: remark.quantityFormula || null,
+    amountStatus: remark.amountStatus || null,
     amountUnit: AMOUNT_UNIT
   };
 }
 
 function mapCostLinePreview(line: CostLineWithRefs, buildingArea: number, saleableArea: number) {
-  const quantity = n(line.quantity);
+  const quantityState = costLineQuantityPatch(line);
+  const quantity = n(quantityState.quantity);
   const unitPrice = n(line.taxInclusiveUnitPrice);
   const taxRate = n(line.taxRate);
   const savedAmount = n(line.taxInclusiveAmount);
@@ -332,6 +360,8 @@ function mapCostLinePreview(line: CostLineWithRefs, buildingArea: number, saleab
   const taxExcludedAmount = savedAmount > 0 ? n(line.taxExclusiveAmount) || round2(taxIncludedAmount / (1 + (taxRate || 0))) : n(calculated?.taxExclusiveAmount);
   const taxAmount = savedAmount > 0 ? n(line.taxAmount) || round2(taxIncludedAmount - taxExcludedAmount) : n(calculated?.taxAmount);
   const missingFields = missingFieldsForAmounts({ quantity, unitPrice, taxRate, amount: taxIncludedAmount });
+  if (quantityState.quantityStatus === 'missing_basis') missingFields.push('待补指标基数');
+  if (quantityState.quantityStatus === 'missing_content_rule') missingFields.push('待补含量规则');
   const detailType = detailTypeForLine(line);
   const subjectCode = line.costSubject?.code || null;
   return {
@@ -358,7 +388,12 @@ function mapCostLinePreview(line: CostLineWithRefs, buildingArea: number, saleab
     allocationMethod: line.allocationMethod || line.costSubject?.defaultAllocationMethod || null,
     dataSource: 'cost-line-realtime',
     status: statusFromMissing(missingFields),
-    missingFields,
+    missingFields: [...new Set(missingFields)],
+    ...mapCostLineV101Fields(line),
+    quantitySource: line.quantitySource || quantityState.quantitySource,
+    quantityStatus: line.quantityStatus && line.quantityStatus !== 'normal' ? line.quantityStatus : quantityState.quantityStatus,
+    quantityFormula: line.quantityFormula || quantityState.quantityFormula,
+    amountStatus: line.amountStatus || quantityState.amountStatus,
     amountUnit: AMOUNT_UNIT
   };
 }
@@ -392,6 +427,7 @@ export async function getV1DetailCalculationResults(projectId: string, versionId
     : (await loadCostLines(versionId)).map((line) => mapCostLinePreview(line, buildingArea, saleableArea));
   const pendingRowCount = items.filter((item) => item.missingFields.length > 0 || item.status === 'pending').length;
   const aggregatableRowCount = items.filter((item) => item.taxIncludedAmount > 0).length;
+  const warningRows = items.filter((item) => item.amountStatus === 'missing_unit_price' || item.quantityStatus === 'missing_basis' || item.quantityStatus === 'missing_content_rule');
   return {
     items,
     stats: {
@@ -399,8 +435,16 @@ export async function getV1DetailCalculationResults(projectId: string, versionId
       exceptionRowCount: 0,
       pendingRowCount,
       aggregatableRowCount,
+      warningRowCount: warningRows.length,
       amountUnit: AMOUNT_UNIT
     },
+    warnings: warningRows.map((item) => ({
+      subjectCode: item.subjectCode,
+      subjectName: item.subjectName,
+      quantityStatus: item.quantityStatus,
+      amountStatus: item.amountStatus,
+      missingFields: item.missingFields
+    })),
     emptyState: items.length ? null : {
       reason: '尚未生成明细测算结果，且当前版本没有可实时生成的成本明细。',
       nextAction: '请先保存成本明细并点击生成明细测算结果。',
@@ -574,7 +618,8 @@ export async function getV1TargetCostMeasure(projectId: string, versionId: strin
   if (!rows.length) {
     const detail = await getV1DetailCalculationResults(projectId, versionId);
     if (((detail?.items || []) as Array<{ taxIncludedAmount: number }>).some((item) => item.taxIncludedAmount > 0)) {
-      return measurePayloadFromDetailItems(projectId, versionId, detail.items);
+      const payload = await measurePayloadFromDetailItems(projectId, versionId, detail.items);
+      return payload ? { ...payload, warnings: detail.warnings || [], meta: { warningRowCount: detail.stats?.warningRowCount || 0 } } : payload;
     }
   }
   const mapped = rows.map(mapMeasureRow);
@@ -588,6 +633,8 @@ export async function getV1TargetCostMeasure(projectId: string, versionId: strin
       taxAmount: round2(mapped.filter((row) => (row.subjectLevel || 0) === 1).reduce((sum, row) => sum + row.taxAmount, 0)),
       amountUnit: AMOUNT_UNIT
     },
+    warnings: [],
+    meta: { warningRowCount: 0 },
     emptyState: mapped.length ? null : {
       reason: '目标成本测算表尚未聚合。',
       nextAction: '请先从明细测算结果生成目标成本测算表。',
@@ -669,6 +716,7 @@ export async function getV1TargetCostSummary(projectId: string, versionId: strin
   const costTaxAmount = round2(mapped.reduce((sum, row) => sum + row.taxAmount, 0));
   const total = costTaxInclusive || 1;
   const rowsWithRatio = mapped.map((row) => ({ ...row, ratio: costTaxInclusive ? round2(row.taxIncludedAmount / total) : 0 }));
+  const detailStatus = await getV1DetailCalculationResults(projectId, versionId);
   const { commercialRevenueLines, otherRevenueLines } = await getProjectVersionRevenueLines(versionId);
   const vatRate = n(version.taxes?.vatRate || 0.09);
   const revenue = revenueFromProjectData({ products: version.products, revenues: version.revenues, commercialRevenueLines, otherRevenueLines, vatRate });
@@ -684,7 +732,7 @@ export async function getV1TargetCostSummary(projectId: string, versionId: strin
     surchargeRate,
     incomeTaxRate: n(version.taxes?.incomeTaxRate || 0.25)
   });
-  const isPartial = !rowsWithRatio.length || costTaxInclusive <= 0 || (await getV1DetailCalculationResults(projectId, versionId))?.stats.pendingRowCount! > 0;
+  const isPartial = !rowsWithRatio.length || costTaxInclusive <= 0 || (detailStatus?.stats.pendingRowCount || 0) > 0;
   return {
     rows: rowsWithRatio,
     operatingIndicators: {
@@ -701,6 +749,8 @@ export async function getV1TargetCostSummary(projectId: string, versionId: strin
     },
     summaryStatus: isPartial ? 'partial' : 'ready',
     isPartial,
+    warnings: detailStatus?.warnings || [],
+    meta: { warningRowCount: detailStatus?.stats.warningRowCount || 0 },
     reason: isPartial ? (rowsWithRatio.length ? '当前仅部分成本明细参与测算，利润指标为临时口径。' : '目标成本汇总表尚未形成可用结果。') : '目标成本汇总已形成统一经营口径。',
     nextAction: isPartial ? '请继续完善成本明细并刷新明细结果、目标成本测算表和汇总表。' : '可继续查看成本分摊、税金测算和业态利润分析。',
     emptyState: rowsWithRatio.length ? null : {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
 import { refreshTargetCostAggregates, upsertDetailCalculationResult } from '@/lib/detail-calculation-result-sync';
+import { costLineQuantityPatch, costLineV101FieldsFromForm } from '@/lib/cost-line-quantity-fields';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -143,6 +144,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
       detailUnitPriceWan = priceWanPerUnit;
     }
 
+    const semanticPatch = costLineV101FieldsFromForm(form, (field) => `${field}-${rowId}`);
+    const quantityState = costLineQuantityPatch({
+      ...existingCostLine,
+      ...semanticPatch,
+      measureValue: quantity,
+      coefficient: 1,
+      quantity,
+      taxInclusiveUnitPrice
+    });
+    const finalQuantity = Number(quantityState.quantity || 0);
+    if (finalQuantity !== quantity) {
+      taxInclusiveAmount = rateBased ? round2(finalQuantity * detailUnitPriceWan) : round2((finalQuantity * taxInclusiveUnitPrice) / 10000);
+    }
     const taxExclusiveAmount = taxRate ? round2(taxInclusiveAmount / (1 + taxRate)) : taxInclusiveAmount;
     const taxAmount = round2(taxInclusiveAmount - taxExclusiveAmount);
     const taxExclusiveUnitPrice = taxRate ? round2(taxInclusiveUnitPrice / (1 + taxRate)) : taxInclusiveUnitPrice;
@@ -155,7 +169,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
       regionOrProductType: regionOrProductType || dict.applicableProductType || '项目整体',
       professionalGroup: '土地费用',
       measureBasis: rateBased ? '土地价款/成交价×费率' : (dict.measureBasis || '土地面积/固定金额'),
-      quantity,
+      measureValue: finalQuantity,
+      coefficient: 1,
+      ...semanticPatch,
+      quantity: finalQuantity,
+      quantitySource: quantityState.quantitySource,
+      quantityStatus: quantityState.quantityStatus,
+      quantityFormula: quantityState.quantityFormula,
+      pricingUnit: semanticPatch.pricingUnit ?? (unitInput ? `元/${unitInput}` : existingCostLine?.pricingUnit),
+      amountStatus: quantityState.amountStatus,
       unit: unitInput || (rateBased ? '万元基数' : (dict.unit || '亩')),
       taxRate,
       taxInclusiveUnitPrice,
@@ -190,7 +212,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       quantityFormula: dict.measureBasis || null,
       pricingUnit: unitInput || (rateBased ? '费率' : (dict.unit || '亩')),
       unitPriceSource: '土地费用明细表',
-      quantity,
+      quantity: finalQuantity,
       unitPrice: detailUnitPriceWan,
       taxRate,
       amountFormula: rateBased ? '土地价款/成交价×费率' : '工程量×含税单价',

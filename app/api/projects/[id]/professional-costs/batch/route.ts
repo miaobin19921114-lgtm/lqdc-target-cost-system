@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
 import { calculateRuleDrivenQuantity } from '@/lib/rule-driven-quantity';
 import { recommendPriceIndicator } from '@/lib/price-indicator-matcher';
+import { costLineQuantityPatch, costLineV101FieldsFromForm } from '@/lib/cost-line-quantity-fields';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -150,7 +151,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
       priceAppliedCount += 1;
     }
 
+    const semanticPatch = costLineV101FieldsFromForm(form, (field) => entryKey(rowEntryId, field));
     const taxRate = taxRateInput ? taxRateFrom(taxRateInput, price?.taxRate || 0.09) : (price?.applied ? price.taxRate : taxRateFrom(dict.defaultTaxRate, 0.09));
+    const quantityState = costLineQuantityPatch({
+      ...existingCostLine,
+      ...semanticPatch,
+      measureValue,
+      coefficient,
+      quantity,
+      taxInclusiveUnitPrice
+    });
+    quantity = Number(quantityState.quantity || 0);
     const amounts = calc(quantity, taxInclusiveUnitPrice, taxRate);
     const remark = [
       remarkInput,
@@ -167,7 +178,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
       measureValue,
       coefficient,
       quantityOverride,
+      ...semanticPatch,
       quantity,
+      quantitySource: quantityState.quantitySource,
+      quantityStatus: quantityState.quantityStatus,
+      quantityFormula: quantityState.quantityFormula,
+      unitPriceSourceType: semanticPatch.unitPriceSourceType ?? (price?.applied ? price.source : existingCostLine?.unitPriceSourceType),
+      pricingUnit: semanticPatch.pricingUnit ?? (unitInput ? `元/${unitInput}` : existingCostLine?.pricingUnit),
+      amountStatus: quantityState.amountStatus,
       unit: unitInput || dict.unit || '项',
       taxInclusiveUnitPrice,
       taxExclusiveUnitPrice: amounts.taxExclusiveUnitPrice,

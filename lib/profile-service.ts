@@ -11,6 +11,7 @@ import {
   restoreVersionProductType
 } from '@/lib/product-type-service';
 import { overrideCostLineQuantity } from '@/lib/cost-line-quantity-service';
+import { costLineQuantityPatch, mapCostLineV101Fields } from '@/lib/cost-line-quantity-fields';
 
 const constructionMetricKeys = [
   'deliveryStandard',
@@ -761,6 +762,7 @@ export async function getProfileQuantityIndicators(projectId: string, versionId:
     orderBy: [{ sortOrder: 'asc' }, { detailName: 'asc' }]
   });
   const indicators = rows.map((line) => {
+    const quantityState = costLineQuantityPatch(line);
     const calculatedQuantity = n(line.measureValue) * (n(line.coefficient) || 1);
     const finalQuantity = n(line.quantity);
     return {
@@ -778,13 +780,20 @@ export async function getProfileQuantityIndicators(projectId: string, versionId:
       contentRatio: nullableNumber(line.coefficient),
       contentRatioUnit: null,
       calculatedQuantity,
-      manualQuantity: line.quantityOverride ? finalQuantity : null,
-      excelImportedQuantity: line.importBatchId ? finalQuantity : null,
-      drawingMeasuredQuantity: null,
+      ...mapCostLineV101Fields(line),
+      engineeringMetricQuantity: nullableNumber(line.engineeringMetricQuantity),
+      manualQuantity: nullableNumber(line.manualQuantity) ?? (line.quantityOverride ? finalQuantity : null),
+      excelImportedQuantity: nullableNumber(line.excelImportedQuantity) ?? (line.importBatchId ? finalQuantity : null),
+      drawingMeasuredQuantity: nullableNumber(line.drawingMeasuredQuantity),
+      lockedQuantity: nullableNumber(line.lockedQuantity),
+      templateDefaultQuantity: nullableNumber(line.templateDefaultQuantity),
       finalQuantity,
       quantityUnit: line.unit || line.costSubject?.defaultUnit || null,
       quantityCalcMode: line.quantityOverride ? (line.importBatchId ? 'excel_imported' : 'manual_entered') : 'auto_calculated',
-      quantitySource: line.quantityOverride ? (line.importBatchId ? 'excel_imported' : 'manual') : 'auto',
+      quantitySource: line.quantitySource || quantityState.quantitySource,
+      quantityStatus: line.quantityStatus && line.quantityStatus !== 'normal' ? line.quantityStatus : quantityState.quantityStatus,
+      quantityFormula: line.quantityFormula || quantityState.quantityFormula,
+      amountStatus: line.amountStatus || quantityState.amountStatus,
       quantitySourceRemark: line.remark || null,
       isQuantityOverridden: line.quantityOverride,
       overrideReason: line.quantityOverride ? line.remark || null : null,
@@ -821,6 +830,7 @@ export async function saveProfileQuantityIndicators(projectId: string, versionId
       if (!text(indicator.overrideReason)) return error('FINAL_QUANTITY_MISSING', '手算覆盖必须填写 overrideReason。');
       const result = await overrideCostLineQuantity(projectId, versionId, costLineId, {
         quantity: finalQuantity,
+        quantityField: mode === 'excel_imported' ? 'excelImportedQuantity' : mode === 'drawing_measured' ? 'drawingMeasuredQuantity' : mode === 'locked_confirmed' ? 'lockedQuantity' : 'manualQuantity',
         overrideReason: text(indicator.overrideReason)
       });
       if (!result.body.success) return { status: result.status, body: result.body };

@@ -5,6 +5,7 @@ import { EXCEL_TEMPLATE_VERSION, excelError, parseV60WorkbookImportData, type Pa
 import { prisma } from '@/lib/prisma';
 import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 import { defaultVersionStage } from '@/lib/version-stage';
+import { costLineQuantityPatch } from '@/lib/cost-line-quantity-fields';
 
 type ImportMode = 'overwrite_current' | 'create_version';
 type CostSubjectLite = { id: string; code: string; name: string; fullPath: string | null };
@@ -125,14 +126,20 @@ async function recalculateVersion(tx: any, projectVersionId: string) {
 
   const costs = await tx.costLine.findMany({ where: { projectVersionId } });
   for (const cost of costs) {
+    const quantityState = costLineQuantityPatch(cost);
     const result = calculateCostLine({
-      quantity: Number(cost.quantity || 0),
+      quantity: Number(quantityState.quantity || cost.quantity || 0),
       taxRate: Number(cost.taxRate || 0),
       taxInclusiveUnitPrice: Number(cost.taxInclusiveUnitPrice || 0)
     });
     await tx.costLine.update({
       where: { id: cost.id },
       data: {
+        quantity: Number(quantityState.quantity || cost.quantity || 0),
+        quantitySource: quantityState.quantitySource,
+        quantityStatus: quantityState.quantityStatus,
+        quantityFormula: quantityState.quantityFormula,
+        amountStatus: quantityState.amountStatus,
         taxExclusiveUnitPrice: result.taxExclusiveUnitPrice,
         taxInclusiveUnitPrice: result.taxInclusiveUnitPrice,
         taxExclusiveAmount: result.taxExclusiveAmount,
@@ -197,6 +204,13 @@ async function writeImportData(tx: any, input: {
       taxRate: row.taxRate,
       taxInclusiveUnitPrice: row.taxInclusiveUnitPrice
     });
+    const quantityState = costLineQuantityPatch({
+      measureValue: row.quantity,
+      coefficient: 1,
+      quantity: row.quantity,
+      excelImportedQuantity: row.quantity,
+      taxInclusiveUnitPrice: row.taxInclusiveUnitPrice
+    });
     await tx.costLine.create({
       data: {
         projectVersionId: input.targetVersionId,
@@ -208,8 +222,12 @@ async function writeImportData(tx: any, input: {
         measureBasis: row.measureBasis,
         measureValue: row.quantity,
         coefficient: 1,
+        excelImportedQuantity: row.quantity,
         quantityOverride: true,
-        quantity: row.quantity,
+        quantity: Number(quantityState.quantity || row.quantity),
+        quantitySource: quantityState.quantitySource,
+        quantityStatus: quantityState.quantityStatus,
+        quantityFormula: quantityState.quantityFormula,
         unit: row.unit,
         taxExclusiveUnitPrice: result.taxExclusiveUnitPrice,
         taxInclusiveUnitPrice: result.taxInclusiveUnitPrice,
@@ -217,6 +235,9 @@ async function writeImportData(tx: any, input: {
         taxExclusiveAmount: result.taxExclusiveAmount,
         taxAmount: result.taxAmount,
         taxInclusiveAmount: result.taxInclusiveAmount,
+        unitPriceSourceType: 'excel_imported',
+        pricingUnit: row.unit ? `元/${row.unit}` : null,
+        amountStatus: quantityState.amountStatus,
         allocationMethod: '按可售面积占比',
         isDirectAssigned: false,
         description: subject.fullPath || row.detailName || subject.name,

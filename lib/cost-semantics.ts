@@ -4,6 +4,7 @@ import { calculateCostLine, calculateRevenueLine, round2 } from '@/lib/calculati
 import { allocationBase, includes, resolveAllocationRule } from '@/lib/cost-allocation-rules';
 import { isVersionLocked, VERSION_LOCKED_MESSAGE } from '@/lib/project-version';
 import { writeOperationLog } from '@/lib/operation-log';
+import { costLineQuantityPatch, mapCostLineV101Fields, pickDefinedCostLineV101Fields } from '@/lib/cost-line-quantity-fields';
 
 export const businessTypes = ['income', 'target_cost', 'contract_cost', 'dynamic_cost', 'tax', 'fee', 'allocation'] as const;
 export const amountSources = ['calculated_by_quantity', 'manual_entered', 'formula_calculated', 'contract_amount', 'allocated_result', 'imported_excel', 'tax_calculated', 'system_default'] as const;
@@ -138,6 +139,7 @@ function calculationItemFromCost(projectId: string, versionId: string, line: Cos
   const finalQuantity = n(line.quantity) || null;
   const finalAmount = round2(n(line.taxInclusiveAmount));
   const source = amountSourceForCost(line);
+  const quantityState = costLineQuantityPatch(line);
   const collectionMode = collectionModeForCost(line);
   const poolType = costPoolTypeForMode(collectionMode, line);
   return {
@@ -177,6 +179,11 @@ function calculationItemFromCost(projectId: string, versionId: string, line: Cos
     contractPackageId: null,
     cashflowPlanId: null,
     remark: line.remark,
+    ...mapCostLineV101Fields(line),
+    quantitySource: line.quantitySource || quantityState.quantitySource,
+    quantityStatus: line.quantityStatus && line.quantityStatus !== 'normal' ? line.quantityStatus : quantityState.quantityStatus,
+    quantityFormula: line.quantityFormula || quantityState.quantityFormula,
+    amountStatus: line.amountStatus || quantityState.amountStatus,
     createdAt: null,
     updatedAt: null
   };
@@ -512,11 +519,39 @@ export async function saveCalculationItems(projectId: string, version: ProjectVe
       const id = String(row.id || '');
       if (!id.startsWith('cost:')) continue;
       const costLineId = id.replace('cost:', '');
-      const quantity = n(row.finalQuantity ?? row.quantity);
-      const unitPrice = n(row.unitPrice);
-      const taxRate = n(row.taxRate) || 0.09;
+      const existing = await tx.costLine.findFirst({ where: { id: costLineId, projectVersionId: version.id } });
+      if (!existing) continue;
+      const fieldPatch = pickDefinedCostLineV101Fields(row);
+      const quantityState = costLineQuantityPatch({
+        ...existing,
+        ...fieldPatch,
+        quantity: row.finalQuantity ?? row.quantity ?? existing.quantity,
+        measureValue: row.measureValue ?? existing.measureValue,
+        coefficient: row.coefficient ?? existing.coefficient,
+        taxInclusiveUnitPrice: row.unitPrice ?? existing.taxInclusiveUnitPrice
+      });
+      const quantity = n(quantityState.quantity);
+      const unitPrice = Object.prototype.hasOwnProperty.call(row, 'unitPrice') ? n(row.unitPrice) : n(existing.taxInclusiveUnitPrice);
+      const taxRate = Object.prototype.hasOwnProperty.call(row, 'taxRate') ? n(row.taxRate) || 0.09 : n(existing.taxRate) || 0.09;
       const result = calculateCostLine({ quantity, taxRate, taxInclusiveUnitPrice: unitPrice });
-      await tx.costLine.update({ where: { id: costLineId }, data: { quantity, taxInclusiveUnitPrice: unitPrice, taxRate, taxInclusiveAmount: result.taxInclusiveAmount, taxExclusiveAmount: result.taxExclusiveAmount, taxAmount: result.taxAmount, taxExclusiveUnitPrice: result.taxExclusiveUnitPrice, remark: clean(row.remark) } });
+      await tx.costLine.update({
+        where: { id: costLineId },
+        data: {
+          ...fieldPatch,
+          quantity,
+          quantitySource: quantityState.quantitySource,
+          quantityStatus: quantityState.quantityStatus,
+          quantityFormula: quantityState.quantityFormula,
+          amountStatus: quantityState.amountStatus,
+          taxInclusiveUnitPrice: unitPrice,
+          taxRate,
+          taxInclusiveAmount: result.taxInclusiveAmount,
+          taxExclusiveAmount: result.taxExclusiveAmount,
+          taxAmount: result.taxAmount,
+          taxExclusiveUnitPrice: result.taxExclusiveUnitPrice,
+          remark: Object.prototype.hasOwnProperty.call(row, 'remark') ? clean(row.remark) : existing.remark
+        }
+      });
     }
     await writeOperationLog(tx, { projectId, versionId: version.id, module: 'cost_semantics', action: 'update_calculation_items', targetType: 'CostLine', afterData: rows });
   });

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
+import { costLineQuantityPatch, costLineV101FieldsFromForm } from '@/lib/cost-line-quantity-fields';
 
 const toNumber = (form: FormData, name: string) => Number(form.get(name) || 0);
 
@@ -28,10 +29,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (locked) return NextResponse.redirect(`${getBaseUrl(request)}/projects/${params.id}/land?locked=1`, 303);
   const landSubject = await getLandSubject();
 
-  const landMu = toNumber(form, 'landMu');
+  let landMu = toNumber(form, 'landMu');
   const priceWanPerMu = toNumber(form, 'priceWanPerMu');
   const taxRate = toNumber(form, 'taxRate');
   const taxInclusiveUnitPrice = priceWanPerMu * 10000;
+  const semanticPatch = costLineV101FieldsFromForm(form, (field) => field);
+  const quantityState = costLineQuantityPatch({
+    ...semanticPatch,
+    measureValue: landMu,
+    coefficient: 1,
+    quantity: landMu,
+    taxInclusiveUnitPrice
+  });
+  landMu = Number(quantityState.quantity || 0);
   const taxInclusiveAmount = round2(landMu * taxInclusiveUnitPrice);
   const taxExclusiveAmount = taxRate ? round2(taxInclusiveAmount / (1 + taxRate)) : taxInclusiveAmount;
   const taxAmount = round2(taxInclusiveAmount - taxExclusiveAmount);
@@ -45,7 +55,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
       regionOrProductType: String(form.get('regionOrProductType') || '项目整体'),
       professionalGroup: '土地费用',
       measureBasis: '土地面积（亩）',
+      measureValue: landMu,
+      coefficient: 1,
+      ...semanticPatch,
       quantity: landMu,
+      quantitySource: quantityState.quantitySource,
+      quantityStatus: quantityState.quantityStatus,
+      quantityFormula: quantityState.quantityFormula,
       unit: '亩',
       taxRate,
       taxInclusiveUnitPrice,
@@ -53,6 +69,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       taxInclusiveAmount,
       taxExclusiveAmount,
       taxAmount,
+      pricingUnit: semanticPatch.pricingUnit ?? '元/亩',
+      amountStatus: quantityState.amountStatus,
       allocationMethod: String(form.get('allocationMethod') || '可售面积分摊'),
       isDirectAssigned: false,
       description: String(form.get('description') || ''),

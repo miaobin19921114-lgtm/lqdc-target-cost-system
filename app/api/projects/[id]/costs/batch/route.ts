@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
 import { calculateRuleDrivenQuantity } from '@/lib/rule-driven-quantity';
 import { recommendPriceIndicator } from '@/lib/price-indicator-matcher';
+import { costLineQuantityPatch, costLineV101FieldsFromForm } from '@/lib/cost-line-quantity-fields';
 
 const clean = (input: FormDataEntryValue | null) => String(input || '').trim();
 
@@ -132,7 +133,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
       priceAppliedCount += 1;
     }
 
+    const existing = costLineId ? await prisma.costLine.findFirst({ where: { id: costLineId, projectVersionId: version.id } }) : null;
+    const semanticPatch = costLineV101FieldsFromForm(form, (field) => `${field}-${dictionaryRowId}`);
     const taxRate = taxRateInput ? taxRateFrom(taxRateInput, price?.taxRate || 0.09) : (price?.applied ? price.taxRate : taxRateFrom(dict.defaultTaxRate, 0.09));
+    const quantityState = costLineQuantityPatch({
+      ...existing,
+      ...semanticPatch,
+      measureValue,
+      coefficient,
+      quantity,
+      taxInclusiveUnitPrice
+    });
+    quantity = Number(quantityState.quantity || 0);
     const amounts = calc(quantity, taxInclusiveUnitPrice, taxRate);
     const remark = [
       remarkInput,
@@ -150,7 +162,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
       measureValue,
       coefficient,
       quantityOverride: false,
+      ...semanticPatch,
       quantity,
+      quantitySource: quantityState.quantitySource,
+      quantityStatus: quantityState.quantityStatus,
+      quantityFormula: quantityState.quantityFormula,
+      unitPriceSourceType: semanticPatch.unitPriceSourceType ?? (price?.applied ? price.source : existing?.unitPriceSourceType),
+      pricingUnit: semanticPatch.pricingUnit ?? (unitInput ? `元/${unitInput}` : existing?.pricingUnit),
+      amountStatus: quantityState.amountStatus,
       unit: unitInput || dict.unit || '',
       taxRate,
       taxInclusiveUnitPrice,
@@ -165,7 +184,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
     };
 
     if (costLineId) {
-      const existing = await prisma.costLine.findFirst({ where: { id: costLineId, projectVersionId: version.id } });
       if (existing) await prisma.costLine.update({ where: { id: costLineId }, data });
     } else {
       await prisma.costLine.create({ data: { ...data, sortOrder: Number(String(code).replace(/\D/g, '').slice(0, 8)) || Date.now() % 1000000000 } });

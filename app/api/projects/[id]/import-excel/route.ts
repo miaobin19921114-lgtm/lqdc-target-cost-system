@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { prisma } from '@/lib/prisma';
 import { getEditableActiveVersion } from '@/lib/project-version';
+import { costLineQuantityPatch } from '@/lib/cost-line-quantity-fields';
 
 export const runtime = 'nodejs';
 
@@ -523,6 +524,15 @@ async function importCosts(projectId: string, versionId: string, workbook: Excel
     const targetName = resolved.subject.name || prepared.subject;
     const targetPath = resolved.subject.fullPath || prepared.fullPath;
 
+    const quantityState = costLineQuantityPatch({
+      measureValue: prepared.quantityValue,
+      coefficient: 1,
+      quantity: prepared.quantityValue,
+      excelImportedQuantity: prepared.quantityValue,
+      taxInclusiveUnitPrice: prepared.taxInclusiveUnitPrice,
+      taxInclusiveAmount: prepared.taxInclusiveAmount,
+      amountStatus: 'imported_amount'
+    });
     const data = {
       projectVersionId: versionId,
       costSubjectId: resolved.subject.id,
@@ -531,7 +541,13 @@ async function importCosts(projectId: string, versionId: string, workbook: Excel
       regionOrProductType: 'Excel导入',
       professionalGroup: prepared.sheet,
       measureBasis: prepared.basis,
-      quantity: prepared.quantityValue,
+      measureValue: prepared.quantityValue,
+      coefficient: 1,
+      excelImportedQuantity: prepared.quantityValue,
+      quantity: Number(quantityState.quantity || prepared.quantityValue),
+      quantitySource: quantityState.quantitySource,
+      quantityStatus: quantityState.quantityStatus,
+      quantityFormula: quantityState.quantityFormula,
       unit: prepared.unitValue,
       taxExclusiveUnitPrice: prepared.taxExclusiveUnitPrice,
       taxInclusiveUnitPrice: prepared.taxInclusiveUnitPrice,
@@ -539,6 +555,9 @@ async function importCosts(projectId: string, versionId: string, workbook: Excel
       taxExclusiveAmount: prepared.taxExclusiveAmount,
       taxAmount: prepared.taxAmount,
       taxInclusiveAmount: prepared.taxInclusiveAmount,
+      unitPriceSourceType: 'excel_imported',
+      pricingUnit: prepared.unitValue ? `元/${prepared.unitValue}` : null,
+      amountStatus: 'imported_amount',
       allocationMethod: '按可售面积占比',
       isDirectAssigned: false,
       description: targetPath,
