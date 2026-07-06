@@ -8,7 +8,6 @@ const nonV1ProjectSegments = new Set([
   'cost-calculation-rules',
   'cost-mapping',
   'decision',
-  'detail-calculation-results',
   'detail-rule-calculation',
   'finance-expense-details',
   'indicator-check',
