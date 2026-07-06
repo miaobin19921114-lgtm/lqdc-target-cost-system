@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { getProductTypeImpact } from '@/lib/product-type-service';
+import { activeVersionOrder, activeVersionWhere, isVersionLocked } from '@/lib/project-version';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,11 +21,11 @@ presetGroups.forEach((group, groupIndex) => {
   });
 });
 
-async function getVersion(projectId: string) {
+async function getVersion(project: { id: string; activeVersionId?: string | null }) {
   return prisma.projectVersion.findFirst({
-    where: { projectId },
-    orderBy: { createdAt: 'asc' },
-    include: { products: true }
+    where: activeVersionWhere(project),
+    orderBy: activeVersionOrder(project),
+    include: { products: { include: { _count: { select: { revenues: true, costs: true } } } } }
   });
 }
 
@@ -43,10 +45,13 @@ function getRank(name: string) {
 
 export default async function ProductTypesPage({ params, searchParams }: { params: { id: string }, searchParams?: { saved?: string; preset?: string } }) {
   const project = await prisma.project.findUnique({ where: { id: params.id } });
-  const version = await getVersion(params.id);
   if (!project) return <main className="page">项目不存在</main>;
+  const version = await getVersion(project);
 
   const products = [...(version?.products || [])].sort((a, b) => getRank(a.name) - getRank(b.name) || a.name.localeCompare(b.name));
+  const locked = version ? isVersionLocked(version) : false;
+  const impactEntries = version ? await Promise.all(products.map(async (item) => [item.id, await getProductTypeImpact(version.id, item.id)] as const)) : [];
+  const impactMap = new Map(impactEntries);
   const totalBuildingArea = products.reduce((sum, item) => sum + Number(item.buildingArea || 0), 0);
   const totalSaleableArea = products.reduce((sum, item) => sum + Number(item.saleableArea || 0), 0);
   const totalCapacityArea = products.reduce((sum, item) => sum + Number(item.capacityArea || 0), 0);
@@ -65,6 +70,7 @@ export default async function ProductTypesPage({ params, searchParams }: { param
             <form action={`/api/projects/${project.id}/products/presets`} method="post">
               <button className="btn btn-primary">生成模板业态</button>
             </form>
+            <Link href={`/projects/${project.id}/product-maintenance`} className="btn btn-primary">业态增减维护</Link>
             <Link href={`/projects/${project.id}`} className="btn">返回项目测算中心</Link>
           </div>
         </div>
@@ -125,23 +131,27 @@ export default async function ProductTypesPage({ params, searchParams }: { param
 
         <section className="card">
           <h2>产品 / 业态构成表</h2>
+          <p className="meta">本页支持直接恢复停用业态；停用操作请进入“业态增减维护”，页面会按后端影响判断展示不可停用原因。</p>
           {products.length === 0 ? (
             <p className="meta">暂无业态。建议先点击“生成模板业态”，再录入面积和售价。</p>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1120 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1360 }}>
                 <thead>
                   <tr>
-                    {['分类', '业态', '建筑面积', '可售面积', '计容面积', '不可售面积', '销售单价', '货值估算', '销售', '分摊'].map((head) => (
-                      <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>{head}</th>
+                    {['分类', '业态', '建筑面积', '可售面积', '计容面积', '不可售面积', '销售单价', '货值估算', '销售', '分摊', '状态与原因', '操作'].map((head) => (
+                      <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--border)', color: 'var(--muted)', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>{head}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {products.map((item) => {
                     const revenue = Number(item.saleableArea || 0) * Number(item.salePrice || 0);
+                    const impact = impactMap.get(item.id);
+                    const canDisable = Boolean(impact?.canDisable);
+                    const blockedReason = impact?.blockedReason || (item.isActive ? '暂无阻断原因。' : '当前业态已停用。');
                     return (
-                      <tr key={item.id}>
+                      <tr key={item.id} style={item.isActive ? undefined : { background: '#fffaf0' }}>
                         <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{getCategory(item.name, item.remark)}</td>
                         <td style={{ padding: 10, borderBottom: '1px solid var(--border)', fontWeight: 700 }}>{item.name}</td>
                         <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{money(item.buildingArea)}㎡</td>
@@ -152,6 +162,19 @@ export default async function ProductTypesPage({ params, searchParams }: { param
                         <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{money(revenue)}元</td>
                         <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{item.isSaleable ? '参与' : '不参与'}</td>
                         <td style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>{item.participateAllocation ? '参与' : '不参与'}</td>
+                        <td style={{ padding: 10, borderBottom: '1px solid var(--border)', minWidth: 260 }}>
+                          <b style={{ color: item.isActive ? '#2f9e44' : '#c92a2a' }}>{item.isActive ? '启用' : '停用'}</b>
+                          <div className="meta">收入 {item._count.revenues} / 成本 {item._count.costs}</div>
+                          <div className="meta" style={{ color: item.isActive && !canDisable ? '#c92a2a' : '#667085' }}>{item.isActive ? (canDisable ? '无业务数据，可在维护页停用。' : blockedReason) : '停用业态默认不参与当前测算展示。'}</div>
+                        </td>
+                        <td style={{ padding: 10, borderBottom: '1px solid var(--border)', minWidth: 170 }}>
+                          {item.isActive ? <Link className="btn" href={`/projects/${project.id}/product-maintenance`}>{canDisable ? '去停用' : '查看原因'}</Link> : <form action={`/api/projects/${project.id}/products/status`} method="post">
+                            <input type="hidden" name="productId" value={item.id} />
+                            <input type="hidden" name="action" value="restore" />
+                            <input type="hidden" name="operationReason" value="业态产品页恢复启用" />
+                            <button className="btn btn-primary" disabled={locked}>恢复启用</button>
+                          </form>}
+                        </td>
                       </tr>
                     );
                   })}

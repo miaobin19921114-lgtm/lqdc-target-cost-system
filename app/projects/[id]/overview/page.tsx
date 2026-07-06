@@ -21,12 +21,13 @@ type Field = readonly [string, string, 'text' | 'number' | 'checkbox', unknown?,
 type MetricField = readonly [string, string, 'text' | 'number' | 'checkbox', string];
 
 const sections: Array<{ key: SectionKey; label: string; title: string; note: string }> = [
-  { key: 'overview', label: '项目总览', title: '项目总览', note: '查看项目、版本、完整性和关键指标摘要。' },
-  { key: 'product-objects', label: '业态产品与对象', title: '业态产品与对象', note: '维护启用业态、停用业态和兼容对象状态。' },
+  { key: 'overview', label: '概况总览', title: '概况总览', note: '查看项目、版本、完整性和关键指标摘要。项目指标作为本页细表入口保留。' },
+  { key: 'product-objects', label: '业态产品', title: '业态产品', note: '维护启用业态、停用业态和兼容对象状态。' },
   { key: 'construction-standards', label: '建造标准', title: '建造标准', note: '维护交付标准、专项开关和关键配置字段。' },
   { key: 'project-metrics', label: '项目指标', title: '项目指标', note: '维护面积、楼栋、地下室、车位、景观道路等基础指标。' },
   { key: 'quantity-indicators', label: '工程量指标', title: '工程量指标', note: '查看专业工程量、来源、覆盖状态和备注，并保留逐行手算覆盖能力。' }
 ];
+const mainSections = sections.filter((item) => item.key !== 'project-metrics');
 
 const sectionFormIds: Partial<Record<SectionKey, string>> = {
   overview: 'profile-overview-form',
@@ -45,6 +46,7 @@ const presetObjects = [
 const inputStyle = { height: 34, border: '1px solid #d9e2ec', borderRadius: 6, padding: '4px 8px', background: '#fff' };
 const readonlyStyle = { ...inputStyle, background: '#f2f4f7', color: '#667085' };
 const cell = { padding: 9, borderBottom: '1px solid #eef2f6', whiteSpace: 'nowrap' as const };
+const stickyHeadCell = { ...cell, textAlign: 'left' as const, color: '#667085', background: '#fbfdff', position: 'sticky' as const, top: 0, zIndex: 1 };
 
 const standardCategories = [
   ['structure', '结构'],
@@ -200,7 +202,7 @@ function profileUrl(projectId: string, versionId: string, section?: string) {
 
 function TabNav({ projectId, current }: { projectId: string; current: SectionKey }) {
   return <nav style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-    {sections.map((item) => <Link key={item.key} href={`/projects/${projectId}/overview?section=${item.key}`} className={current === item.key ? 'btn btn-primary' : 'btn'}>{item.label}</Link>)}
+    {mainSections.map((item) => <Link key={item.key} href={`/projects/${projectId}/overview?section=${item.key}`} className={current === item.key ? 'btn btn-primary' : 'btn'}>{item.label}</Link>)}
   </nav>;
 }
 
@@ -210,7 +212,8 @@ function HeaderActions({ projectId, versionId, current, locked }: { projectId: s
     {formId ? <button type="submit" form={formId} className="btn btn-primary" disabled={locked} title={locked ? '当前版本已锁定，仅支持查看。如需调整数据，请在版本管理中复制为新版本后编辑。' : undefined}>保存当前分区</button> : null}
     {current === 'product-objects' ? <button type="button" className="btn" disabled title="本分区暂不支持整区保存，请使用每行的新增、停用或恢复按钮。">按单项保存</button> : null}
     {current === 'quantity-indicators' ? <Link href={`/projects/${projectId}/quantity-indicators`} className="btn">完整工程量页</Link> : null}
-    {current === 'product-objects' ? locked ? <button className="btn" disabled title="当前版本已锁定，仅支持查看。">进入业态明细维护</button> : <Link href={`/projects/${projectId}/product-maintenance`} className="btn">进入业态明细维护</Link> : null}
+    {current === 'overview' ? <Link href={`/projects/${projectId}/overview?section=project-metrics`} className="btn">项目指标细表</Link> : null}
+    {current === 'product-objects' ? locked ? <button className="btn" disabled title="当前版本已锁定，仅支持查看。">业态增减维护</button> : <Link href={`/projects/${projectId}/product-maintenance`} className="btn">业态增减维护</Link> : null}
     <Link href={`/projects/${projectId}`} className="btn">返回项目测算中心</Link>
   </div>;
 }
@@ -349,7 +352,7 @@ function MetricTable({ section, rows, fields, locked, emptyTitle, emptyChildren,
   if (!displayRows.length) return <EmptyState title={emptyTitle}>{emptyChildren}</EmptyState>;
   return <div style={{ overflowX: 'auto' }}>
     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: Math.max(1000, fields.length * 150), fontSize: 12 }}>
-      <thead><tr>{fields.map(([, label]) => <th key={label} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{label}</th>)}</tr></thead>
+      <thead><tr>{fields.map(([, label]) => <th key={label} style={stickyHeadCell}>{label}</th>)}</tr></thead>
       <tbody>{displayRows.map((row, rowIndex) => <tr key={`${section}-${rowIndex}`}>
         {fields.map(([name, label, type], fieldIndex) => <td key={name} style={{ ...cell, verticalAlign: 'top' }}>
           {fieldIndex === 0 && leading ? leading(row) : null}
@@ -427,7 +430,7 @@ async function OverviewSection({ projectId, versionId, locked }: { projectId: st
         </div>
         {data.warningMessages?.length ? <p className="meta" style={{ marginBottom: 0 }}>{data.warningMessages.join('；')}</p> : null}
       </Card>
-      <Card title="五页入口状态" note="保持五个 Tab 结构；每个入口只展示该分区是否已具备接口数据。">
+      <Card title="概况入口状态" note="V1 主入口收敛为概况总览、业态产品、建造标准、工程量指标；项目指标作为细表入口保留。">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
           {sectionStatus.map(([key, label]) => <Link key={key} href={`/projects/${projectId}/overview?section=${key === 'overview' ? 'overview' : key.replace(/[A-Z]/g, (s) => `-${s.toLowerCase()}`)}`} style={{ border: '1px solid #e6eef7', borderRadius: 8, padding: 10, background: '#fbfdff', textDecoration: 'none', color: 'inherit' }}>
             <b>{label}</b>
@@ -451,7 +454,7 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
   const endpoint = profileUrl(projectId, versionId, 'product-objects');
 
   function objectFlags(item: any) {
-    return [
+    const activeFlags = [
       ['isSaleableObject', '可售'],
       ['isOperatingObject', '经营'],
       ['isIncomeObject', '收入'],
@@ -463,13 +466,14 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
       ['isBasementObject', '地下室'],
       ['isSupportingObject', '配套'],
       ['isMarketingDisplayObject', '营销展示']
-    ].map(([key, label]) => <Badge key={key} tone={item[key] ? 'green' : 'neutral'}>{label}: {booleanText(item[key])}</Badge>);
+    ].filter(([key]) => item[key]).map(([, label]) => String(label));
+    return activeFlags.length ? activeFlags.join('、') : '普通产品对象';
   }
 
   function table(rows: any[], title: string, collapsed = false) {
     const content = <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1420, fontSize: 12 }}>
-        <thead><tr>{['对象', '对象分类', '启用与业务状态', '对象角色', '成本承担 / 单位', '操作能力', '提示', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+        <thead><tr>{['对象', '对象分类', '启用与业务状态', '对象角色', '成本承担 / 单位', '操作能力', '提示', '操作'].map((head) => <th key={head} style={stickyHeadCell}>{head}</th>)}</tr></thead>
         <tbody>{rows.length ? rows.map((item) => <tr key={item.objectId}>
           <td style={{ ...cell, fontWeight: 900 }}>{item.objectName}<div className="meta">{item.objectCode || item.objectId}</div></td>
           <td style={cell}><Badge tone={objectTypeTone(item.objectType)}>{objectTypeLabel(item.objectType)}</Badge><div className="meta">{item.objectCategory || '未分类'}</div></td>
@@ -477,7 +481,7 @@ async function ProductObjectsSection({ projectId, versionId, locked }: { project
             <Badge tone={item.isEnabled ? 'green' : 'red'}>{item.isEnabled ? '启用' : '停用'}</Badge>
             <div className="meta">是否启用：{booleanText(item.isEnabled)}</div>
           </td>
-          <td style={cell}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', maxWidth: 420 }}>{objectFlags(item)}</div></td>
+          <td style={{ ...cell, minWidth: 220 }}>{objectFlags(item)}<div className="meta">详细角色由后端对象字段返回，V1 只展示已启用角色。</div></td>
           <td style={cell}>
             <b>{item.displayCostBearingType || '未返回'}</b>
             <div className="meta">工程量单位：{item.quantityUnit || '按后端返回'}</div>
@@ -598,7 +602,7 @@ async function ConstructionStandardsSection({ projectId, versionId, locked }: { 
               <summary style={{ cursor: 'pointer', padding: '10px 12px', fontWeight: 900 }}>{label}（{rows.length}）</summary>
               {rows.length ? <div style={{ overflowX: 'auto', padding: 12 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1320, fontSize: 12 }}>
-                  <thead><tr>{['层级', '编码 / 名称', '对象 / 明细科目', '地区 / 难度', '材料 / 设备档次', '影响范围', '状态', '备注'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fff' }}>{head}</th>)}</tr></thead>
+                  <thead><tr>{['层级', '编码 / 名称', '对象 / 明细科目', '地区 / 难度', '材料 / 设备档次', '影响范围', '状态', '备注'].map((head) => <th key={head} style={stickyHeadCell}>{head}</th>)}</tr></thead>
                   <tbody>{rows.map((item: any) => <tr key={`${item.standardCategory}-${item.standardCode}-${item.standardName}`}>
                     <td style={cell}><Badge tone="blue">{levelLabel[item.standardLevel] || item.standardLevel || '项目级'}</Badge></td>
                     <td style={{ ...cell, fontWeight: 900 }}>{item.standardCode}<div className="meta">{item.standardName}</div></td>
@@ -641,7 +645,7 @@ const buildingMetricFields = [
 const unitPlanMetricFields = [
   ['unitPlanId', 'unitPlanId', 'text'], ['unitPlanName', '户型名称', 'text'], ['productObjectId', 'productObjectId', 'text'], ['productObjectName', '所属业态', 'text'], ['unitBuildingArea', '户型建面', 'number'], ['unitInnerArea', '户型套内面积', 'number'], ['unitSaleableArea', '户型可售面积', 'number'], ['unitCount', '户型数量', 'number'], ['typicalFloorArea', '标准层面积', 'number'], ['typicalFloorHouseholdCount', '标准层户数', 'number'], ['typicalFloorCount', '标准层层数', 'number'], ['efficiencyRate', '得房率', 'number'], ['entranceDoorCount', '入户门数量', 'number'], ['windowAreaReserved', '外窗面积 / 窗地比预留', 'number'], ['balconyAreaReserved', '阳台面积预留', 'number'], ['decorationAreaReserved', '精装面积预留', 'number'], ['remark', '备注', 'text']
 ] as Array<readonly [string, string, 'text' | 'number' | 'checkbox']>;
-const basementMetricFields: MetricField[] = [['basementTotalArea', '地下总建筑面积', 'number', '地下室'], ['mainBuildingBasementArea', '主楼地下室面积', 'number', '地下室'], ['nonMainBuildingBasementArea', '非主楼地下室面积', 'number', '地下室'], ['undergroundGarageArea', '地下车库面积', 'number', '地下室'], ['civilDefenseArea', '人防面积', 'number', '地下室'], ['nonCivilDefenseArea', '非人防面积', 'number', '地下室'], ['equipmentRoomArea', '设备用房面积', 'number', '地下室'], ['undergroundPublicArea', '地下公共区域面积', 'number', '地下室'], ['basementFloorCount', '地下层数', 'number', '地下室'], ['basementFloorHeight', '地下室层高', 'number', '地下室'], ['undergroundParkingCount', '地下车位数量', 'number', '车位'], ['civilDefenseParkingCount', '人防车位数量', 'number', '车位'], ['nonCivilDefenseParkingCount', '非人防车位数量', 'number', '车位'], ['chargingParkingCount', '充电车位数量', 'number', '车位'], ['garageFloorArea', '地坪面积', 'number', '工程量预留'], ['trafficMarkingAreaOrCount', '车库划线 / 交安面积或数量', 'number', '工程量预留'], ['rampCount', '坡道数量', 'number', '工程量预留'], ['rampArea', '坡道面积', 'number', '工程量预留'], ['lightWellCountReserved', '采光井数量预留', 'number', '工程量预留'], ['remark', '备注', 'text', '备注']];
+const basementMetricFields: MetricField[] = [['basementTotalArea', '地下总建筑面积', 'number', '地下室'], ['mainBuildingBasementArea', '主楼地下室面积', 'number', '地下室'], ['nonMainBuildingBasementArea', '非主楼地下室面积', 'number', '地下室'], ['undergroundGarageArea', '地下车库面积', 'number', '地下室'], ['civilDefenseArea', '人防面积', 'number', '地下室'], ['nonCivilDefenseArea', '非人防面积', 'number', '地下室'], ['equipmentRoomArea', '设备用房面积', 'number', '地下室'], ['undergroundPublicArea', '地下公共区域面积', 'number', '地下室'], ['basementFloorCount', '地下层数', 'number', '地下室'], ['basementB1Height', 'B1 层高', 'number', '地下室层高'], ['basementB2Height', 'B2 层高', 'number', '地下室层高'], ['basementOtherAvgHeight', '其他地下层平均层高', 'number', '地下室层高'], ['undergroundParkingCount', '地下车位数量', 'number', '车位'], ['civilDefenseParkingCount', '人防车位数量', 'number', '车位'], ['nonCivilDefenseParkingCount', '非人防车位数量', 'number', '车位'], ['chargingParkingCount', '充电车位数量', 'number', '车位'], ['garageFloorArea', '地坪面积', 'number', '工程量预留'], ['trafficMarkingAreaOrCount', '车库划线 / 交安面积或数量', 'number', '工程量预留'], ['rampCount', '坡道数量', 'number', '工程量预留'], ['rampArea', '坡道面积', 'number', '工程量预留'], ['lightWellCountReserved', '采光井数量预留', 'number', '工程量预留'], ['remark', '备注', 'text', '备注']];
 const parkingMetricFields: MetricField[] = [['parkingTotalCount', '车位总数', 'number', '车位'], ['propertyRightParkingCount', '产权车位数量', 'number', '车位'], ['useRightParkingCount', '使用权车位数量', 'number', '车位'], ['civilDefenseParkingCount', '人防车位数量', 'number', '车位'], ['nonCivilDefenseParkingCount', '非人防车位数量', 'number', '车位'], ['saleableParkingCount', '可售车位数量', 'number', '车位'], ['selfOwnedParkingCount', '自持车位数量', 'number', '车位'], ['mechanicalParkingCount', '机械车位数量', 'number', '车位'], ['chargingPileParkingCount', '充电桩车位数量', 'number', '车位'], ['chargingPileCount', '充电桩数量', 'number', '车位'], ['parkingSaleUnitPriceReserved', '车位销售单价预留', 'number', '单价预留'], ['parkingRentUnitPriceReserved', '车位租赁单价预留', 'number', '单价预留'], ['remark', '备注', 'text', '备注']];
 const landscapeRoadMetricFields: MetricField[] = [['landscapeTotalArea', '景观总面积', 'number', '景观'], ['hardscapeArea', '硬景面积', 'number', '景观'], ['softscapeArea', '软景面积', 'number', '景观'], ['waterscapeArea', '水景面积', 'number', '景观'], ['childrenActivityArea', '儿童活动场地面积', 'number', '景观'], ['sportActivityArea', '运动场地面积', 'number', '景观'], ['pedestrianRoadArea', '人行道路面积', 'number', '道路'], ['vehicleRoadArea', '车行道路面积', 'number', '道路'], ['fireRoadArea', '消防道路面积', 'number', '道路'], ['asphaltRoadArea', '沥青道路面积', 'number', '道路'], ['pavingArea', '铺装面积', 'number', '道路'], ['wallLength', '围墙长度', 'number', '周界'], ['perimeterLength', '周界长度', 'number', '周界'], ['entranceCount', '出入口数量', 'number', '周界'], ['gateCount', '大门数量', 'number', '周界'], ['guardhouseCount', '岗亭数量', 'number', '周界'], ['rainSewagePipeLengthReserved', '雨污水管网长度预留', 'number', '管网预留'], ['waterSupplyPipeLengthReserved', '给水管网长度预留', 'number', '管网预留'], ['strongWeakElectricTrenchLengthReserved', '强弱电管沟长度预留', 'number', '管网预留'], ['outdoorLightingPointReserved', '室外照明点位预留', 'number', '管网预留'], ['remark', '备注', 'text', '备注']];
 const supportingSpecialMetricFields: MetricField[] = [['propertyManagementRoomArea', '物业用房面积', 'number', '配套'], ['communityRoomArea', '社区用房面积', 'number', '配套'], ['elderlyCareRoomArea', '养老用房面积', 'number', '配套'], ['kindergartenArea', '幼儿园面积', 'number', '配套'], ['clubhouseArea', '会所面积', 'number', '配套'], ['stiltFloorArea', '架空层面积', 'number', '配套'], ['garbageRoomArea', '垃圾房面积', 'number', '配套'], ['powerDistributionRoomArea', '开闭所 / 配电房面积', 'number', '配套'], ['fireControlRoomArea', '消防控制室面积', 'number', '配套'], ['gatehouseArea', '门卫室面积', 'number', '配套'], ['handoverRoomArea', '移交用房面积', 'number', '配套'], ['nonSaleableCommercialArea', '不可售商业面积', 'number', '不可售 / 自持'], ['selfOwnedCommercialArea', '自持商业面积', 'number', '不可售 / 自持'], ['sampleRoomBuildingArea', '样板间建筑面积', 'number', '营销展示'], ['sampleRoomDecorationArea', '样板间装修面积', 'number', '营销展示'], ['salesOfficeBuildingArea', '售楼处建筑面积', 'number', '营销展示'], ['salesOfficeDecorationArea', '售楼处装修面积', 'number', '营销展示'], ['demoAreaLandscapeArea', '示范区景观面积', 'number', '营销展示'], ['viewingPassageArea', '看房通道面积', 'number', '营销展示'], ['temporaryFacilityArea', '临时设施面积', 'number', '营销展示'], ['isSpecialCostObject', '是否专项成本对象', 'checkbox', '成本口径'], ['defaultCostBearingType', '默认成本承担口径', 'text', '成本口径'], ['remark', '备注', 'text', '备注']];
@@ -672,7 +676,12 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
         {!Object.values(center.projectTotalMetrics || {}).some((value) => value !== null && value !== '') ? <EmptyState title="暂无项目总指标">请先维护用地面积、建筑面积、地下室、景观道路和车位等基础数据。</EmptyState> : null}
       </Card>
       <Card title="2. 分业态 / 分产品对象指标" note="每行代表一个产品对象或业态，不把产品对象全部统称为业态。停用对象默认不参与汇总。">
-        <MetricTable section="productObjectMetrics" rows={enabledProducts} fields={productMetricFields} locked={locked} emptyTitle="暂无分业态 / 分产品对象指标" emptyChildren="请先在业态产品与对象页启用对象，或维护产品对象面积指标。" leading={(row) => <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 5 }}><Badge tone={row?.displayKind === '独立商业对象' ? 'orange' : row?.displayKind === '楼层商业对象' ? 'blue' : 'neutral'}>{row?.displayKind || '产品对象'}</Badge><Badge tone={row?.isSaleableObject ? 'green' : 'neutral'}>可售对象</Badge><Badge tone={row?.isCostObject ? 'green' : 'neutral'}>成本对象</Badge><Badge tone={row?.isIncomeObject ? 'green' : 'neutral'}>收入对象</Badge><Badge tone={row?.isProfitObject ? 'green' : 'neutral'}>利润对象</Badge></div>} />
+        <MetricTable section="productObjectMetrics" rows={enabledProducts} fields={productMetricFields} locked={locked} emptyTitle="暂无分业态 / 分产品对象指标" emptyChildren="请先在业态产品与对象页启用对象，或维护产品对象面积指标。" leading={(row) => <div style={{ marginBottom: 5 }}><Badge tone={row?.displayKind === '独立商业对象' ? 'orange' : row?.displayKind === '楼层商业对象' ? 'blue' : 'neutral'}>{row?.displayKind || '产品对象'}</Badge><div className="meta">角色：{[
+          row?.isSaleableObject ? '可售' : null,
+          row?.isCostObject ? '成本' : null,
+          row?.isIncomeObject ? '收入' : null,
+          row?.isProfitObject ? '利润' : null
+        ].filter(Boolean).join('、') || '普通对象'}</div></div>} />
         {disabledProducts.length ? <details style={{ marginTop: 12, border: '1px solid #e6eef7', borderRadius: 8 }}><summary style={{ padding: 10, cursor: 'pointer', fontWeight: 900 }}>已停用对象（{disabledProducts.length}，默认不参与汇总）</summary><div style={{ padding: 10 }}><MetricTable section="productObjectMetrics" rows={disabledProducts} fields={productMetricFields} locked={locked} rowOffset={enabledProducts.length} emptyTitle="暂无停用对象" emptyChildren="当前没有停用对象。" /></div></details> : null}
       </Card>
       <Card title="3. 楼栋维度指标" note="后续影响电梯、外立面、门窗、入户门、公区精装、消防、电气、楼栋单方成本等工程量推算；V1 不做楼栋级成本分析。">
@@ -683,6 +692,7 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
       </Card>
       <Card title="5. 地下室专项指标" note="地下车库面积不等于非主楼地下室面积；车位数量也不等于地下车库面积。">
         <StatusNotice title="地下室口径提示" tone="warning">地下车库面积 ≠ 非主楼地下室面积。车位数量 ≠ 地下车库面积。</StatusNotice>
+        <StatusNotice title="地下室层高字段支持状态" tone="warning">前端已拆分 B1、B2、其他地下层平均层高；当前 Prisma 仅有单一地下室层高字段，B2 和其他层完整持久化及规则引用列为 06 遗留。</StatusNotice>
         <MetricFieldGrid section="basementMetrics" fields={basementMetricFields} data={center.basementMetrics || {}} locked={locked} />
       </Card>
       <Card title="6. 车位专项指标" note="车位收入保持数量口径。">
@@ -690,6 +700,7 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
         <MetricFieldGrid section="parkingMetrics" fields={parkingMetricFields} data={center.parkingMetrics || {}} locked={locked} />
       </Card>
       <Card title="7. 景观 / 道路 / 周界指标" note="后续影响硬景、软景、道路、围墙、大门、岗亭、综合管网、景观照明、海绵城市、室外配套等工程量。">
+        <StatusNotice title="V1 景观道路口径">软景面积与绿化面积 V1 统一按“软景面积”维护；消防道路、车行道路、人行道路和管网长度优先在工程量指标细表中维护。</StatusNotice>
         <MetricFieldGrid section="landscapeRoadMetrics" fields={landscapeRoadMetricFields} data={center.landscapeRoadMetrics || {}} locked={locked} />
       </Card>
       <Card title="8. 配套 / 不可售 / 专项对象指标" note="配套 / 不可售对象通常不直接产生收入，但会进入成本和分摊。样板间、售楼处、示范区 V1 默认进入 development_cost，不自动进入销售费用。">
@@ -724,7 +735,7 @@ async function ProjectMetricsSection({ projectId, versionId, locked }: { project
         <StatusNotice title="与工程量指标页衔接">可售面积影响收入测算和可售单方成本；建筑面积影响建面单方成本；计容建筑面积用于规划指标和部分测算口径；地下室、地下车库、景观道路、周界、栋数、单元数、户数、层数和标准层面积会进入对应工程量推算；配套 / 不可售对象通常不产生收入，但参与成本归集和分摊。</StatusNotice>
         {mappings.length ? <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1540, fontSize: 12 }}>
-            <thead><tr>{['来源名称', '指标值', '单位', '基础指标名称', '适用对象', '是否可用于工程量计算', '已关联明细科目', '备注'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+            <thead><tr>{['来源名称', '指标值', '单位', '基础指标名称', '适用对象', '是否可用于工程量计算', '已关联明细科目', '备注'].map((head) => <th key={head} style={stickyHeadCell}>{head}</th>)}</tr></thead>
             <tbody>{mappings.map((item) => <tr key={item.mappingId}>
               <td style={cell}>{display(item.metricSourceName || item.metricSourceCode)}</td>
               <td style={cell}>{display(item.metricValue)}</td>
@@ -792,7 +803,7 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
     <Card title="基础指标、绑定与含量规则" note="必须明确：基础指标 x 含量 = 计算工程量。工程量单位按后端返回展示。">
       {indicators.length ? <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1320, fontSize: 12 }}>
-          <thead><tr>{['明细科目绑定', '基础指标', '含量规则', '计算式', '锁定 / 覆盖说明', '来源'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+          <thead><tr>{['明细科目绑定', '基础指标', '含量规则', '计算式', '锁定 / 覆盖说明', '来源'].map((head) => <th key={head} style={stickyHeadCell}>{head}</th>)}</tr></thead>
           <tbody>{indicators.map((item: any) => <tr key={`binding-${item.indicatorId}`}>
             <td style={{ ...cell, fontWeight: 800 }}>{item.indicatorName}<div className="meta">{item.detailSubjectName || item.indicatorCode}</div></td>
             <td style={cell}>{item.baseIndicatorName || item.measureBasis || '未绑定'}<div className="meta">基础值：{display(item.baseIndicatorValue)} {item.baseIndicatorUnit || item.quantityUnit || ''}</div><div className="meta">覆盖状态：{booleanText(item.isQuantityOverridden)}</div></td>
@@ -808,7 +819,7 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
       {locked ? <StatusNotice title="当前版本已锁定" tone="danger">工程量手算覆盖与恢复系统值不可操作。</StatusNotice> : null}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1760, fontSize: 12 }}>
-          <thead><tr>{['指标名称', '适用范围', '工程量', '单位', '来源', '是否手动覆盖', '备注', '含税单价 / 单价来源', '含税金额', '操作'].map((head) => <th key={head} style={{ ...cell, textAlign: 'left', color: '#667085', background: '#fbfdff' }}>{head}</th>)}</tr></thead>
+          <thead><tr>{['指标名称', '适用范围', '工程量', '单位', '来源', '是否手动覆盖', '备注', '含税单价 / 单价来源', '含税金额', '操作'].map((head) => <th key={head} style={stickyHeadCell}>{head}</th>)}</tr></thead>
           <tbody>{indicators.length ? indicators.map((item: any) => <tr key={item.indicatorId} style={item.isQuantityOverridden ? { background: '#fffaf0' } : undefined}>
             <td style={{ ...cell, fontWeight: 800 }}>{item.indicatorCode} {item.indicatorName}<div className="meta">{item.baseIndicatorName || '未配置取数依据'}</div></td>
             <td style={cell}>{item.relatedProductType || '全项目'}</td>

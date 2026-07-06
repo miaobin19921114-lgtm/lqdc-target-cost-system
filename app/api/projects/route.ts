@@ -174,6 +174,11 @@ export async function POST(request: Request) {
       totalBuildingArea: toNumber(form.get('totalBuildingArea')),
       saleableArea: toNumber(form.get('saleableArea')),
       parkingCount: Math.round(toNumber(form.get('parkingCount'))),
+      residentialFitoutDelivery: clean(form, 'residentialFitoutDelivery') === 'true',
+      isPrefabricated: clean(form, 'isPrefabricated') === 'true',
+      heatingEnabled: clean(form, 'heatingEnabled') === 'true',
+      civilDefenseArea: clean(form, 'hasCivilDefense') === 'true' ? toNumber(form.get('civilDefenseArea')) : 0,
+      chargingPileCount: clean(form, 'hasChargingPile') === 'true' ? Math.round(toNumber(form.get('chargingPileCount'))) : 0,
       remark: String(form.get('remark') || ''),
       versions: {
         create: {

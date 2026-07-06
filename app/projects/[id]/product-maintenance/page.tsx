@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { activeVersionOrder, activeVersionWhere, isVersionLocked } from '@/lib/project-version';
 import { getCostSettings } from '@/lib/cost-product-settings';
+import { getProductTypeImpact } from '@/lib/product-type-service';
 import { getTaxLiquidationObject, taxLiquidationObjects } from '@/lib/tax-liquidation-object';
 
 export const dynamic = 'force-dynamic';
@@ -135,6 +136,8 @@ export default async function ProductMaintenancePage({ params, searchParams }: {
   const extraMap = new Map(rows.map((row) => [row.id, row]));
   const activeProducts = products.filter((item) => item.isActive);
   const disabledProducts = products.filter((item) => !item.isActive);
+  const impactEntries = version ? await Promise.all(products.map(async (item) => [item.id, await getProductTypeImpact(version.id, item.id)] as const)) : [];
+  const impactMap = new Map(impactEntries);
   const groups = productGroupOrder.map((title) => ({ title, items: activeProducts.filter((item) => groupOf(item, extraMap.get(item.id)) === title) })).filter((group) => group.items.length > 0);
   const activeCount = products.filter((item) => item.isActive).length;
   const allocationCount = products.filter((item) => item.isActive && item.participateAllocation).length;
@@ -182,6 +185,9 @@ export default async function ProductMaintenancePage({ params, searchParams }: {
           const productCategory = groupOf(item, extra);
           const saleAttribute = defaultSaleAttribute(item, extra);
           const costObject = defaultCostObject(item, extra);
+          const impact = impactMap.get(item.id);
+          const canDisable = Boolean(impact?.canDisable);
+          const disableReason = impact?.blockedReason || impact?.warningMessage || '无业务数据，可停用。';
           const statusTone = item.isActive ? 'green' : 'red';
           const saleTone = item.isSaleable ? 'blue' : saleAttribute === '人防' ? 'orange' : 'neutral';
 
@@ -196,6 +202,16 @@ export default async function ProductMaintenancePage({ params, searchParams }: {
               <div style={{ background: '#f8fafc', borderRadius: 10, padding: 9 }}><div className="meta">可售面积</div><b>{numberValue(item.saleableArea)}㎡</b></div>
               <div style={{ background: '#f8fafc', borderRadius: 10, padding: 9 }}><div className="meta">历史数据</div><b>收入 {item._count.revenues} / 成本 {item._count.costs}</b></div>
             </div>
+
+            <form action={`/api/projects/${project.id}/products/status`} method="post" style={{ background: canDisable ? '#f0fff4' : '#fff5f5', border: `1px solid ${canDisable ? '#b2f2bb' : '#ffc9c9'}`, borderRadius: 12, padding: 12 }}>
+              <input type="hidden" name="productId" value={item.id} />
+              <input type="hidden" name="action" value="disable" />
+              <input type="hidden" name="operationReason" value="业态增减维护页停用" />
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div><b>{canDisable ? '可停用' : '不可停用'}</b><div className="meta" style={{ color: canDisable ? '#2b8a3e' : '#c92a2a' }}>{disableReason}</div></div>
+                <button className="btn" style={{ minHeight: 32, color: canDisable ? undefined : '#c92a2a' }} disabled={locked || !canDisable}>停用业态</button>
+              </div>
+            </form>
 
             <form action={`/api/projects/${project.id}/products/product-classification`} method="post" style={{ background: '#fbfdff', border: '1px solid #e6eef7', borderRadius: 12, padding: 12 }}>
               <input type="hidden" name="productId" value={item.id} />

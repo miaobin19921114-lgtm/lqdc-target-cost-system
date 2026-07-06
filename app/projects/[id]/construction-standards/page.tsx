@@ -109,13 +109,14 @@ export default async function ConstructionStandardsPage({ params, searchParams }
 
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Block title="一、装配式标准" note="控制装配式科目是否启用，以及适用哪些业态。">
-        <Grid>{selectFor(project, 'isPrefabricated', '是否装配式', yesNo, 'false')}<ProductScopeSelect formId="construction-standards-form" name="prefabricatedScope" label="装配式适用范围" products={scopeProductNames} value={project.prefabricatedScope} />{numberFor(project, 'prefabricationRate', '装配率%')}{textFor(project, 'prefabricatedSystem', '装配式结构形式', 'PC构件/叠合板/预制楼梯/预制墙板')}</Grid>
+        <Grid>{selectFor(project, 'isPrefabricated', '是否装配式', yesNo, 'false')}{project.isPrefabricated ? <ProductScopeSelect formId="construction-standards-form" name="prefabricatedScope" label="装配式适用范围" products={scopeProductNames} value={project.prefabricatedScope} /> : null}{project.isPrefabricated ? numberFor(project, 'prefabricationRate', '装配率%') : null}{project.isPrefabricated ? textFor(project, 'prefabricatedSystem', '装配式结构形式', 'PC构件/叠合板/预制楼梯/预制墙板') : null}</Grid>
+        {!project.isPrefabricated ? <p className="meta" style={{ marginBottom: 0 }}>未选择装配式，本专项内容不继续展示，也不会自动启用装配式科目。</p> : null}
       </Block>
 
       <Block title="二、住宅交付与公区标准" note="住宅户内、住宅公区、地下归家动线分别控制。">
         <TwoCol>
           <MiniCard title="住宅公区" note="门厅、电梯厅、标准层公区等。"><Grid>{selectFor(project, 'residentialPublicFitoutStandard', '住宅公区装修标准', fitoutStandards, '标准')}{selectFor(project, 'undergroundLobbyFitoutStandard', '地下归家装修标准', [['无地下归家', '无地下归家'], ['标准', '标准'], ['中档', '中档'], ['高档', '高档']], '标准')}</Grid></MiniCard>
-          <MiniCard title="住宅户内" note="毛坯、简装、精装等交付标准。"><Grid>{selectFor(project, 'residentialFitoutDelivery', '是否精装交付', yesNo, 'false')}{selectFor(project, 'residentialFitoutType', '户内精装修类型', [['硬装', '硬装'], ['软装', '软装'], ['硬装+软装', '硬装+软装']], '硬装')}{selectFor(project, 'residentialFitoutStandard', '户内交付标准', [['毛坯', '毛坯'], ['简装', '简装'], ['中装', '中装'], ['精装', '精装'], ['豪装', '豪装']], '毛坯')}</Grid></MiniCard>
+          <MiniCard title="住宅户内" note="毛坯、简装、精装等交付标准。"><Grid>{selectFor(project, 'residentialFitoutDelivery', '是否精装交付', yesNo, 'false')}{project.residentialFitoutDelivery ? selectFor(project, 'residentialFitoutType', '户内精装修类型', [['硬装', '硬装'], ['软装', '软装'], ['硬装+软装', '硬装+软装']], '硬装') : null}{project.residentialFitoutDelivery ? selectFor(project, 'residentialFitoutStandard', '户内交付标准', [['毛坯', '毛坯'], ['简装', '简装'], ['中装', '中装'], ['精装', '精装'], ['豪装', '豪装']], '毛坯') : null}</Grid>{!project.residentialFitoutDelivery ? <p className="meta" style={{ marginBottom: 0 }}>未选择室内精装修，户内精装标准不继续展示。</p> : null}</MiniCard>
         </TwoCol>
       </Block>
 
@@ -134,7 +135,8 @@ export default async function ConstructionStandardsPage({ params, searchParams }
       </Block>
 
       <Block title="五、采暖 / 地暖标准" note="控制采暖科目是否启用，以及适用范围。未选择范围时，不启用采暖科目。">
-        <Grid>{selectFor(project, 'heatingEnabled', '是否采暖', yesNo, 'false')}<ProductScopeSelect formId="construction-standards-form" name="heatingScope" label="采暖适用范围" products={scopeProductNames} value={project.heatingScope} />{textFor(project, 'heatingType', '采暖形式', '地暖/散热器/集中供暖/空气源')}</Grid>
+        <Grid>{selectFor(project, 'heatingEnabled', '是否采暖', yesNo, 'false')}{project.heatingEnabled ? <ProductScopeSelect formId="construction-standards-form" name="heatingScope" label="采暖适用范围" products={scopeProductNames} value={project.heatingScope} /> : null}{project.heatingEnabled ? textFor(project, 'heatingType', '采暖形式', '地暖/散热器/集中供暖/空气源') : null}</Grid>
+        {!project.heatingEnabled ? <p className="meta" style={{ marginBottom: 0 }}>未选择采暖，本专项内容不继续展示，也不会自动启用采暖科目。</p> : null}
       </Block>
     </div>
   </div></main>;
