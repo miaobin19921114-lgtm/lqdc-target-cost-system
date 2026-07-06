@@ -199,16 +199,20 @@ async function writeImportData(tx: any, input: {
   for (const [index, row] of input.data.costs.entries()) {
     const subject = subjectByCode.get(row.costCode);
     if (!subject) continue;
-    const result = calculateCostLine({
-      quantity: row.quantity,
-      taxRate: row.taxRate,
-      taxInclusiveUnitPrice: row.taxInclusiveUnitPrice
-    });
+    const manualQuantity = row.manualQuantity;
+    const excelImportedQuantity = row.excelImportedQuantity ?? row.quantity;
     const quantityState = costLineQuantityPatch({
       measureValue: row.quantity,
       coefficient: 1,
       quantity: row.quantity,
-      excelImportedQuantity: row.quantity,
+      manualQuantity,
+      excelImportedQuantity,
+      taxInclusiveUnitPrice: row.taxInclusiveUnitPrice
+    });
+    const finalQuantity = Number(quantityState.quantity);
+    const result = calculateCostLine({
+      quantity: finalQuantity,
+      taxRate: row.taxRate,
       taxInclusiveUnitPrice: row.taxInclusiveUnitPrice
     });
     await tx.costLine.create({
@@ -222,9 +226,10 @@ async function writeImportData(tx: any, input: {
         measureBasis: row.measureBasis,
         measureValue: row.quantity,
         coefficient: 1,
-        excelImportedQuantity: row.quantity,
+        manualQuantity,
+        excelImportedQuantity,
         quantityOverride: true,
-        quantity: Number(quantityState.quantity || row.quantity),
+        quantity: finalQuantity,
         quantitySource: quantityState.quantitySource,
         quantityStatus: quantityState.quantityStatus,
         quantityFormula: quantityState.quantityFormula,

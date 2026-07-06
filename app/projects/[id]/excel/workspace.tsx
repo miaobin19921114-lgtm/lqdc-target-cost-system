@@ -155,7 +155,11 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
   const exportHref = `/api/projects/${projectId}/versions/${versionId}/excel/export?exportType=full&templateVersion=V60`;
   const previewUrl = `/api/projects/${projectId}/versions/${versionId}/excel/import/preview`;
   const confirmUrl = `/api/projects/${projectId}/versions/${versionId}/excel/import/confirm`;
-  const previewSheetNames = useMemo(() => Object.keys(preview?.parsedDataPreview || {}).slice(0, 6), [preview]);
+  const previewSheetNames = useMemo(() => {
+    const names = Object.keys(preview?.parsedDataPreview || {});
+    const preferred = ['目标成本测算', '土地费用明细表', '前期费用明细表', '各专业明细表', '来源说明'];
+    return [...preferred.filter((name) => names.includes(name)), ...names.filter((name) => !preferred.includes(name))].slice(0, 6);
+  }, [preview]);
   const currentVersionLocked = versionStatus === 'locked' || versionStatus === 'final' || versionStatus === '已锁定' || versionStatus === '定稿';
   const confirmDisabled = !preview
     || state === '导入中'
@@ -280,7 +284,7 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <div>
                 <h2 style={{ marginBottom: 6 }}>导入预览</h2>
-                <p className="meta" style={{ marginBottom: 0 }}>上传解析通过后，可确认导入并写入当前项目版本。</p>
+                <p className="meta" style={{ marginBottom: 0 }}>上传解析通过后，可确认导入并写入当前项目版本；工程量来源列仅用于说明，手工工程量和 Excel 导入工程量会按后端来源规则受限写入。</p>
               </div>
               <a className="btn" href={templateHref}>下载标准模板</a>
             </div>
@@ -341,6 +345,11 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
                       新版本名称
                       <input value={newVersionName} onChange={(event) => setNewVersionName(event.target.value)} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }} />
                     </label>
+                  ) : null}
+                  {importMode === 'overwrite_current' && currentVersionLocked ? (
+                    <div style={{ border: '1px solid #ffd8a8', background: '#fff9db', color: '#8a6d00', borderRadius: 10, padding: 12, fontWeight: 800 }}>
+                      当前版本已锁定，仅支持查看。如需调整数据，请复制为新版本后编辑。
+                    </div>
                   ) : null}
                   {preview.summary.warningCount > 0 ? (
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
@@ -444,6 +453,7 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
 
               <section className="card">
                 <h2>预览数据</h2>
+                <p className="meta" style={{ marginTop: 6 }}>优先展示成本明细和来源说明，便于核对工程量来源、缺失项和下一步建议；不会把接口技术字段直接铺成大表。</p>
                 <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
                   {previewSheetNames.map((sheetName) => (
                     <div key={sheetName} style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
@@ -470,7 +480,7 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
         <div style={{ display: 'grid', gap: 16 }}>
           <section className="card">
             <h2>Excel 导出</h2>
-            <p className="meta">本批只支持标准 V60 空白模板下载，以及当前项目版本完整 Excel 导出。老板汇报版、合作方精简版和 PDF 导出暂不开放。</p>
+            <p className="meta">本批只支持标准 V60 空白模板下载，以及当前项目版本完整 Excel 导出。成本明细会补充工程量来源、工程量状态、金额状态、测算公式、单价来源、单价单位、缺失项和下一步建议。</p>
             <div className="actions">
               <a className="btn" href={templateHref}>下载标准空白模板</a>
               <a className="btn btn-primary" href={exportHref}>导出当前项目版本完整 Excel</a>
@@ -481,8 +491,8 @@ export function ExcelWorkspace({ projectId, versionId, projectName, versionName,
             <h2>导出说明</h2>
             <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
               <div><b>文件名：</b><span className="meta">{projectName}_{versionName}_目标成本测算_YYYYMMDD.xlsx</span></div>
-              <div><b>模板版本：</b><span className="meta">LQDC_TargetCost_Template_V60.xlsx，包含 13 个标准 Sheet。</span></div>
-              <div><b>数据范围：</b><span className="meta">可读取的项目概况、版本、收入、成本、税费和成本词典会写入对应 Sheet；暂无数据的 Sheet 保留标准空结构。</span></div>
+              <div><b>模板版本：</b><span className="meta">LQDC_TargetCost_Template_V60.xlsx，包含 13 个标准 Sheet；导出文件会追加“来源说明”Sheet，旧模板没有该 Sheet 也可继续导入。</span></div>
+              <div><b>数据范围：</b><span className="meta">可读取的项目概况、版本、收入、成本、税费和成本词典会写入对应 Sheet；成本明细中的来源字段使用中文业务文案，不默认暴露接口字段名。</span></div>
               <div><b>当前限制：</b><span className="meta">不做老板汇报版、合作方精简版、PDF 导出，不生成错误清单 Excel。</span></div>
             </div>
           </section>

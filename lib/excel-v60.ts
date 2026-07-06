@@ -21,6 +21,8 @@ export const V60_SHEET_NAMES = [
   '下拉字典'
 ] as const;
 
+const OPTIONAL_SOURCE_SHEET_NAME = '来源说明';
+
 export type ExcelIssueLevel = 'error' | 'warning' | 'info';
 
 export type ExcelIssue = {
@@ -72,6 +74,9 @@ export type ParsedCostRow = {
   regionOrProductType: string;
   measureBasis: string;
   quantity: number;
+  manualQuantity: number | null;
+  excelImportedQuantity: number | null;
+  quantitySourceNote: string;
   unit: string;
   taxInclusiveUnitPrice: number;
   taxRate: number;
@@ -113,16 +118,17 @@ const sheetHeaders: Record<string, string[]> = {
   项目概况: ['字段', '值', '单位', '说明'],
   测算控制中心: ['控制项', '当前值', '说明'],
   目标成本汇总表: ['成本编码', '一级科目', '二级科目', '三级科目', '含税金额', '不含税金额', '税额'],
-  目标成本测算: ['成本编码', '一级科目', '二级科目', '三级科目', '明细科目', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额'],
+  目标成本测算: ['成本编码', '一级科目', '二级科目', '三级科目', '明细科目', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额', '工程量来源', '工程量状态', '金额状态', '测算公式', '单价来源', '单价单位', '缺失项', '下一步建议'],
   收入明细表: ['业态', '可售面积', '含税销售单价', '税率', '含税收入', '不含税收入', '税额', '备注'],
-  土地费用明细表: ['成本编码', '科目', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额', '备注'],
-  前期费用明细表: ['成本编码', '科目', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额', '备注'],
-  各专业明细表: ['专业', '成本编码', '科目', '产品/区域', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额', '备注'],
+  土地费用明细表: ['成本编码', '科目', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额', '备注', '工程量来源', '工程量状态', '金额状态', '测算公式', '单价来源', '单价单位', '缺失项', '下一步建议'],
+  前期费用明细表: ['成本编码', '科目', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额', '备注', '工程量来源', '工程量状态', '金额状态', '测算公式', '单价来源', '单价单位', '缺失项', '下一步建议'],
+  各专业明细表: ['专业', '成本编码', '科目', '产品/区域', '测算依据', '工程量', '单位', '含税单价', '税率', '含税金额', '备注', '工程量来源', '工程量状态', '金额状态', '测算公式', '单价来源', '单价单位', '缺失项', '下一步建议'],
   成本分摊测算表: ['成本编码', '科目', '分摊方式', '业态', '分摊权重', '分摊金额', '备注'],
   土地增值税测算表: ['项目', '金额', '税率/比例', '说明'],
   税金明细表: ['税种/参数', '金额/税率', '说明'],
   成本科目及测算词典: ['成本编码', '一级科目', '二级科目', '三级科目', '明细科目', '测算依据', '单位', '默认税率', '适用业态', '启用'],
-  下拉字典: ['字典类型', '字典值', '说明']
+  下拉字典: ['字典类型', '字典值', '说明'],
+  来源说明: ['类型', '显示值', '说明', '下一步建议']
 };
 
 const formulaErrorValues = ['#REF!', '#VALUE!', '#NAME?', '#DIV/0!', '#N/A'];
@@ -173,6 +179,90 @@ function costPath(row: any) {
     level3: path[2] || '',
     detail: row.detailName || path[path.length - 1] || row.costSubject?.name || ''
   };
+}
+
+const quantitySourceLabels: Record<string, string> = {
+  locked: '已锁定',
+  drawing_measured: '图纸算量',
+  excel_imported: 'Excel 导入',
+  manual_override: '手工覆盖',
+  from_engineering_metric: '工程量指标',
+  inferred_by_indicator_content: '系统推算',
+  template_default: '模板默认'
+};
+
+const quantityStatusLabels: Record<string, string> = {
+  ...quantitySourceLabels,
+  missing_basis: '缺少指标基数',
+  missing_content_rule: '缺少含量规则',
+  normal: '正常'
+};
+
+const amountStatusLabels: Record<string, string> = {
+  calculated: '已计算',
+  missing_unit_price: '缺少单价',
+  missing_quantity: '缺少工程量',
+  manual_amount: '手工金额',
+  imported_amount: '导入金额',
+  pending: '待补充'
+};
+
+const unitPriceSourceLabels: Record<string, string> = {
+  excel_imported: 'Excel 导入',
+  system_default: '系统默认',
+  region_price_library: '地区价格库',
+  user_project_manual: '项目手工',
+  historical_project: '历史项目',
+  contract_price: '合同价',
+  market_inquiry: '市场询价',
+  supplier_quote: '供应商报价'
+};
+
+const missingLabels: Record<string, string> = {
+  missing_basis: '缺少指标基数',
+  missing_content_rule: '缺少含量规则',
+  missing_unit_price: '缺少单价'
+};
+
+const nextStepTexts: Record<string, string> = {
+  missing_basis: '请先在项目指标或工程量指标中补充对应基数',
+  missing_content_rule: '请先维护该科目的含量规则，或手工录入工程量',
+  missing_unit_price: '请补充含税单价后重新生成金额',
+  template_default: '当前使用模板默认工程量，建议复核',
+  manual_override: '当前工程量由用户手工录入，系统推算值不会自动覆盖',
+  locked: '当前工程量已锁定，后续推算和导入不会覆盖'
+};
+
+const formulaLabels: Record<string, string> = {
+  lockedQuantity: '锁定工程量',
+  drawingMeasuredQuantity: '图纸算量工程量',
+  excelImportedQuantity: 'Excel 导入工程量',
+  manualQuantity: '手工录入工程量',
+  engineeringMetricQuantity: '工程量指标',
+  templateDefaultQuantity: '模板默认工程量',
+  'measureValue × coefficient': '指标基数 × 含量系数'
+};
+
+function labelOf(map: Record<string, string>, value: unknown) {
+  const key = String(value || '').trim();
+  return key ? (map[key] || key) : '';
+}
+
+function quantityBusinessFields(row: any) {
+  const quantityStatus = String(row.quantityStatus || row.quantitySource || '').trim();
+  const amountStatus = String(row.amountStatus || '').trim();
+  const missing = [quantityStatus, amountStatus].filter((item) => missingLabels[item]).map((item) => missingLabels[item]);
+  const nextSteps = [quantityStatus, amountStatus].filter((item) => nextStepTexts[item]).map((item) => nextStepTexts[item]);
+  return [
+    labelOf(quantitySourceLabels, row.quantitySource || quantityStatus),
+    labelOf(quantityStatusLabels, quantityStatus),
+    labelOf(amountStatusLabels, amountStatus),
+    labelOf(formulaLabels, row.quantityFormula),
+    labelOf(unitPriceSourceLabels, row.unitPriceSourceType),
+    row.pricingUnit || '',
+    Array.from(new Set(missing)).join('；'),
+    Array.from(new Set(nextSteps)).join('；')
+  ];
 }
 
 function fillProjectOverview(ws: ExcelJS.Worksheet, source?: WorkbookSource) {
@@ -234,9 +324,10 @@ function fillCosts(ws: ExcelJS.Worksheet, source: WorkbookSource | undefined, mo
   addRows(ws, filtered.map((row: any) => {
     const path = costPath(row);
     const base = [path.code, path.detail, row.measureBasis || '', n(row.quantity), row.unit || '', n(row.taxInclusiveUnitPrice), n(row.taxRate), n(row.taxInclusiveAmount), row.remark || ''];
-    if (mode === 'target') return [path.code, path.level1, path.level2, path.level3, path.detail, row.measureBasis || '', n(row.quantity), row.unit || '', n(row.taxInclusiveUnitPrice), n(row.taxRate), n(row.taxInclusiveAmount)];
-    if (mode === 'professional') return [row.professionalGroup || path.level1 || '未分类', ...base];
-    return base;
+    const sourceFields = quantityBusinessFields(row);
+    if (mode === 'target') return [path.code, path.level1, path.level2, path.level3, path.detail, row.measureBasis || '', n(row.quantity), row.unit || '', n(row.taxInclusiveUnitPrice), n(row.taxRate), n(row.taxInclusiveAmount), ...sourceFields];
+    if (mode === 'professional') return [row.professionalGroup || path.level1 || '未分类', ...base, ...sourceFields];
+    return [...base, ...sourceFields];
   }));
 }
 
@@ -302,6 +393,21 @@ function fillDropdowns(ws: ExcelJS.Worksheet) {
   ]);
 }
 
+function fillSourceNotes(ws: ExcelJS.Worksheet) {
+  addRows(ws, [
+    ['工程量来源', '已锁定', '当前工程量已锁定，后续推算和导入不会覆盖', nextStepTexts.locked],
+    ['工程量来源', '图纸算量', '当前工程量来自图纸算量结果', '如需调整，请在工程量来源维护入口处理'],
+    ['工程量来源', 'Excel 导入', '当前工程量来自 Excel 导入', '复核导入文件与成本科目映射'],
+    ['工程量来源', '手工覆盖', '当前工程量由用户手工录入，系统推算值不会自动覆盖', nextStepTexts.manual_override],
+    ['工程量来源', '工程量指标', '当前工程量来自工程量指标', '复核项目指标、工程量指标和绑定科目'],
+    ['工程量来源', '系统推算', '当前工程量由指标基数和含量规则推算', '复核指标基数、含量规则和测算公式'],
+    ['工程量来源', '模板默认', '当前使用模板默认工程量，建议复核', nextStepTexts.template_default],
+    ['缺失项', '缺少指标基数', '缺少可用于推算工程量的指标基数', nextStepTexts.missing_basis],
+    ['缺失项', '缺少含量规则', '缺少科目对应的含量规则', nextStepTexts.missing_content_rule],
+    ['缺失项', '缺少单价', '工程量已有值，但缺少含税单价', nextStepTexts.missing_unit_price]
+  ]);
+}
+
 export async function createV60WorkbookBuffer(source?: WorkbookSource) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'LQDC Target Cost System';
@@ -324,6 +430,9 @@ export async function createV60WorkbookBuffer(source?: WorkbookSource) {
     else if (sheetName === '成本科目及测算词典') fillDictionary(ws, source);
     else if (sheetName === '下拉字典') fillDropdowns(ws);
   }
+  const sourceNotes = workbook.addWorksheet(OPTIONAL_SOURCE_SHEET_NAME);
+  addHeaders(sourceNotes, OPTIONAL_SOURCE_SHEET_NAME);
+  fillSourceNotes(sourceNotes);
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);
@@ -343,6 +452,7 @@ function cellToText(cell: ExcelJS.Cell) {
 }
 
 function textAt(row: ExcelJS.Row, col: number) {
+  if (col <= 0) return '';
   return cellToText(row.getCell(col)).trim();
 }
 
@@ -351,6 +461,7 @@ function numberText(value: string) {
 }
 
 function numberAt(row: ExcelJS.Row, col: number) {
+  if (col <= 0) return 0;
   const raw = numberText(textAt(row, col));
   if (!raw) return 0;
   const numeric = Number(raw.replace('%', ''));
@@ -360,12 +471,42 @@ function numberAt(row: ExcelJS.Row, col: number) {
 }
 
 function taxRateAt(row: ExcelJS.Row, col: number, fallback = 0.09) {
+  if (col <= 0) return fallback;
   const raw = numberText(textAt(row, col));
   if (!raw) return fallback;
   const numeric = Number(raw.replace('%', ''));
   if (!Number.isFinite(numeric)) return fallback;
   if (raw.includes('%')) return numeric / 100;
   return numeric > 1 ? numeric / 100 : numeric;
+}
+
+function headerIndex(sheet: ExcelJS.Worksheet | undefined) {
+  const indexes = new Map<string, number>();
+  if (!sheet) return indexes;
+  const headerRow = sheet.getRow(1);
+  for (let col = 1; col <= (sheet.columnCount || 0); col += 1) {
+    const header = textAt(headerRow, col);
+    if (header) indexes.set(header, col);
+  }
+  return indexes;
+}
+
+function col(indexes: Map<string, number>, names: string[], fallback: number) {
+  for (const name of names) {
+    const found = indexes.get(name);
+    if (found) return found;
+  }
+  return fallback;
+}
+
+function nullableNumberAt(row: ExcelJS.Row, colNumber: number) {
+  if (colNumber <= 0) return null;
+  const raw = numberText(textAt(row, colNumber));
+  if (!raw) return null;
+  const numeric = Number(raw.replace('%', ''));
+  if (!Number.isFinite(numeric)) return null;
+  if (raw.includes('%')) return numeric / 100;
+  return numeric;
 }
 
 function eachDataRow<T>(workbook: ExcelJS.Workbook, sheetName: string, mapper: (row: ExcelJS.Row, rowNumber: number) => T | null) {
@@ -410,42 +551,56 @@ export async function parseV60WorkbookImportData(buffer: Buffer) {
     };
   });
 
-  const simpleCost = (sheetName: string, professionalGroup: string) => eachDataRow(workbook, sheetName, (row) => {
-    const costCode = textAt(row, 1);
-    const detailName = textAt(row, 2);
-    if (!costCode && !detailName) return null;
-    return {
-      sheetName,
-      professionalGroup,
-      costCode,
-      detailName,
-      regionOrProductType: '',
-      measureBasis: textAt(row, 3),
-      quantity: numberAt(row, 4),
-      unit: textAt(row, 5),
-      taxInclusiveUnitPrice: numberAt(row, 6),
-      taxRate: taxRateAt(row, 7),
-      remark: textAt(row, 9)
-    };
-  });
+  const simpleCost = (sheetName: string, professionalGroup: string) => {
+    const indexes = headerIndex(workbook.getWorksheet(sheetName));
+    return eachDataRow(workbook, sheetName, (row) => {
+      const costCodeCol = col(indexes, ['成本编码'], 1);
+      const detailNameCol = col(indexes, ['科目', '明细科目'], 2);
+      const quantityCol = col(indexes, ['工程量', 'finalQuantity'], 4);
+      const costCode = textAt(row, costCodeCol);
+      const detailName = textAt(row, detailNameCol);
+      if (!costCode && !detailName) return null;
+      return {
+        sheetName,
+        professionalGroup,
+        costCode,
+        detailName,
+        regionOrProductType: '',
+        measureBasis: textAt(row, col(indexes, ['测算依据'], 3)),
+        quantity: numberAt(row, quantityCol),
+        manualQuantity: nullableNumberAt(row, col(indexes, ['手工工程量', 'manualQuantity'], 0)),
+        excelImportedQuantity: nullableNumberAt(row, col(indexes, ['Excel导入工程量', 'Excel 导入工程量', 'excelImportedQuantity'], 0)),
+        quantitySourceNote: textAt(row, col(indexes, ['工程量来源'], 0)),
+        unit: textAt(row, col(indexes, ['单位'], 5)),
+        taxInclusiveUnitPrice: numberAt(row, col(indexes, ['含税单价'], 6)),
+        taxRate: taxRateAt(row, col(indexes, ['税率'], 7)),
+        remark: textAt(row, col(indexes, ['备注'], 9))
+      };
+    });
+  };
 
+  const professionalIndexes = headerIndex(workbook.getWorksheet('各专业明细表'));
   const professionalCosts = eachDataRow(workbook, '各专业明细表', (row) => {
-    const professionalGroup = textAt(row, 1);
-    const costCode = textAt(row, 2);
-    const detailName = textAt(row, 3);
+    const quantityCol = col(professionalIndexes, ['工程量', 'finalQuantity'], 6);
+    const professionalGroup = textAt(row, col(professionalIndexes, ['专业'], 1));
+    const costCode = textAt(row, col(professionalIndexes, ['成本编码'], 2));
+    const detailName = textAt(row, col(professionalIndexes, ['科目', '明细科目'], 3));
     if (!costCode && !detailName) return null;
     return {
       sheetName: '各专业明细表',
       professionalGroup,
       costCode,
       detailName,
-      regionOrProductType: textAt(row, 4),
-      measureBasis: textAt(row, 5),
-      quantity: numberAt(row, 6),
-      unit: textAt(row, 7),
-      taxInclusiveUnitPrice: numberAt(row, 8),
-      taxRate: taxRateAt(row, 9),
-      remark: textAt(row, 11)
+      regionOrProductType: textAt(row, col(professionalIndexes, ['产品/区域'], 4)),
+      measureBasis: textAt(row, col(professionalIndexes, ['测算依据'], 5)),
+      quantity: numberAt(row, quantityCol),
+      manualQuantity: nullableNumberAt(row, col(professionalIndexes, ['手工工程量', 'manualQuantity'], 0)),
+      excelImportedQuantity: nullableNumberAt(row, col(professionalIndexes, ['Excel导入工程量', 'Excel 导入工程量', 'excelImportedQuantity'], 0)),
+      quantitySourceNote: textAt(row, col(professionalIndexes, ['工程量来源'], 0)),
+      unit: textAt(row, col(professionalIndexes, ['单位'], 7)),
+      taxInclusiveUnitPrice: numberAt(row, col(professionalIndexes, ['含税单价'], 8)),
+      taxRate: taxRateAt(row, col(professionalIndexes, ['税率'], 9)),
+      remark: textAt(row, col(professionalIndexes, ['备注'], 11))
     };
   });
 
@@ -521,7 +676,7 @@ function previewRows(sheet: ExcelJS.Worksheet) {
   for (let rowIndex = 1; rowIndex <= maxRows; rowIndex += 1) {
     const row = sheet.getRow(rowIndex);
     const values: string[] = [];
-    const maxCols = Math.min(sheet.columnCount || 8, 8);
+    const maxCols = Math.min(sheet.columnCount || 8, 12);
     for (let colIndex = 1; colIndex <= maxCols; colIndex += 1) values.push(cellToText(row.getCell(colIndex)));
     if (values.some(Boolean)) rows.push(values);
   }
@@ -532,7 +687,7 @@ export async function parseV60WorkbookPreview(buffer: Buffer, context: { project
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer as any);
 
-  const expected = new Set<string>(V60_SHEET_NAMES);
+  const expected = new Set<string | typeof OPTIONAL_SOURCE_SHEET_NAME>([...V60_SHEET_NAMES, OPTIONAL_SOURCE_SHEET_NAME]);
   const issues: ExcelIssue[] = [];
   const sheets: ExcelSheetResult[] = [];
   const parsedDataPreview: Record<string, string[][]> = {};
@@ -554,6 +709,11 @@ export async function parseV60WorkbookPreview(buffer: Buffer, context: { project
     const localIssueCount = issues.filter((issue) => issue.sheetName === sheetName).length;
     sheets.push({ name: sheetName, expected: true, status: 'parsed', rowCount: sheet.rowCount, columnCount: sheet.columnCount, issueCount: localIssueCount });
     parsedDataPreview[sheetName] = previewRows(sheet);
+  }
+  const sourceSheet = workbook.getWorksheet(OPTIONAL_SOURCE_SHEET_NAME);
+  if (sourceSheet) {
+    sheets.push({ name: OPTIONAL_SOURCE_SHEET_NAME, expected: true, status: 'parsed', rowCount: sourceSheet.rowCount, columnCount: sourceSheet.columnCount, issueCount: 0 });
+    parsedDataPreview[OPTIONAL_SOURCE_SHEET_NAME] = previewRows(sourceSheet);
   }
 
   workbook.worksheets.filter((sheet) => !expected.has(sheet.name)).forEach((sheet) => {
