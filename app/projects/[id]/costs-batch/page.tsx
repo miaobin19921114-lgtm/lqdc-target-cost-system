@@ -6,6 +6,7 @@ import { RefreshSubmitButton } from '@/components/refresh-submit-button';
 import { prisma } from '@/lib/prisma';
 import { ProjectTopNav } from '@/components/project-navigation';
 import { activeVersionOrder, activeVersionWhere, isVersionLocked } from '@/lib/project-version';
+import { CostStatusBadge, StatusLine, formatAmountStatus, formatQuantitySource, formatQuantityStatus, formatUnitPriceSource, missingLabels, nextActionForStatus } from '@/components/cost-quantity-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,37 @@ type CostLinePreview = {
   importBatchId: string | null;
   measureValue: unknown;
   coefficient: unknown;
+  engineeringMetricQuantity: unknown;
+  manualQuantity: unknown;
+  excelImportedQuantity: unknown;
+  drawingMeasuredQuantity: unknown;
+  lockedQuantity: unknown;
+  templateDefaultQuantity: unknown;
+  quantitySource: string | null;
+  quantityStatus: string | null;
+  quantityFormula: string | null;
+  amountStatus: string | null;
+  unitPriceSourceType: string | null;
+  pricingUnit: string | null;
+  constructionStandardCode: string | null;
+  specialOptionCode: string | null;
+  buildingId: string | null;
+  unitId: string | null;
+  houseTypeId: string | null;
+  locationType: string | null;
+  buildingPart: string | null;
+  quantityPrecisionLevel: string | null;
+  pricePrecisionLevel: string | null;
   remark: string | null;
+};
+
+type CostLineStatusRow = {
+  costSubject: { code: string; name: string };
+  detailName: string;
+  quantitySource: string | null;
+  quantityStatus: string | null;
+  amountStatus: string | null;
+  taxInclusiveAmount: unknown;
 };
 
 function num(value: unknown) { return Number(value || 0); }
@@ -63,11 +94,37 @@ function priceSourceLabel(source: string) {
   return { system_default: '系统默认', region_price_library: '地区价格库', user_project_manual: '项目手工', historical_project: '历史项目', excel_imported: 'Excel 导入', contract_price: '合同价', market_inquiry: '市场询价', supplier_quote: '供应商报价' }[source] || '其他来源';
 }
 function calculatedQuantity(line: CostLinePreview) { return round2(num(line.measureValue) * (num(line.coefficient) || 1)); }
-function overrideNotice(mode: string) {
-  if (mode === 'manual_entered') return '当前工程量已手算覆盖，后续含量变化不会自动覆盖实际采用工程量';
-  if (mode === 'auto_calculated') return '当前工程量由基础指标 × 含量自动推算';
-  if (mode === 'locked_confirmed') return '当前工程量已锁定，不允许修改';
-  return '按接口返回口径展示';
+function lineQuantitySource(line: CostLinePreview) {
+  return line.quantitySource || quantityMode(line);
+}
+function linePriceSource(line: CostLinePreview) {
+  return line.unitPriceSourceType || priceSource(line);
+}
+function lineBasisValues(line: CostLinePreview) {
+  return [
+    ['工程量指标', line.engineeringMetricQuantity],
+    ['手工覆盖', line.manualQuantity],
+    ['Excel 导入', line.excelImportedQuantity],
+    ['图纸算量', line.drawingMeasuredQuantity],
+    ['锁定值', line.lockedQuantity],
+    ['模板默认', line.templateDefaultQuantity]
+  ].filter(([, value]) => value !== null && value !== undefined && value !== '');
+}
+function reservedValues(line: CostLinePreview) {
+  return [
+    ['建造标准', line.constructionStandardCode],
+    ['专项选项', line.specialOptionCode],
+    ['楼栋', line.buildingId],
+    ['单元', line.unitId],
+    ['户型', line.houseTypeId],
+    ['部位类型', line.locationType],
+    ['工程部位', line.buildingPart],
+    ['工程量精度', line.quantityPrecisionLevel],
+    ['单价精度', line.pricePrecisionLevel]
+  ].filter(([, value]) => value);
+}
+function statusCount(rows: CostLineStatusRow[], predicate: (row: CostLineStatusRow) => boolean) {
+  return rows.filter(predicate).length;
 }
 
 const SUBJECT_NAMES: Record<string, string> = {
@@ -236,10 +293,35 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
     take: 80
   }) as CostLinePreview[] : [];
 
+  const costLineStatusRows: CostLineStatusRow[] = version ? await prisma.costLine.findMany({
+    where: {
+      projectVersionId: version.id,
+      OR: [{ productTypeId: null }, { productType: { isActive: true } }]
+    },
+    select: {
+      costSubject: { select: { code: true, name: true } },
+      detailName: true,
+      quantitySource: true,
+      quantityStatus: true,
+      amountStatus: true,
+      taxInclusiveAmount: true
+    },
+    orderBy: [{ professionalGroup: 'asc' }, { sortOrder: 'asc' }, { detailName: 'asc' }]
+  }) as CostLineStatusRow[] : [];
+
   const levelOneRows = rows.filter((row) => subjectLevel(row.subjectCode) <= 1 || Object.keys(SUBJECT_NAMES).includes(row.subjectCode));
   const total = rows.reduce((sum, row) => sum + Number(row.taxInclusiveAmount || 0), 0);
   const totalExclusive = rows.reduce((sum, row) => sum + Number(row.taxExclusiveAmount || 0), 0);
   const totalTax = rows.reduce((sum, row) => sum + Number(row.taxAmount || 0), 0);
+  const warningRows = costLineStatusRows.filter((line) => missingLabels(line).length > 0 || num(line.taxInclusiveAmount) === 0);
+  const warningPreview = warningRows.slice(0, 12);
+  const statusSummary = [
+    ['缺少指标基数', statusCount(costLineStatusRows, (line) => line.quantityStatus === 'missing_basis')],
+    ['缺少含量规则', statusCount(costLineStatusRows, (line) => line.quantityStatus === 'missing_content_rule')],
+    ['缺少单价', statusCount(costLineStatusRows, (line) => line.amountStatus === 'missing_unit_price')],
+    ['手工覆盖', statusCount(costLineStatusRows, (line) => ['manual_override', 'manual_entered', 'user_project_manual'].includes(String(line.quantitySource || '')))],
+    ['已锁定', statusCount(costLineStatusRows, (line) => ['locked', 'locked_confirmed'].includes(String(line.quantitySource || '')))]
+  ] as const;
 
   return <main className="page">
     <ProjectTopNav projectId={project.id} projectName={project.name} current="目标成本测算表" />
@@ -273,6 +355,29 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
       </div>
 
       <section className="card" style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div>
+            <h2 style={{ margin: 0 }}>测算状态提醒</h2>
+            <p className="meta" style={{ margin: '6px 0 0' }}>仅展示影响汇总的业务状态，不在主表铺开技术字段。</p>
+          </div>
+          {warningRows.length ? <details style={{ minWidth: 260 }}>
+            <summary className="btn" style={{ cursor: 'pointer' }}>查看影响明细（{warningRows.length}）</summary>
+            <div style={{ marginTop: 10, border: '1px solid #ffd8a8', borderRadius: 8, background: '#fff9db', padding: 10, maxWidth: 620 }}>
+              {warningPreview.map((line, index) => <div key={`${line.costSubject.code}-${line.detailName}-${index}`} style={{ padding: '6px 0', borderBottom: index === warningPreview.length - 1 ? undefined : '1px solid #ffe8cc' }}>
+                <b>{line.costSubject.code} {line.costSubject.name}</b>
+                <div className="meta">{line.detailName}</div>
+                <StatusLine>{missingLabels(line).join('、') || '金额尚未生成'}。{nextActionForStatus(line)}</StatusLine>
+              </div>)}
+              {warningRows.length > warningPreview.length ? <p className="meta" style={{ marginBottom: 0 }}>还有 {warningRows.length - warningPreview.length} 行未展示，请在下方量价额明细预览中继续查看。</p> : null}
+            </div>
+          </details> : null}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 12 }}>
+          {statusSummary.map(([label, count]) => <div key={label} style={{ border: '1px solid #e6eef7', borderRadius: 8, padding: 10, background: count ? '#fff9db' : '#fbfdff' }}><b>{count}</b><div className="meta">{label}</div></div>)}
+        </div>
+      </section>
+
+      <section className="card" style={{ marginBottom: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <h2 style={{ margin: 0 }}>重新生成目标成本测算表</h2>
@@ -298,7 +403,7 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
             <thead><tr>{['科目编码', '科目名称', '层级', '测算依据', '工程量', '单位', '含税单价', '税率', '不含税金额', '税额', '含税金额', '建面单方', '可售单方', '业态列', '来源'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #e6edf5', background: '#f8fafc', color: '#667085' }}>{head}</th>)}</tr></thead>
             <tbody>{rows.map((row) => <tr key={row.subjectCode}>
               <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{row.subjectCode}</td>
-              <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', paddingLeft: 10 + subjectIndent(row.subjectCode) }}>{row.subjectName}</td>
+              <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', paddingLeft: 10 + subjectIndent(row.subjectCode) }}>{row.subjectName}{warningRows.some((line) => line.costSubject.code === row.subjectCode || line.costSubject.code.startsWith(`${row.subjectCode}.`)) ? <div style={{ marginTop: 4 }}><CostStatusBadge meta={{ label: '有待补项', tone: 'warning', description: '该科目下存在缺少指标基数、含量规则或单价的成本行。' }} /></div> : null}</td>
               <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>L{row.subjectLevel || subjectLevel(row.subjectCode)}</td>
               <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{row.ruleType || '明细汇总'}</td>
               <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', textAlign: 'right' }}>-</td>
@@ -323,22 +428,46 @@ export default async function TargetCostBatchPage({ params, searchParams }: { pa
         <p className="meta">金额单位：万元；工程量和含税单价来自专业明细页，本区用于复核量价额和手算覆盖状态。</p>
         {costLinePreview.length === 0 ? <EmptyState title="当前尚未生成目标成本明细">请先保存成本明细，再点击“生成明细测算结果”。形成成本行后，本区会展示工程量、单价、含税金额和手算覆盖状态。</EmptyState> : <div style={{ overflowX: 'auto', marginTop: 12 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1680, fontSize: 12 }}>
-            <thead><tr>{['科目', '对象 / 依据', '系统计算工程量', '生效工程量', '含税单价', '单价来源', '税率', '含税金额', '不含税 / 税额', '工程量来源', '手算覆盖状态'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #e6edf5', background: '#f8fafc', color: '#667085' }}>{head}</th>)}</tr></thead>
+            <thead><tr>{['科目', '对象 / 依据', '系统计算工程量', '生效工程量', '含税单价', '单价来源', '税率', '含税金额', '不含税 / 税额', '工程量来源', '状态 / 测算依据'].map((head) => <th key={head} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #e6edf5', background: '#f8fafc', color: '#667085' }}>{head}</th>)}</tr></thead>
             <tbody>{costLinePreview.map((line) => {
-              const mode = quantityMode(line);
-              const source = priceSource(line);
+              const quantitySource = lineQuantitySource(line);
+              const unitPriceSource = linePriceSource(line);
+              const missing = missingLabels(line);
+              const basisValues = lineBasisValues(line);
+              const reserved = reservedValues(line);
               return <tr key={line.id} style={line.quantityOverride ? { background: '#fffaf0' } : undefined}>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{line.costSubject.code} {line.costSubject.name}<div className="meta">{line.detailName}</div></td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{line.productType?.name || line.regionOrProductType || '全项目'}<div className="meta">{line.measureBasis || '未配置基础指标绑定'}</div></td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(calculatedQuantity(line))} {line.unit || ''}<div className="meta">基础指标 {fmt(line.measureValue)} x 含量 {fmt(line.coefficient || 1)}</div></td>
-                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{fmt(line.quantity)} {line.unit || ''}</td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{fmt(line.quantity)} {line.unit || ''}<div style={{ marginTop: 5 }}><CostStatusBadge meta={formatQuantitySource(quantitySource)} /></div></td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(line.taxInclusiveUnitPrice)}<div className="meta">{line.unit ? `元/${line.unit}` : '按后端返回'}</div></td>
-                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{priceSourceLabel(source)}</td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}><CostStatusBadge meta={formatUnitPriceSource(unitPriceSource)} /><div className="meta">{line.pricingUnit || priceSourceLabel(unitPriceSource)}</div></td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(num(line.taxRate) * 100)}%</td>
-                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{fmt(line.taxInclusiveAmount)}</td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', fontWeight: 900 }}>{fmt(line.taxInclusiveAmount)}<div style={{ marginTop: 5 }}><CostStatusBadge meta={formatAmountStatus(line.amountStatus)} /></div></td>
                 <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{fmt(line.taxExclusiveAmount)} / {fmt(line.taxAmount)}</td>
-                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{quantityModeLabel(mode)}</td>
-                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}>{line.quantityOverride ? '已手算覆盖' : '未覆盖'}<div className="meta" style={{ maxWidth: 260 }}>{line.quantityOverride ? (line.remark || overrideNotice(mode)) : overrideNotice(mode)}</div></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6' }}><CostStatusBadge meta={formatQuantityStatus(line.quantityStatus || quantitySource)} /><StatusLine>{missing.join('、') || formatQuantitySource(quantitySource).description}</StatusLine></td>
+                <td style={{ padding: 10, borderBottom: '1px solid #eef2f6', minWidth: 260 }}>
+                  <div>{line.quantityOverride ? '已手算覆盖' : '未手工覆盖'}</div>
+                  <StatusLine>{nextActionForStatus(line)}</StatusLine>
+                  <details style={{ marginTop: 6 }}>
+                    <summary style={{ cursor: 'pointer', color: '#0b7285', fontWeight: 800 }}>查看测算依据</summary>
+                    <div style={{ marginTop: 8, border: '1px solid #e6eef7', borderRadius: 8, padding: 10, background: '#fbfdff', lineHeight: 1.7 }}>
+                      <div><b>成本科目：</b>{line.costSubject.code} {line.costSubject.name}</div>
+                      <div><b>指标基数：</b>{fmt(line.measureValue)} {line.unit || ''}</div>
+                      <div><b>指标来源：</b>{formatQuantitySource(quantitySource).label}</div>
+                      <div><b>含量规则：</b>{line.coefficient === null || line.coefficient === undefined ? '未维护' : `含量 ${fmt(line.coefficient)}`}</div>
+                      <div><b>推算公式：</b>{line.quantityFormula || `基础指标 ${fmt(line.measureValue)} x 含量 ${fmt(line.coefficient || 1)}`}</div>
+                      <div><b>工程量来源：</b>{formatQuantitySource(quantitySource).label}</div>
+                      <div><b>单价来源：</b>{formatUnitPriceSource(unitPriceSource).label}</div>
+                      <div><b>单价单位：</b>{line.pricingUnit || (line.unit ? `元/${line.unit}` : '按后端返回')}</div>
+                      <div><b>金额状态：</b>{formatAmountStatus(line.amountStatus).label}</div>
+                      <div><b>缺失项：</b>{missing.join('、') || '无'}</div>
+                      <div><b>下一步：</b>{nextActionForStatus(line)}</div>
+                      {basisValues.length ? <div><b>来源值：</b>{basisValues.map(([label, value]) => `${label} ${fmt(value)}`).join('；')}</div> : null}
+                      {reserved.length ? <div><b>预留信息：</b>{reserved.map(([label, value]) => `${label} ${value}`).join('；')}</div> : null}
+                    </div>
+                  </details>
+                </td>
               </tr>;
             })}</tbody>
           </table>

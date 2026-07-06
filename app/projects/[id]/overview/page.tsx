@@ -767,6 +767,7 @@ async function QuantityIndicatorsSection({ projectId, versionId, locked }: { pro
   const baseIndicators = indicators.filter((item: any) => item.baseIndicatorName || item.baseIndicatorValue !== null);
   const contentRules = indicators.filter((item: any) => item.contentRatio !== null && item.contentRatio !== undefined);
   return <SectionShell>
+    <StatusNotice title="工程量来源口径">工程量指标是工程量来源之一，不是唯一来源。当前工程量来源优先级：已锁定 &gt; 图纸算量 &gt; Excel 导入 &gt; 手工覆盖 &gt; 工程量指标 &gt; 系统推算 &gt; 模板默认。未填写工程量指标时，系统仍可根据项目指标 × 含量规则推算工程量。</StatusNotice>
     {data.warnings?.length ? <StatusNotice title="工程量复核提醒" tone="warning">{data.warnings.join('；')}</StatusNotice> : null}
     {data.helpText ? <StatusNotice title="工程量口径说明" tone="success">{data.helpText}</StatusNotice> : null}
     {locked ? <StatusNotice title="当前版本已锁定" tone="danger">工程量指标、手算覆盖与恢复系统推算只读，不允许修改。</StatusNotice> : null}
