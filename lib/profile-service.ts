@@ -51,6 +51,7 @@ const projectMetricExtraKeys = [
   'nonCivilDefenseParkingCount',
   'propertyRightParkingCount',
   'useRightParkingCount',
+  'hasMechanicalParking',
   'mechanicalParkingCount',
   'chargingPileParkingCount',
   'parkingUnitPrice',
@@ -615,8 +616,8 @@ export async function getProfileProjectMetrics(projectId: string, versionId: str
       undergroundPublicArea: value('undergroundPublicArea') || nullableNumber(project.publicArea),
       basementFloorCount: project.basementFloors || null,
       basementB1Height: value('basementB1Height') || nullableNumber(project.basementFloorHeight),
-      basementB2Height: value('basementB2Height'),
-      basementOtherAvgHeight: value('basementOtherAvgHeight'),
+      basementB2Height: value('basementB2Height') || nullableNumber(project.basementB2FloorHeight),
+      basementOtherAvgHeight: value('basementOtherAvgHeight') || nullableNumber(project.basementOtherAvgFloorHeight),
       remark: '主楼地下室 / 非主楼地下室 = 空间归属口径；地下车库面积 = 功能使用口径。地下车库面积不等于非主楼地下室面积。',
       helpText: '主楼地下室 / 非主楼地下室 = 空间归属口径；地下车库面积 = 功能使用口径。地下车库面积不等于非主楼地下室面积。'
     },
@@ -626,7 +627,8 @@ export async function getProfileProjectMetrics(projectId: string, versionId: str
       nonCivilDefenseParkingCount: value('nonCivilDefenseParkingCount'),
       propertyRightParkingCount: value('propertyRightParkingCount') || project.undergroundPropertyParkingCount || null,
       useRightParkingCount: value('useRightParkingCount') || project.undergroundUseRightParkingCount || null,
-      mechanicalParkingCount: value('mechanicalParkingCount'),
+      hasMechanicalParking: project.hasMechanicalParking || Boolean(value('mechanicalParkingCount')) || project.mechanicalParkingCount > 0,
+      mechanicalParkingCount: value('mechanicalParkingCount') || project.mechanicalParkingCount || null,
       chargingPileParkingCount: value('chargingPileParkingCount') || project.chargingPileCount || null,
       parkingUnitPrice: value('parkingUnitPrice'),
       quantityUnit: '个',
@@ -713,8 +715,11 @@ export async function saveProfileProjectMetrics(projectId: string, versionId: st
     nonCivilDefenseArea: 'nonCivilDefenseArea',
     basementFloorCount: 'basementFloors',
     basementB1Height: 'basementFloorHeight',
+    basementB2Height: 'basementB2FloorHeight',
+    basementOtherAvgHeight: 'basementOtherAvgFloorHeight',
     undergroundParkingCount: 'parkingCount',
     civilDefenseParkingCount: 'civilDefenseParkingCount',
+    mechanicalParkingCount: 'mechanicalParkingCount',
     landscapeArea: 'landscapeArea',
     hardLandscapeArea: 'hardscapeArea',
     softLandscapeArea: 'softscapeArea',
@@ -727,6 +732,8 @@ export async function saveProfileProjectMetrics(projectId: string, versionId: st
     if (inputKey in flat) projectData[projectKey] = Number.isInteger((version.project as any)[projectKey]) ? Math.round(n(flat[inputKey])) : n(flat[inputKey]);
   }
   if ('softLandscapeArea' in flat) projectData.greenArea = n(flat.softLandscapeArea);
+  if ('hasMechanicalParking' in flat) projectData.hasMechanicalParking = bool(flat.hasMechanicalParking);
+  if ('mechanicalParkingCount' in flat) projectData.hasMechanicalParking = bool(flat.hasMechanicalParking) || n(flat.mechanicalParkingCount) > 0;
   if ('sampleRoomArea' in flat) projectData.showFlatArea = n(flat.sampleRoomArea);
   if ('salesOfficeArea' in flat) projectData.salesOfficeArea = n(flat.salesOfficeArea);
   if ('isSampleRoomEnabled' in flat) projectData.hasShowFlat = bool(flat.isSampleRoomEnabled);

@@ -42,6 +42,7 @@ export const v60ProjectMetricDefinitions: ProjectMetricDefinitionSeed[] = [
   metric('undergroundUseRightParkingCount', '地下使用权车位', '个', '地下室/车位指标', '用于地下使用权车位收入及成本分摊。', 207),
   metric('civilDefenseParkingCount', '人防车位', '个', '地下室/车位指标', '用于人防车位测算。', 208),
   metric('aboveGroundParkingCount', '地上车位', '个', '地下室/车位指标', '用于地上停车相关测算。', 209),
+  metric('mechanicalParkingCount', '机械车位数量', '个', '地下室/车位指标', '用于机械车位设备和专项配置判断。', 210),
 
   metric('buildingCount', '楼栋数量', '栋', '楼栋/单元/户数/电梯指标', '用于楼栋级费用。', 301),
   metric('unitCount', '单元数量', '个', '楼栋/单元/户数/电梯指标', '用于电梯、门禁、入户大堂等测算。', 302),
@@ -50,7 +51,9 @@ export const v60ProjectMetricDefinitions: ProjectMetricDefinitionSeed[] = [
   metric('aboveGroundFloors', '地上层数', '层', '楼栋/单元/户数/电梯指标', '用于主体测算参考。', 305),
   metric('basementFloors', '地下层数', '层', '楼栋/单元/户数/电梯指标', '用于地下室测算参考。', 306),
   metric('standardFloorHeight', '标准层层高', 'm', '楼栋/单元/户数/电梯指标', '用于结构、外墙、体积类参考。', 307),
-  metric('basementFloorHeight', '地下室层高', 'm', '楼栋/单元/户数/电梯指标', '用于地下室结构、安装参考。', 308),
+  metric('basementFloorHeight', '地下室 B1 层高', 'm', '楼栋/单元/户数/电梯指标', '用于地下室结构、安装参考。', 308),
+  metric('basementB2FloorHeight', '地下室 B2 层高', 'm', '楼栋/单元/户数/电梯指标', '用于地下二层结构、安装参考。', 309),
+  metric('basementOtherAvgFloorHeight', '其他地下层平均层高', 'm', '楼栋/单元/户数/电梯指标', '用于三层及以上地下室结构、安装参考。', 310),
 
   metric('sitePerimeter', '周界长度', 'm', '场地/前期/临设指标', '用于围墙、围挡、周界报警。', 401),
   metric('gateCount', '出入口数量', '个', '场地/前期/临设指标', '用于出入口、大门、门岗。', 402),

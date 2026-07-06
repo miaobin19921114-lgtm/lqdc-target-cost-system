@@ -48,6 +48,14 @@ function pickRecordNumber(record: unknown, key: string) {
   return toNumber((record as Record<string, unknown>)[key]);
 }
 
+const projectMetricAliases: Record<string, string> = {
+  basementB1Height: 'basementFloorHeight',
+  basementB2Height: 'basementB2FloorHeight',
+  basementOtherAvgHeight: 'basementOtherAvgFloorHeight',
+  undergroundParkingCount: 'parkingCount',
+  parkingTotalCount: 'parkingCount'
+};
+
 function matchProductName(name: string | null | undefined, regionOrProductType: string | null | undefined) {
   const productName = String(name || '').trim();
   const target = String(regionOrProductType || '').trim();
@@ -77,7 +85,7 @@ async function resolveProjectMetric(prisma: PrismaClient, input: RuleDrivenQuant
   if (metricValue) return toNumber(metricValue.value);
 
   const project = await prisma.project.findUnique({ where: { id: input.projectId } });
-  return pickRecordNumber(project, metricKey);
+  return pickRecordNumber(project, metricKey) || pickRecordNumber(project, projectMetricAliases[metricKey]);
 }
 
 async function resolveProductMetric(prisma: PrismaClient, input: RuleDrivenQuantityInput, metricKey: string) {

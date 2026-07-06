@@ -23,6 +23,11 @@ function clean(form: FormData, name: string) {
   return String(form.get(name) || '').trim();
 }
 
+function toBool(value: FormDataEntryValue | null) {
+  const raw = String(value || '');
+  return raw === 'true' || raw === 'on' || raw === '1';
+}
+
 function cookieValue(request: Request, name: string) {
   const cookie = request.headers.get('cookie') || '';
   const found = cookie.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`));
@@ -174,6 +179,11 @@ export async function POST(request: Request) {
       totalBuildingArea: toNumber(form.get('totalBuildingArea')),
       saleableArea: toNumber(form.get('saleableArea')),
       parkingCount: Math.round(toNumber(form.get('parkingCount'))),
+      hasMechanicalParking: toBool(form.get('hasMechanicalParking')),
+      mechanicalParkingCount: Math.round(toNumber(form.get('mechanicalParkingCount'))),
+      basementFloorHeight: toNumber(form.get('basementB1Height')) || toNumber(form.get('basementFloorHeight')),
+      basementB2FloorHeight: toNumber(form.get('basementB2Height')) || toNumber(form.get('basementB2FloorHeight')),
+      basementOtherAvgFloorHeight: toNumber(form.get('basementOtherAvgHeight')) || toNumber(form.get('basementOtherAvgFloorHeight')),
       residentialFitoutDelivery: clean(form, 'residentialFitoutDelivery') === 'true',
       isPrefabricated: clean(form, 'isPrefabricated') === 'true',
       heatingEnabled: clean(form, 'heatingEnabled') === 'true',

@@ -1,0 +1,4 @@
+ALTER TABLE "Project" ADD COLUMN "hasMechanicalParking" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Project" ADD COLUMN "mechanicalParkingCount" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Project" ADD COLUMN "basementB2FloorHeight" DECIMAL(65,30) NOT NULL DEFAULT 0;
+ALTER TABLE "Project" ADD COLUMN "basementOtherAvgFloorHeight" DECIMAL(65,30) NOT NULL DEFAULT 0;

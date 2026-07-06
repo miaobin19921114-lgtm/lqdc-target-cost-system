@@ -37,7 +37,8 @@ export default async function NewProjectPage() {
       <label>是否装配式<select name="isPrefabricated" defaultValue="false"><option value="false">否</option><option value="true">是</option></select></label>
       <label>是否采暖<select name="heatingEnabled" defaultValue="false"><option value="false">否</option><option value="true">是</option></select></label>
       <label>是否有人防<select name="hasCivilDefense" defaultValue="false"><option value="false">否</option><option value="true">是，面积后续维护</option></select></label>
-      <label>是否有机械车位<select name="hasMechanicalParking" defaultValue="false"><option value="false">否</option><option value="true">是，06 接口/字段后维护</option></select></label>
+      <label>是否有机械车位<select name="hasMechanicalParking" defaultValue="false"><option value="false">否</option><option value="true">是</option></select></label>
+      <label>机械车位数量（个）<input name="mechanicalParkingCount" type="number" min="0" /></label>
       <label>是否有充电桩<select name="hasChargingPile" defaultValue="false"><option value="false">否</option><option value="true">是，数量后续维护</option></select></label>
     </div></section>
     <section className="card" style={{ marginBottom: 14 }}><span className="badge">第 3 步</span><h2>选择业态</h2><p className="meta">默认展示住宅、商业、车位、地下室和配套常用业态；更多业态可展开选择。</p>{templates.length ? <ProductCascadeSelector templates={selectorTemplates} /> : <p className="meta">模板中心暂无可用业态。可先填写项目信息，创建后再维护自定义业态。</p>}<details style={{ marginTop: 12 }}><summary style={{ cursor: 'pointer', fontWeight: 900 }}>展开更多业态</summary><p className="meta">可在创建后进入“业态产品与对象”补充办公、酒店、幼儿园、配建用房等非默认业态。</p></details><div className="meta" style={{ marginTop: 10 }}>保留“新增自定义业态”，用于非标准产品测算。</div></section>

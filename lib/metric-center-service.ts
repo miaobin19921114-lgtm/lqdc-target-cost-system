@@ -111,14 +111,16 @@ const unitPlanFields = [
 const basementFields = [
   'basementTotalArea', 'mainBuildingBasementArea', 'nonMainBuildingBasementArea', 'undergroundGarageArea',
   'civilDefenseArea', 'nonCivilDefenseArea', 'equipmentRoomArea', 'undergroundPublicArea', 'basementFloorCount',
-  'basementFloorHeight', 'undergroundParkingCount', 'civilDefenseParkingCount', 'nonCivilDefenseParkingCount',
+  'basementFloorHeight', 'basementB1Height', 'basementB2Height', 'basementOtherAvgHeight',
+  'undergroundParkingCount', 'civilDefenseParkingCount', 'nonCivilDefenseParkingCount',
   'chargingParkingCount', 'garageFloorArea', 'trafficMarkingAreaOrCount', 'rampCount', 'rampArea',
   'lightWellCountReserved', 'remark'
 ] as const;
 
 const parkingFields = [
   'parkingTotalCount', 'propertyRightParkingCount', 'useRightParkingCount', 'civilDefenseParkingCount',
-  'nonCivilDefenseParkingCount', 'saleableParkingCount', 'selfOwnedParkingCount', 'mechanicalParkingCount',
+  'nonCivilDefenseParkingCount', 'saleableParkingCount', 'selfOwnedParkingCount', 'hasMechanicalParking',
+  'mechanicalParkingCount',
   'chargingPileParkingCount', 'chargingPileCount', 'parkingSaleUnitPriceReserved', 'parkingRentUnitPriceReserved', 'remark'
 ] as const;
 
@@ -196,6 +198,9 @@ function projectDefaults(project: any) {
       undergroundPublicArea: pickNumber(project, 'publicArea'),
       basementFloorCount: project.basementFloors || null,
       basementFloorHeight: pickNumber(project, 'basementFloorHeight'),
+      basementB1Height: pickNumber(project, 'basementFloorHeight'),
+      basementB2Height: pickNumber(project, 'basementB2FloorHeight'),
+      basementOtherAvgHeight: pickNumber(project, 'basementOtherAvgFloorHeight'),
       undergroundParkingCount: project.parkingCount || null,
       civilDefenseParkingCount: project.civilDefenseParkingCount || null,
       nonCivilDefenseParkingCount: null,
@@ -215,7 +220,8 @@ function projectDefaults(project: any) {
       nonCivilDefenseParkingCount: null,
       saleableParkingCount: null,
       selfOwnedParkingCount: null,
-      mechanicalParkingCount: null,
+      hasMechanicalParking: project.hasMechanicalParking || project.mechanicalParkingCount > 0,
+      mechanicalParkingCount: project.mechanicalParkingCount || null,
       chargingPileParkingCount: project.chargingPileCount || null,
       chargingPileCount: project.chargingPileCount || null,
       parkingSaleUnitPriceReserved: null,
@@ -396,7 +402,11 @@ const mappingDefinitions = [
   ['buildingMetrics', 'typicalFloorArea', 'typical_floor_metric', 'typical_floor_area', '标准层面积', '平方米'],
   ['basementMetrics', 'undergroundGarageArea', 'site_plan_metric', 'underground_garage_area', '地下车库面积', '平方米'],
   ['basementMetrics', 'civilDefenseArea', 'site_plan_metric', 'civil_defense_area', '人防面积', '平方米'],
+  ['basementMetrics', 'basementB1Height', 'site_plan_metric', 'basement_b1_height', 'B1 层高', '米'],
+  ['basementMetrics', 'basementB2Height', 'site_plan_metric', 'basement_b2_height', 'B2 层高', '米'],
+  ['basementMetrics', 'basementOtherAvgHeight', 'site_plan_metric', 'basement_other_avg_height', '其他地下层平均层高', '米'],
   ['parkingMetrics', 'parkingTotalCount', 'product_object_metric', 'parking_total_count', '车位总数', '个'],
+  ['parkingMetrics', 'mechanicalParkingCount', 'product_object_metric', 'mechanical_parking_count', '机械车位数量', '个'],
   ['landscapeRoadMetrics', 'hardscapeArea', 'site_plan_metric', 'hardscape_area', '硬景面积', '平方米'],
   ['landscapeRoadMetrics', 'softscapeArea', 'site_plan_metric', 'softscape_area', '软景面积', '平方米'],
   ['landscapeRoadMetrics', 'wallLength', 'site_plan_metric', 'wall_length', '围墙长度', '米'],
@@ -515,6 +525,51 @@ function projectPatch(input: any) {
   return data;
 }
 
+function basementPatch(input: any) {
+  const map: Record<string, string> = {
+    basementTotalArea: 'undergroundArea',
+    mainBuildingBasementArea: 'mainBuildingUndergroundArea',
+    undergroundGarageArea: 'basementParkingArea',
+    civilDefenseArea: 'civilDefenseArea',
+    nonCivilDefenseArea: 'nonCivilDefenseArea',
+    undergroundPublicArea: 'publicArea',
+    basementFloorCount: 'basementFloors',
+    basementFloorHeight: 'basementFloorHeight',
+    basementB1Height: 'basementFloorHeight',
+    basementB2Height: 'basementB2FloorHeight',
+    basementOtherAvgHeight: 'basementOtherAvgFloorHeight',
+    undergroundParkingCount: 'parkingCount',
+    civilDefenseParkingCount: 'civilDefenseParkingCount',
+    chargingParkingCount: 'chargingPileCount',
+    garageFloorArea: 'basementParkingArea'
+  };
+  const intFields = new Set(['basementFloorCount', 'undergroundParkingCount', 'civilDefenseParkingCount', 'chargingParkingCount']);
+  const data: Record<string, number> = {};
+  for (const [inputKey, projectKey] of Object.entries(map)) {
+    if (inputKey in input) data[projectKey] = intFields.has(inputKey) ? Math.round(n(input[inputKey])) : n(input[inputKey]);
+  }
+  return data;
+}
+
+function parkingPatch(input: any) {
+  const map: Record<string, string> = {
+    parkingTotalCount: 'parkingCount',
+    propertyRightParkingCount: 'undergroundPropertyParkingCount',
+    useRightParkingCount: 'undergroundUseRightParkingCount',
+    civilDefenseParkingCount: 'civilDefenseParkingCount',
+    mechanicalParkingCount: 'mechanicalParkingCount',
+    chargingPileParkingCount: 'chargingPileCount',
+    chargingPileCount: 'chargingPileCount'
+  };
+  const data: Record<string, number | boolean> = {};
+  for (const [inputKey, projectKey] of Object.entries(map)) {
+    if (inputKey in input) data[projectKey] = Math.round(n(input[inputKey]));
+  }
+  if ('hasMechanicalParking' in input) data.hasMechanicalParking = bool(input.hasMechanicalParking);
+  if ('mechanicalParkingCount' in input) data.hasMechanicalParking = bool(input.hasMechanicalParking) || n(input.mechanicalParkingCount) > 0;
+  return data;
+}
+
 export async function saveProjectMetricCenter(projectId: string, versionId: string, body: Record<string, unknown>) {
   const version = await loadVersion(projectId, versionId);
   if (!version) return error('VERSION_NOT_FOUND', '测算版本不存在。', 404);
@@ -526,13 +581,18 @@ export async function saveProjectMetricCenter(projectId: string, versionId: stri
   await prisma.$transaction(async (tx) => {
     for (const section of sections) {
       if (section in singletonSections) {
-        const payload = normalizeObject(body[section] as any, singletonSections[section], {});
+        const existing = before?.[section] && typeof before[section] === 'object' ? before[section] : {};
+        const payload = normalizeObject(body[section] as any, singletonSections[section], existing);
         await tx.projectMetricValue.deleteMany({ where: { projectId, projectVersionId: versionId, source: metricCenterSource, scope: section } });
         await tx.projectMetricValue.create({ data: { projectId, projectVersionId: versionId, metricKey: section, scope: section, value: 0, source: metricCenterSource, remark: JSON.stringify(payload) } });
-        if (section === 'projectTotalMetrics') {
-          const patch = projectPatch(payload);
-          if (Object.keys(patch).length) await tx.project.update({ where: { id: projectId }, data: patch });
-        }
+        const patch = section === 'projectTotalMetrics'
+          ? projectPatch(body[section])
+          : section === 'basementMetrics'
+            ? basementPatch(body[section])
+            : section === 'parkingMetrics'
+              ? parkingPatch(body[section])
+              : {};
+        if (Object.keys(patch).length) await tx.project.update({ where: { id: projectId }, data: patch });
       } else {
         const rows = Array.isArray(body[section]) ? body[section] as any[] : [];
         await tx.projectMetricValue.deleteMany({ where: { projectId, projectVersionId: versionId, source: metricCenterSource, scope: section } });

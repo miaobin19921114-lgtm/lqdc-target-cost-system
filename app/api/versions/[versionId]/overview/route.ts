@@ -7,6 +7,8 @@ const metricFields = [
   'basementB1Height',
   'basementB2Height',
   'basementOtherAvgHeight',
+  'hasMechanicalParking',
+  'mechanicalParkingCount',
   'pedestrianRoadArea',
   'prefabArea',
   'isFineDecorationEnabled',
@@ -66,8 +68,10 @@ async function loadOverview(versionId: string) {
       greenArea: project.greenArea,
       basementFloorCount: project.basementFloors,
       basementB1Height: value('basementB1Height') ?? project.basementFloorHeight,
-      basementB2Height: value('basementB2Height') ?? 0,
-      basementOtherAvgHeight: value('basementOtherAvgHeight') ?? 0,
+      basementB2Height: value('basementB2Height') ?? project.basementB2FloorHeight,
+      basementOtherAvgHeight: value('basementOtherAvgHeight') ?? project.basementOtherAvgFloorHeight,
+      hasMechanicalParking: boolValue('hasMechanicalParking') || project.hasMechanicalParking || n(project.mechanicalParkingCount) > 0,
+      mechanicalParkingCount: value('mechanicalParkingCount') ?? project.mechanicalParkingCount,
       pedestrianRoadArea: value('pedestrianRoadArea') ?? 0,
       vehicleRoadArea: project.roadArea,
       fireRoadAreaIncluded: project.fireRoadArea,
@@ -137,6 +141,11 @@ async function saveOverview(versionId: string, body: Record<string, unknown>) {
   if ('softLandscapeArea' in body) projectData.greenArea = n(body.softLandscapeArea);
   assignInt('basementFloors', 'basementFloorCount');
   assignNumber('basementFloorHeight', 'basementB1Height');
+  assignNumber('basementB2FloorHeight', 'basementB2Height');
+  assignNumber('basementOtherAvgFloorHeight', 'basementOtherAvgHeight');
+  assignBool('hasMechanicalParking', 'hasMechanicalParking');
+  assignInt('mechanicalParkingCount', 'mechanicalParkingCount');
+  if ('mechanicalParkingCount' in body) projectData.hasMechanicalParking = b(body.hasMechanicalParking) || n(body.mechanicalParkingCount) > 0;
   assignNumber('roadArea', 'vehicleRoadArea');
   assignNumber('fireRoadArea', 'fireRoadAreaIncluded');
   assignBool('isPrefabricated', 'isPrefabEnabled');
@@ -164,6 +173,10 @@ async function saveOverview(versionId: string, body: Record<string, unknown>) {
           greenArea: loaded.data.greenArea,
           basementFloorCount: loaded.data.basementFloorCount,
           basementB1Height: loaded.data.basementB1Height,
+          basementB2Height: loaded.data.basementB2Height,
+          basementOtherAvgHeight: loaded.data.basementOtherAvgHeight,
+          hasMechanicalParking: loaded.data.hasMechanicalParking,
+          mechanicalParkingCount: loaded.data.mechanicalParkingCount,
           vehicleRoadArea: loaded.data.vehicleRoadArea,
           fireRoadAreaIncluded: loaded.data.fireRoadAreaIncluded
         },

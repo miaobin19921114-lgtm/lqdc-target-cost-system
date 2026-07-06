@@ -73,6 +73,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       undergroundUseRightParkingCount: toInt(form, 'undergroundUseRightParkingCount'),
       civilDefenseParkingCount: toInt(form, 'civilDefenseParkingCount'),
       aboveGroundParkingCount: toInt(form, 'aboveGroundParkingCount'),
+      hasMechanicalParking: toBool(form, 'hasMechanicalParking') || toInt(form, 'mechanicalParkingCount') > 0,
+      mechanicalParkingCount: toInt(form, 'mechanicalParkingCount'),
       chargingPileCount: toInt(form, 'chargingPileCount'),
       fastChargingPileCount: toInt(form, 'fastChargingPileCount'),
       slowChargingPileCount: toInt(form, 'slowChargingPileCount'),
@@ -92,6 +94,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       standardFloorArea: toNumber(form, 'standardFloorArea'),
       standardFloorHeight: toNumber(form, 'standardFloorHeight'),
       basementFloorHeight: toNumber(form, 'basementFloorHeight'),
+      basementB2FloorHeight: toNumber(form, 'basementB2FloorHeight') || toNumber(form, 'basementB2Height'),
+      basementOtherAvgFloorHeight: toNumber(form, 'basementOtherAvgFloorHeight') || toNumber(form, 'basementOtherAvgHeight'),
 
       sitePerimeter: toNumber(form, 'sitePerimeter'),
       gateCount: toInt(form, 'gateCount') || toInt(form, 'formalGateCount') + toInt(form, 'temporaryGateCount'),
@@ -177,6 +181,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
         greenArea: beforeProject.greenArea,
         basementFloors: beforeProject.basementFloors,
         basementFloorHeight: beforeProject.basementFloorHeight,
+        basementB2FloorHeight: beforeProject.basementB2FloorHeight,
+        basementOtherAvgFloorHeight: beforeProject.basementOtherAvgFloorHeight,
+        hasMechanicalParking: beforeProject.hasMechanicalParking,
+        mechanicalParkingCount: beforeProject.mechanicalParkingCount,
         roadArea: beforeProject.roadArea,
         fireRoadArea: beforeProject.fireRoadArea
       } : null,
@@ -185,12 +193,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
         greenArea,
         basementFloors: toInt(form, 'basementFloors'),
         basementFloorHeight: toNumber(form, 'basementFloorHeight'),
+        basementB2FloorHeight: toNumber(form, 'basementB2FloorHeight') || toNumber(form, 'basementB2Height'),
+        basementOtherAvgFloorHeight: toNumber(form, 'basementOtherAvgFloorHeight') || toNumber(form, 'basementOtherAvgHeight'),
+        hasMechanicalParking: toBool(form, 'hasMechanicalParking') || toInt(form, 'mechanicalParkingCount') > 0,
+        mechanicalParkingCount: toInt(form, 'mechanicalParkingCount'),
         roadArea: toNumber(form, 'roadArea'),
         fireRoadArea: toNumber(form, 'fireRoadArea')
       },
       remark: {
         source: 'project_overview_form',
-        changedFields: ['softscapeArea', 'greenArea', 'basementFloors', 'basementFloorHeight', 'roadArea', 'fireRoadArea']
+        changedFields: ['softscapeArea', 'greenArea', 'basementFloors', 'basementFloorHeight', 'basementB2FloorHeight', 'basementOtherAvgFloorHeight', 'hasMechanicalParking', 'mechanicalParkingCount', 'roadArea', 'fireRoadArea']
       }
     });
   });
