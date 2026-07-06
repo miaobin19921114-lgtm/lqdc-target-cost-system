@@ -20,22 +20,23 @@ model User {
 }
 
 model Template {
-  id                String             @id @default(cuid())
+  id                String                    @id @default(cuid())
   name              String
-  type              String             @default("住宅开发")
+  type              String                    @default("住宅开发")
   description       String?
-  isDefault         Boolean            @default(false)
-  isActive          Boolean            @default(true)
-  sortOrder         Int                @default(0)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @default(now()) @updatedAt
+  isDefault         Boolean                   @default(false)
+  isActive          Boolean                   @default(true)
+  sortOrder         Int                       @default(0)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @default(now()) @updatedAt
   ownerId           String?
   baseTemplateId    String?
   sourceProjectId   String?
   sourceProjectName String?
-  owner             User?              @relation(fields: [ownerId], references: [id])
+  owner             User?                     @relation(fields: [ownerId], references: [id])
   costRules         TemplateCostRule[]
   products          TemplateProduct[]
+  subjectBindings   SubjectIndicatorBinding[]
   taxRules          TemplateTaxRule[]
 
   @@index([ownerId])
@@ -231,20 +232,21 @@ model Project {
 }
 
 model ProjectVersion {
-  id        String            @id @default(cuid())
-  projectId String
-  name      String
-  status    String            @default("draft")
-  isLocked  Boolean           @default(false)
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @default(now()) @updatedAt
-  stage     String?
-  costs     CostLine[]
-  products  ProductType[]
-  costRules ProjectCostRule[]
-  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  revenues  RevenueLine[]
-  taxes     TaxParameter?
+  id              String                    @id @default(cuid())
+  projectId       String
+  name            String
+  status          String                    @default("draft")
+  isLocked        Boolean                   @default(false)
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @default(now()) @updatedAt
+  stage           String?
+  costs           CostLine[]
+  products        ProductType[]
+  costRules       ProjectCostRule[]
+  project         Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  revenues        RevenueLine[]
+  subjectBindings SubjectIndicatorBinding[]
+  taxes           TaxParameter?
 }
 
 model ProductType {
@@ -309,22 +311,59 @@ model ProjectCostRule {
 }
 
 model CostSubject {
-  id                      String        @id @default(cuid())
-  code                    String        @unique
+  id                      String                    @id @default(cuid())
+  code                    String                    @unique
   name                    String
   level                   Int
   parentId                String?
   fullPath                String?
   defaultUnit             String?
-  defaultTaxRate          Decimal       @default(0.09)
+  defaultTaxRate          Decimal                   @default(0.09)
   defaultMeasureBasis     String?
   defaultAllocationMethod String?
-  sortOrder               Int           @default(0)
-  enabled                 Boolean       @default(true)
+  sortOrder               Int                       @default(0)
+  enabled                 Boolean                   @default(true)
   parentCode              String?
   costs                   CostLine[]
-  parent                  CostSubject?  @relation("CostSubjectTree", fields: [parentId], references: [id])
-  children                CostSubject[] @relation("CostSubjectTree")
+  subjectBindings         SubjectIndicatorBinding[]
+  parent                  CostSubject?              @relation("CostSubjectTree", fields: [parentId], references: [id])
+  children                CostSubject[]             @relation("CostSubjectTree")
+}
+
+model SubjectIndicatorBinding {
+  id                           String          @id @default(cuid())
+  templateId                   String?
+  versionId                    String?
+  detailSubjectId              String
+  costSubjectCode              String
+  baseIndicatorCode            String?
+  contentRuleCode              String?
+  unitPriceSourceCode          String?
+  calculationMode              String          @default("quantity_unit_price")
+  defaultFormula               String?
+  allowManualOverride          Boolean         @default(true)
+  allowExcelOverride           Boolean         @default(true)
+  allowDrawingMeasuredOverride Boolean         @default(true)
+  missingBaseIndicatorAction   String          @default("warn_and_continue")
+  missingContentRuleAction     String          @default("warn_and_continue")
+  missingUnitPriceAction       String          @default("warn_and_continue")
+  isEnabled                    Boolean         @default(true)
+  sortOrder                    Int             @default(0)
+  remark                       String?
+  createdAt                    DateTime        @default(now())
+  updatedAt                    DateTime        @default(now()) @updatedAt
+  detailSubject                CostSubject     @relation(fields: [detailSubjectId], references: [id])
+  template                     Template?       @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  projectVersion               ProjectVersion? @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([versionId])
+  @@index([detailSubjectId])
+  @@index([costSubjectCode])
+  @@index([baseIndicatorCode])
+  @@index([contentRuleCode])
+  @@index([unitPriceSourceCode])
+  @@index([isEnabled])
 }
 
 model ProjectMetricDefinition {
@@ -413,34 +452,55 @@ model CostDictionaryRow {
 }
 
 model CostLine {
-  id                    String         @id @default(cuid())
-  projectVersionId      String
-  costSubjectId         String
-  productTypeId         String?
-  detailName            String
-  regionOrProductType   String?
-  professionalGroup     String?
-  measureBasis          String?
-  quantity              Decimal        @default(0)
-  unit                  String?
-  taxExclusiveUnitPrice Decimal        @default(0)
-  taxInclusiveUnitPrice Decimal        @default(0)
-  taxRate               Decimal        @default(0.09)
-  taxExclusiveAmount    Decimal        @default(0)
-  taxAmount             Decimal        @default(0)
-  taxInclusiveAmount    Decimal        @default(0)
-  allocationMethod      String?
-  isDirectAssigned      Boolean        @default(false)
-  description           String?
-  remark                String?
-  sortOrder             Int            @default(0)
-  coefficient           Decimal        @default(1)
-  importBatchId         String?
-  measureValue          Decimal        @default(0)
-  quantityOverride      Boolean        @default(false)
-  costSubject           CostSubject    @relation(fields: [costSubjectId], references: [id])
-  productType           ProductType?   @relation(fields: [productTypeId], references: [id])
-  projectVersion        ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+  id                        String         @id @default(cuid())
+  projectVersionId          String
+  costSubjectId             String
+  productTypeId             String?
+  detailName                String
+  regionOrProductType       String?
+  professionalGroup         String?
+  measureBasis              String?
+  quantity                  Decimal        @default(0)
+  unit                      String?
+  taxExclusiveUnitPrice     Decimal        @default(0)
+  taxInclusiveUnitPrice     Decimal        @default(0)
+  taxRate                   Decimal        @default(0.09)
+  taxExclusiveAmount        Decimal        @default(0)
+  taxAmount                 Decimal        @default(0)
+  taxInclusiveAmount        Decimal        @default(0)
+  allocationMethod          String?
+  isDirectAssigned          Boolean        @default(false)
+  description               String?
+  remark                    String?
+  sortOrder                 Int            @default(0)
+  coefficient               Decimal        @default(1)
+  importBatchId             String?
+  measureValue              Decimal        @default(0)
+  quantityOverride          Boolean        @default(false)
+  engineeringMetricQuantity Decimal?
+  manualQuantity            Decimal?
+  excelImportedQuantity     Decimal?
+  drawingMeasuredQuantity   Decimal?
+  lockedQuantity            Decimal?
+  templateDefaultQuantity   Decimal?
+  quantitySource            String?
+  quantityStatus            String         @default("normal")
+  quantityFormula           String?
+  unitPriceSourceType       String?
+  pricingUnit               String?
+  amountStatus              String?
+  constructionStandardCode  String?
+  specialOptionCode         String?
+  buildingId                String?
+  unitId                    String?
+  houseTypeId               String?
+  locationType              String?
+  buildingPart              String?
+  quantityPrecisionLevel    String?
+  pricePrecisionLevel       String?
+  costSubject               CostSubject    @relation(fields: [costSubjectId], references: [id])
+  productType               ProductType?   @relation(fields: [productTypeId], references: [id])
+  projectVersion            ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
 
   @@index([importBatchId])
 }
